@@ -8,9 +8,9 @@ class TomatoYieldModel:
         self.LAI_MAX = 3.5  # "Maximum leaf area index, m2 leaf/m2 greenhouse"
         
         #***************** Varying inputs *******************//
-        self.R_PAR_can = 460  # "Total PAR absorbed by the canopy, umol/(s.m2)"
-        self.CO2_air = 600    # "CO2 concentration of the greenhouse air, umol CO2/mol air"
-        self.T_canK = 293.15  # "Instantaneous canopy temperature, K"
+        self.R_PAR_can = None  # "Total PAR absorbed by the canopy, umol/(s.m2)"
+        self.CO2_air = None    # "CO2 concentration of the greenhouse air, umol CO2/mol air"
+        self.T_canK = None     # "Instantaneous canopy temperature, K"
         
         #***************** Constant parameters characteristic of the plant ***************************//
         self.C_Buf_MAX = 20e3  # "Maximum buffer capacity, mg/m2"
@@ -217,7 +217,58 @@ class TomatoYieldModel:
         
         return derivatives
     
-    def simulate(self, days=10):
+    def set_environmental_conditions(self, R_PAR_can, CO2_air, T_canK):
+        """환경 조건을 설정합니다.
+        
+        Args:
+            R_PAR_can (float): 캐노피가 흡수하는 총 PAR, umol/(s.m2)
+            CO2_air (float): 온실 공기의 CO2 농도, umol CO2/mol air
+            T_canK (float): 순간 캐노피 온도, K
+        """
+        self.R_PAR_can = R_PAR_can
+        self.CO2_air = CO2_air
+        self.T_canK = T_canK
+    
+    def simulate(self, days=100, csv_file=None):
+        """시뮬레이션을 실행합니다.
+        
+        Args:
+            days (int): 시뮬레이션 기간 (일)
+            csv_file (str): 환경 데이터가 저장된 CSV 파일 경로
+                CSV 파일은 다음 열을 포함해야 합니다:
+                - timestamp: 시간 (초)
+                - PAR: 광합성 활성 방사선 (umol/(s.m2))
+                - CO2: 이산화탄소 농도 (umol CO2/mol air)
+                - temperature: 온도 (℃)
+        """
+        if csv_file is not None:
+            try:
+                import pandas as pd
+                # CSV 파일 읽기
+                df = pd.read_csv(csv_file)
+                
+                # 데이터 전처리
+                self.R_PAR_can = df['PAR'].values
+                self.CO2_air = df['CO2'].values
+                self.T_canK = df['temperature'].values + 273.15  # ℃를 K로 변환
+                
+                # 시간 데이터
+                t = df['time'].values
+                
+            except Exception as e:
+                print(f"CSV 파일 읽기 오류: {e}")
+                print("기본 환경 조건을 사용합니다.")
+                self.R_PAR_can = 460
+                self.CO2_air = 600
+                self.T_canK = 293.15
+                t = np.linspace(0, days*86400, int(days*100))
+        else:
+            # 기본 환경 조건 사용
+            self.R_PAR_can = 460
+            self.CO2_air = 600
+            self.T_canK = 293.15
+            t = np.linspace(0, days*86400, int(days*100))
+        
         # Initial conditions
         y0 = np.concatenate([
             [self.C_Buf, self.C_Leaf, self.C_Stem],
@@ -225,10 +276,7 @@ class TomatoYieldModel:
             self.N_Fruit,
             [self.T_can24C, self.T_canSumC],
             [self.DM_Har]
-        ]).astype(float)  # Ensure all values are float
-        
-        # Time points
-        t = np.linspace(0, days*86400, int(days*24))
+        ]).astype(float)
         
         # Solve ODE
         solution = odeint(self.calculate_derivatives, y0, t, tfirst=True)
@@ -266,35 +314,36 @@ class TomatoYieldModel:
         
         return results
 
-# Example usage
-if __name__ == "__main__":
-    model = TomatoYieldModel()
-    results = model.simulate(10)
+# # Example usage
+# if __name__ == "__main__":
+#     model = TomatoYieldModel()
+#     # CSV 파일에서 환경 데이터를 읽어 시뮬레이션 실행
+#     results = model.simulate(csv_file='greenhouse_data.csv')
     
-    # Print results in a formatted way
-    print("\n=== 토마토 생장 모델 시뮬레이션 결과 ===")
-    print("\n[탄수화물 저장량 (mg/m²)]")
-    print(f"버퍼: {results['C_Buf']:.2f}")
-    print(f"잎: {results['C_Leaf']:.2f}")
-    print(f"줄기: {results['C_Stem']:.2f}")
+#     # Print results in a formatted way
+#     print("\n=== 토마토 생장 모델 시뮬레이션 결과 ===")
+#     print("\n[탄수화물 저장량 (mg/m²)]")
+#     print(f"버퍼: {results['C_Buf']:.2f}")
+#     print(f"잎: {results['C_Leaf']:.2f}")
+#     print(f"줄기: {results['C_Stem']:.2f}")
     
-    print("\n[과실 탄수화물 (mg/m²)]")
-    print(f"총량: {results['C_Fruit']['total']:.2f}")
-    print(f"평균: {results['C_Fruit']['mean']:.2f}")
-    print(f"최대: {results['C_Fruit']['max']:.2f}")
-    print(f"최소: {results['C_Fruit']['min']:.2f}")
-    print(f"비영과실 수: {results['C_Fruit']['non_zero']:.0f}")
+#     print("\n[과실 탄수화물 (mg/m²)]")
+#     print(f"총량: {results['C_Fruit']['total']:.2f}")
+#     print(f"평균: {results['C_Fruit']['mean']:.2f}")
+#     print(f"최대: {results['C_Fruit']['max']:.2f}")
+#     print(f"최소: {results['C_Fruit']['min']:.2f}")
+#     print(f"비영과실 수: {results['C_Fruit']['non_zero']:.0f}")
     
-    print("\n[과실 수 (개/m²)]")
-    print(f"총수: {results['N_Fruit']['total']:.2f}")
-    print(f"평균: {results['N_Fruit']['mean']:.2f}")
-    print(f"최대: {results['N_Fruit']['max']:.2f}")
-    print(f"최소: {results['N_Fruit']['min']:.2f}")
-    print(f"비영과실 수: {results['N_Fruit']['non_zero']:.0f}")
+#     print("\n[과실 수 (개/m²)]")
+#     print(f"총수: {results['N_Fruit']['total']:.2f}")
+#     print(f"평균: {results['N_Fruit']['mean']:.2f}")
+#     print(f"최대: {results['N_Fruit']['max']:.2f}")
+#     print(f"최소: {results['N_Fruit']['min']:.2f}")
+#     print(f"비영과실 수: {results['N_Fruit']['non_zero']:.0f}")
     
-    print("\n[온도 정보]")
-    print(f"24시간 평균 온도: {results['T_can24C']:.2f}°C")
-    print(f"온도 적산: {results['T_canSumC']:.2f}°C")
+#     print("\n[온도 정보]")
+#     print(f"24시간 평균 온도: {results['T_can24C']:.2f}°C")
+#     print(f"온도 적산: {results['T_canSumC']:.2f}°C")
     
-    print(f"\n수확된 건물중: {results['DM_Har']:.2f} mg/m²")
+#     print(f"\n수확된 건물중: {results['DM_Har']:.2f} mg/m²")
  
