@@ -94,9 +94,6 @@ class TomatoYieldModel:
         self.MC_BufFruit_j = np.zeros(self.n_dev)  # "Buffer to fruit flow"
         self.MC_FruitAir_j = np.zeros(self.n_dev)  # "Fruit maintenance respiration"
         
-    def safe_exp(self, x):
-        return np.exp(np.clip(x, -700, 700))
-    
     def calculate_derivatives(self, t, y):
         # Unpack state variables
         C_Buf, C_Leaf, C_Stem = y[0:3]
@@ -115,10 +112,10 @@ class TomatoYieldModel:
         Gamma = self.J_25Leaf_MAX / (J_25Can_MAX + 1e-6) * self.c_Gamma * T_canC + \
                 20 * self.c_Gamma * (1 - self.J_25Leaf_MAX / (J_25Can_MAX + 1e-6))
         
-        J_POT = J_25Can_MAX * self.safe_exp(self.E_j * (self.T_canK - self.T_25K) / 
+        J_POT = J_25Can_MAX * np.exp(self.E_j * (self.T_canK - self.T_25K) / 
                 (self.Rg * self.T_canK * self.T_25K)) * \
-                (1 + self.safe_exp((self.S * self.T_25K - self.H) / (self.Rg * self.T_25K))) / \
-                (1 + self.safe_exp((self.S * self.T_canK - self.H) / (self.Rg * self.T_canK)))
+                (1 + np.exp((self.S * self.T_25K - self.H) / (self.Rg * self.T_25K))) / \
+                (1 + np.exp((self.S * self.T_canK - self.H) / (self.Rg * self.T_canK)))
         
         J = (J_POT + self.alpha * self.R_PAR_can - np.sqrt((J_POT + self.alpha * self.R_PAR_can)**2 - 
              4 * self.theta * J_POT * self.alpha * self.R_PAR_can)) / (2 * self.theta)
@@ -127,15 +124,15 @@ class TomatoYieldModel:
         R = P * Gamma / CO2_stom
         
         # Calculate flows
-        h_CBuf_MCairBuf = 1 / (1 + self.safe_exp(5e-3 * (C_Buf - self.C_Buf_MAX)))
+        h_CBuf_MCairBuf = 1 / (1 + np.exp(5e-3 * (C_Buf - self.C_Buf_MAX)))
         MC_AirBuf = self.M_CH2O * h_CBuf_MCairBuf * (P - R)
         
-        h_CBuf_MCBufOrg = 1 / (1 + self.safe_exp(-5e-2 * (C_Buf - self.C_Buf_MIN)))
-        h_Tcan24 = 1 / (1 + self.safe_exp(-1.1587 * (T_can24C - 15))) * \
-                   1 / (1 + self.safe_exp(1.3904 * (T_can24C - 24.5)))
+        h_CBuf_MCBufOrg = 1 / (1 + np.exp(-5e-2 * (C_Buf - self.C_Buf_MIN)))
+        h_Tcan24 = 1 / (1 + np.exp(-1.1587 * (T_can24C - 15))) * \
+                   1 / (1 + np.exp(1.3904 * (T_can24C - 24.5)))
         g_Tcan24 = 0.047 * T_can24C + 0.06
-        h_Tcan = 1 / (1 + self.safe_exp(-0.869 * (T_canC - 10))) * \
-                 1 / (1 + self.safe_exp(0.5793 * (T_canC - 34)))
+        h_Tcan = 1 / (1 + np.exp(-0.869 * (T_canC - 10))) * \
+                 1 / (1 + np.exp(0.5793 * (T_canC - 34)))
         h_TcanSum = 0.5 * (1 / self.T_endSumC * T_canSumC + 
                           np.sqrt((1 / self.T_endSumC * T_canSumC)**2 + 1e-4)) - \
                     0.5 * (1 / self.T_endSumC * (T_canSumC - self.T_endSumC) + 
@@ -172,12 +169,12 @@ class TomatoYieldModel:
         MC_FruitHar = np.zeros(self.n_dev)
         for j in range(self.n_dev):
             if C_Fruit[j] >= self.G_MAX * N_Fruit[j]:
-                MC_FruitHar[j] = C_Fruit[j] / (1 + self.safe_exp(-5e-5 * (C_Fruit[j] - self.G_MAX * N_Fruit[j])))
+                MC_FruitHar[j] = C_Fruit[j] / (1 + np.exp(-5e-5 * (C_Fruit[j] - self.G_MAX * N_Fruit[j])))
         
         MC_LeafHar = 0
         C_Leaf_MAX = self.LAI_MAX / self.SLA
         if C_Leaf > C_Leaf_MAX:
-            MC_LeafHar = 1 / (1 + self.safe_exp(-5e-5 * (C_Leaf - C_Leaf_MAX))) * (C_Leaf - C_Leaf_MAX)
+            MC_LeafHar = 1 / (1 + np.exp(-5e-5 * (C_Leaf - C_Leaf_MAX))) * (C_Leaf - C_Leaf_MAX)
         
         # Update leaf and fruit derivatives with harvest
         dC_Leaf -= MC_LeafHar
@@ -192,7 +189,7 @@ class TomatoYieldModel:
         # Fruit development calculations
         r_dev = self.c_dev_1 + self.c_dev_2 * T_can24C
         MN_BufFruit_1_MAX = self.n_plants * (self.c_BufFruit_1_MAX + self.c_BufFruit_2_MAX * T_can24C)
-        MN_BufFruit_1 = 1 / (1 + self.safe_exp(-58.9 * (MC_BufFruit - self.r_BufFruit_MAXFrtSet))) * MN_BufFruit_1_MAX
+        MN_BufFruit_1 = 1 / (1 + np.exp(-58.9 * (MC_BufFruit - self.r_BufFruit_MAXFrtSet))) * MN_BufFruit_1_MAX
         
         dN_Fruit = np.zeros(self.n_dev)
         dN_Fruit[0] = MN_BufFruit_1 - self.MN_Fruit[0,1]
@@ -215,7 +212,7 @@ class TomatoYieldModel:
             dC_Fruit,
             dN_Fruit,
             [dT_can24C, dT_canSumC],
-            [dDM_Har]  # Now using the calculated dDM_Har
+            [dDM_Har]
         ])
         
         return derivatives
