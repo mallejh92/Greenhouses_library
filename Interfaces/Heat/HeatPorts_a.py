@@ -1,82 +1,80 @@
-import numpy as np
+from typing import List, Optional
 from .HeatPort import HeatPort
 
 class HeatPorts_a:
     """
-    HeatPort connector with filled, large icon to be used for vectors of HeatPorts.
-    Equivalent to Modelica's HeatPorts_a connector.
+    HeatPort connector with filled, large icon to be used for vectors of HeatPorts
+    
+    This class implements the Modelica HeatPorts_a connector in Python.
+    It represents a vector of heat ports, each with temperature and heat flow rate.
     
     Attributes:
-        ports (numpy.ndarray): Array of HeatPort objects
-        size (int): Number of ports in the vector
+        ports (List[HeatPort]): List of heat ports
     """
-    def __init__(self, size=1, T_start=293.15):
+    
+    def __init__(self, size: int = 1):
         """
-        Initialize vector of heat ports.
+        Initialize HeatPorts_a
         
         Args:
-            size (int): Number of ports in the vector
-            T_start (float): Initial temperature for all ports [K]
+            size (int): Number of heat ports in the vector (default: 1)
         """
-        self.size = size
-        # Create array of HeatPort objects
-        self.ports = np.array([HeatPort(T_start=T_start) for _ in range(size)])
-        
-    def connect(self, other_ports):
+        self.ports = [HeatPort() for _ in range(size)]
+    
+    def __getitem__(self, index: int) -> HeatPort:
         """
-        Connect to another vector of ports.
+        Get heat port at specified index
         
         Args:
-            other_ports (HeatPorts_a): Another vector of ports to connect to
+            index (int): Index of the heat port
+            
+        Returns:
+            HeatPort: Heat port at the specified index
         """
-        if not isinstance(other_ports, HeatPorts_a):
-            raise TypeError("Can only connect to another HeatPorts_a instance")
-            
-        if self.size != other_ports.size:
-            raise ValueError("Cannot connect ports vectors of different sizes")
-            
-        # Connect each port pair
-        for i in range(self.size):
-            self.ports[i].connect(other_ports.ports[i])
-            
-    def get_temperatures(self):
+        return self.ports[index]
+    
+    def __setitem__(self, index: int, port: HeatPort) -> None:
         """
-        Get array of temperatures for all ports.
+        Set heat port at specified index
+        
+        Args:
+            index (int): Index of the heat port
+            port (HeatPort): Heat port to set
+        """
+        if not isinstance(port, HeatPort):
+            raise TypeError("Can only set HeatPort type")
+        self.ports[index] = port
+    
+    def __len__(self) -> int:
+        """
+        Get number of heat ports
         
         Returns:
-            numpy.ndarray: Array of temperatures [K]
+            int: Number of heat ports
         """
-        return np.array([port.T for port in self.ports])
-        
-    def get_heat_flows(self):
+        return len(self.ports)
+    
+    def connect(self, other: 'HeatPorts_a') -> None:
         """
-        Get array of heat flows for all ports.
-        
-        Returns:
-            numpy.ndarray: Array of heat flows [W]
-        """
-        return np.array([port.Q_flow for port in self.ports])
-        
-    def set_temperatures(self, temperatures):
-        """
-        Set temperatures for all ports.
+        Connect this heat ports vector to another heat ports vector
         
         Args:
-            temperatures (numpy.ndarray): Array of temperatures [K]
-        """
-        if len(temperatures) != self.size:
-            raise ValueError("Temperature array size must match number of ports")
-        for i, T in enumerate(temperatures):
-            self.ports[i].T = T
+            other (HeatPorts_a): Other heat ports vector to connect with
             
-    def set_heat_flows(self, heat_flows):
+        Raises:
+            TypeError: If the other connector is not of type HeatPorts_a
+            ValueError: If the vectors have different sizes
         """
-        Set heat flows for all ports.
+        if not isinstance(other, HeatPorts_a):
+            raise TypeError("Can only connect with HeatPorts_a type connectors")
+        if len(self) != len(other):
+            raise ValueError("Cannot connect heat port vectors of different sizes")
         
-        Args:
-            heat_flows (numpy.ndarray): Array of heat flows [W]
-        """
-        if len(heat_flows) != self.size:
-            raise ValueError("Heat flow array size must match number of ports")
-        for i, Q in enumerate(heat_flows):
-            self.ports[i].Q_flow = Q 
+        # Connect each port
+        for i in range(len(self)):
+            self.ports[i].connect(other.ports[i])
+    
+    def __str__(self) -> str:
+        """String representation of the heat ports vector"""
+        return (f"HeatPorts_a (size: {len(self)})\n" +
+                "\n".join(f"Port {i}: {port}" for i, port in enumerate(self.ports))) 

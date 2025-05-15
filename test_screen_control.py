@@ -1,66 +1,20 @@
-import time
-import numpy as np
-from ControlSystems.Climate.Utilities.SC_opening_closing import SC_opening_closing
+from Flows.FluidFlow.Flow1DimInc import Flow1DimInc
+# from Flows.HeatAndVapourTransfer.HeatTransfer.HeatTransfer import HeatTransfer
 
-def simulate_screen_control():
-    """
-    Simulate screen control for both warm and cold days
-    """
-    # Create screen control instances for different scenarios
-    warm_opening = SC_opening_closing(warmDay=True, opening=True)
-    warm_closing = SC_opening_closing(warmDay=True, opening=False)
-    cold_opening = SC_opening_closing(warmDay=False, opening=True)
-    cold_closing = SC_opening_closing(warmDay=False, opening=False)
-    
-    # Simulation parameters
-    dt = 1.0  # Time step [s]
-    sim_time = 3600  # Total simulation time [s]
-    entry_time = 0.0  # Start time for control
-    
-    print("\n=== 따뜻한 날 스크린 개방 시뮬레이션 ===")
-    print("시간[s]\t제어신호")
-    print("-" * 30)
-    
-    # Simulate warm day opening
-    for t in np.arange(0, sim_time, dt):
-        signal = warm_opening.update(entry_time, t)
-        if t % 60 == 0:  # Print every minute
-            print(f"{t:.0f}\t{signal:.3f}")
-    
-    print("\n=== 따뜻한 날 스크린 폐쇄 시뮬레이션 ===")
-    print("시간[s]\t제어신호")
-    print("-" * 30)
-    
-    # Simulate warm day closing
-    for t in np.arange(0, sim_time, dt):
-        signal = warm_closing.update(entry_time, t)
-        if t % 60 == 0:  # Print every minute
-            print(f"{t:.0f}\t{signal:.3f}")
-    
-    print("\n=== 추운 날 스크린 개방 시뮬레이션 ===")
-    print("시간[s]\t제어신호")
-    print("-" * 30)
-    
-    # Simulate cold day opening
-    for t in np.arange(0, sim_time, dt):
-        signal = cold_opening.update(entry_time, t)
-        if t % 60 == 0:  # Print every minute
-            print(f"{t:.0f}\t{signal:.3f}")
-    
-    print("\n=== 추운 날 스크린 폐쇄 시뮬레이션 ===")
-    print("시간[s]\t제어신호")
-    print("-" * 30)
-    
-    # Simulate cold day closing
-    for t in np.arange(0, sim_time, dt):
-        signal = cold_closing.update(entry_time, t)
-        if t % 60 == 0:  # Print every minute
-            print(f"{t:.0f}\t{signal:.3f}")
+flow = Flow1DimInc(
+    N=10,              # 10개의 셀
+    A=16.18,           # 16.18 m² 측면 표면적
+    V=0.03781,         # 0.03781 m³ 관 부피
+    Mdotnom=0.2588,    # 0.2588 kg/s 정상 유량
+    Unom=1000.0,       # 1000 W/(m²·K) 열전달 계수
+    pstart=1e5,        # 1 bar 초기 압력
+    Tstart_inlet=293.15,   # 20°C 입구 온도
+    Tstart_outlet=283.15   # 10°C 출구 온도
+)
 
-if __name__ == "__main__":
-    try:
-        simulate_screen_control()
-    except KeyboardInterrupt:
-        print("\n시뮬레이션이 중단되었습니다.")
-    except Exception as e:
-        print(f"\n오류가 발생했습니다: {e}") 
+# Q_tot, M_tot = flow.update(
+#     dt=0.1,            # 0.1 s 시간 단계
+#     h_in=1.1e5,        # 입구 엔탈피
+#     h_out=0.9e5,       # 출구 엔탈피
+#     heat_transfer=heat_transfer_model  # 열전달 모델
+# )
