@@ -1,5 +1,5 @@
 from Interfaces.Heat.HeatPorts_a import HeatPort_a
-from Interfaces.Heat.HeatPort_b import HeatPort_b
+from Interfaces.Heat.HeatPorts_b import HeatPort_b
 from Interfaces.Vapour.WaterMassPort_a import WaterMassPort_a
 from Interfaces.Vapour.WaterMassPort_b import WaterMassPort_b
 
