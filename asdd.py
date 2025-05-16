@@ -1,23 +1,22 @@
-from ControlSystems.HVAC.Control_Dehumidifier import Control_Dehumidifier
-import time
+from Flows.VapourMassTransfer.MV_AirThroughScreen import MV_AirThroughScreen
 
+# 사용 예시
+screen = MV_AirThroughScreen(
+    A=100.0,
+    input_f_AirTop=False,
+    W=2.0,
+    K=0.1
+)
 
-# 컨트롤러 인스턴스 생성
-controller = Control_Dehumidifier()
+# 입력값 설정
+screen.SC = 0.5
+screen.T_a = 298.0
+screen.T_b = 293.0
 
-# 시뮬레이션 루프
-while True:
-    # 입력값 읽기
-    T_air = read_air_temperature()
-    air_RH = read_air_humidity()
-    T_air_sp = read_air_temperature_setpoint()
-    
-    # 컨트롤러 업데이트
-    dehum, cs = controller.update(T_air, air_RH, T_air_sp, dt=0.1)
-    
-    # 제어 신호 적용
-    control_dehumidifier(dehum)
-    control_humidity(cs)
-    
-    # 시간 지연
-    time.sleep(0.1)
+# 내부 포트의 VP 값 설정
+screen.port_a.VP = 2000  # Pa
+screen.port_b.VP = 1000  # Pa
+
+# 계산
+screen.calculate()
+print(screen)  # MV_flow가 0이 아니어야 정상
