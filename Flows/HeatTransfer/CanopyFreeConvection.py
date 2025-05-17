@@ -6,7 +6,7 @@ class CanopyFreeConvection:
     leaves and air in a greenhouse system.
     """
     
-    def __init__(self, A, U=5):
+    def __init__(self, A, LAI=1, U=5):
         """
         Initialize the CanopyFreeConvection model
         
@@ -14,14 +14,14 @@ class CanopyFreeConvection:
         -----------
         A : float
             Floor surface area [m²]
+        LAI : float, optional
+            Leaf Area Index, default is 1
         U : float, optional
             Leaves heat transfer coefficient [W/(m²·K)], default is 5
         """
         self.A = A
         self.U = U
-        
-        # State variables
-        self.LAI = 1  # Leaf Area Index
+        self.LAI = LAI
         
     def calculate_heat_transfer(self, T_a, T_b):
         """

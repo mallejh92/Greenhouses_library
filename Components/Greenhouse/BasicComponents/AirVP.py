@@ -29,17 +29,19 @@ class AirVP:
         self.MV_flow = mv_flow
         self.port.MV_flow = mv_flow
 
-    def update(self, dt=1.0):
+    def update(self, VP_external=None, dt=1.0):
         """
-        Update vapor pressure using Euler integration
+        Update the vapor pressure
         Args:
+            VP_external: External vapor pressure [Pa]
             dt: Time step [s]
         """
-        if not self.steadystate:
-            C = self.M_H * 1e3 * self.V_air / (self.R * self.T)  # Multiply by 1e3 for unit consistency
-            dVP_dt = self.MV_flow / C
-            self.VP += dVP_dt * dt  # Euler integration
-            self.port.VP = self.VP  # Update port VP
+        if VP_external is not None:
+            self.VP = VP_external
+            self.port.VP = VP_external
+        elif not self.steadystate:
+            # (Euler integration 등 필요시)
+            pass
         # else: VP remains constant
 
     def get_vapor_pressure(self):

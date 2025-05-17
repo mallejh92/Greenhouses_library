@@ -11,12 +11,35 @@ from Flows.HeatTransfer.CanopyFreeConvection import CanopyFreeConvection
 from Flows.HeatTransfer.FreeConvection import FreeConvection
 from Flows.HeatTransfer.Radiation_T4 import Radiation_T4
 from ControlSystems.PID import PID
+from Components.CropYield.TomatoYieldModel import TomatoYieldModel
+from Flows.HeatTransfer.OutsideAirConvection import OutsideAirConvection
+from Flows.HeatTransfer.Radiation_N import Radiation_N
+from Components.Greenhouse.Illumination import Illumination
+from Flows.VapourMassTransfer.MV_CanopyTranspiration import MV_CanopyTranspiration
+from Flows.CO2MassTransfer.CO2_Air import CO2_Air
+import pandas as pd
 
 class Greenhouse:
     """
     Ready-to-use Venlo-type greenhouse for tomato crop cultivated from 10Dec-22Nov (weather data from TMY)
     """
     def __init__(self):
+        # Load weather and setpoint data
+        self.weather_df = pd.read_csv("./10Dec-22Nov.txt", delimiter="\t", skiprows=2, header=None)
+        self.weather_df.columns = ["time", "T_out", "RH_out", "P_out", "I_glob",
+                                   "u_wind", "T_sky", "T_air_sp", "CO2_air_sp", "ilu_sp"]
+        
+        self.sp_df = pd.read_csv("./SP_10Dec-22Nov.txt", delimiter="\t", skiprows=2, header=None)
+        self.sp_df.columns = ["time", "T_sp", "CO2_sp"]
+        
+        # Convert temperature from Celsius to Kelvin
+        self.weather_df["T_out"] = self.weather_df["T_out"] + 273.15
+        self.weather_df["T_sky"] = self.weather_df["T_sky"] + 273.15
+        self.weather_df["T_air_sp"] = self.weather_df["T_air_sp"] + 273.15
+        self.sp_df["T_sp"] = self.sp_df["T_sp"] + 273.15
+        
+        self.current_step = 0
+        
         # Heat flux variables
         self.q_low = 0.0  # Heat flux for lower heating pipe
         self.q_up = 0.0   # Heat flux for upper heating pipe
@@ -40,6 +63,9 @@ class Greenhouse:
         self.canopy = Canopy(A=14000, steadystate=True, LAI=1.06)
         self.floor = Floor(rho=1, c_p=2e6, A=14000, V=0.01*14000, steadystate=True)
         
+        # Initialize CO2 air component
+        self.CO2_air = CO2_Air(cap_CO2=3.8, CO2_start=1940.0, steadystate=True)
+        
         # Initialize heat transfer components
         self.Q_rad_CanCov = Radiation_T4(A=14000, epsilon_a=1, epsilon_b=0.84, FFa=self.canopy.FF, FFb=1)
         self.Q_rad_FlrCan = Radiation_T4(A=14000, epsilon_a=0.89, epsilon_b=1, FFa=1, FFb=self.canopy.FF)
@@ -60,6 +86,13 @@ class Greenhouse:
         # Initialize solar model
         self.solar_model = SolarModel(A=14000, LAI=self.canopy.LAI, SC=0, I_glob=0)
         
+        # Initialize illumination
+        self.illu = Illumination(A=14000, power_input=True, P_el=500, p_el=100)
+        self.illu.LAI = self.canopy.LAI
+        
+        # Initialize tomato yield model
+        self.TYM = TomatoYieldModel(LAI_0=self.canopy.LAI)
+        
         # Initialize control systems
         self.PID_Mdot = PID(PVmin=291.15, PVmax=295.15, PVstart=0.5, CSstart=0.5, 
                            steadyStateInit=False, CSmin=0, Kp=0.7, Ti=600, CSmax=86.75)
@@ -73,6 +106,17 @@ class Greenhouse:
         Args:
             dt (float): Time step in seconds
         """
+        # Get current weather and setpoint data
+        current_weather = self.weather_df.iloc[self.current_step]
+        current_sp = self.sp_df.iloc[self.current_step]
+        
+        # Update solar model with current global radiation
+        self.solar_model.I_glob = current_weather["I_glob"]
+        
+        # Update PID controllers with setpoints
+        self.PID_Mdot.PV = current_sp["T_sp"]
+        self.PID_CO2.PV = current_sp["CO2_sp"]
+        
         # Update heat fluxes
         self.q_low = -self.pipe_low.flow1DimInc.Q_tot / 14000
         self.q_up = -self.pipe_up.flow1DimInc.Q_tot / 14000
@@ -100,7 +144,19 @@ class Greenhouse:
         self.thScreen.step(dt)
         self.air_Top.step(dt)
         self.solar_model.step(dt)
+        self.illu.step()
+        self.CO2_air.step(dt)
+        
+        # Update tomato yield model with current conditions
+        self.TYM.set_environmental_conditions(
+            R_PAR_can=self.solar_model.R_PAR_Can_umol + self.illu.step()["R_PAR_Can_umol"],
+            CO2_air=self.CO2_air.CO2_ppm,
+            T_canK=self.canopy.T
+        )
         
         # Update control systems
-        self.PID_Mdot.step(dt)
-        self.PID_CO2.step(dt)
+        self.PID_Mdot.compute()
+        self.PID_CO2.compute()
+        
+        # Increment step counter
+        self.current_step += 1

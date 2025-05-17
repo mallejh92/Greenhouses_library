@@ -44,7 +44,7 @@ class Illumination:
         rho = rho_Can + tau_Can**2 * rho_Flr / (1 - rho_Can * rho_Flr)
         return tau, rho
 
-    def compute(self):
+    def step(self):
         switch = self.switch
 
         # Power per area
