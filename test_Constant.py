@@ -1,72 +1,71 @@
-from Flows.FluidFlow.HeatTransfer.SinglePhaseCorrelations.MuleyManglik1999 import MuleyManglik1999
+from Flows.FluidFlow.HeatTransfer.Smoothed import Smoothed
 
 if __name__ == "__main__":
-    # Test code
-    model = MuleyManglik1999(
-        Re_lam=400.0,  # Fully laminar Reynolds number
-        Re_tur=1000.0  # Fully turbulent Reynolds number
+    # Initialize Smoothed model
+    model = Smoothed(
+        n=3,                    # Number of nodes
+        Mdotnom=1.0,           # Nominal mass flow rate [kg/s]
+        Unom_l=1000.0,         # Nominal HTC for liquid [W/(m²·K)]
+        Unom_tp=2000.0,        # Nominal HTC for two-phase [W/(m²·K)]
+        Unom_v=500.0,          # Nominal HTC for vapor [W/(m²·K)]
+        M_dot=1.0,             # Mass flow rate [kg/s]
+        x=0.0                  # Vapor quality
     )
     
-    # Set up test conditions
-    test_state = {
-        'density': 1000.0,              # Water density [kg/m³]
-        'thermal_conductivity': 0.6,    # Water thermal conductivity [W/(m·K)]
-        'dynamic_viscosity': 0.001,     # Water dynamic viscosity [Pa·s]
-        'prandtl_number': 7.0           # Water Prandtl number
+    # Set up fluid state
+    model.FluidState[0] = {
+        'density': 1000.0,              # Density [kg/m³]
+        'thermal_conductivity': 0.6,    # Thermal conductivity [W/(m·K)]
+        'dynamic_viscosity': 0.001,     # Dynamic viscosity [Pa·s]
+        'specific_heat_capacity': 4186.0 # Specific heat capacity [J/(kg·K)]
     }
     
-    # Update model state and parameters
-    model.update_state(test_state)
-    model.m_dot = 1.0  # Mass flow rate [kg/s]
-    model.q_dot = 1000.0  # Heat flux [W/m²]
+    # Set up thermal ports and fluid temperatures
+    for i in range(model.n):
+        model.thermalPortL[i].T = 298.15  # 25°C
+        model.T_fluid[i] = 293.15         # 20°C
     
-    # Calculate heat transfer coefficient
+    # Test case 1: Nominal conditions (liquid phase)
+    model.x = 0.0  # Liquid phase
     model.calculate()
-    print("Initial test with water:")
+    print("Test case 1: Nominal conditions (liquid phase)")
     print(model)
     
-    # Test different flow conditions
-    print("\nTesting different flow conditions:")
-    
-    # Test case 1: Laminar flow (Re < 400)
-    model.m_dot = 0.1  # Lower mass flow rate for laminar flow
+    # Test case 2: Two-phase flow
+    model.x = 0.5  # Two-phase
     model.calculate()
-    print("\nLaminar flow (Re < 400):")
+    print("\nTest case 2: Two-phase flow")
     print(model)
     
-    # Test case 2: Transitional flow (400 < Re < 1000)
-    model.m_dot = 0.5  # Medium mass flow rate for transitional flow
+    # Test case 3: Vapor phase
+    model.x = 1.0  # Vapor phase
     model.calculate()
-    print("\nTransitional flow (400 < Re < 1000):")
+    print("\nTest case 3: Vapor phase")
     print(model)
     
-    # Test case 3: Turbulent flow (Re > 1000)
-    model.m_dot = 2.0  # Higher mass flow rate for turbulent flow
+    # Test case 4: Different mass flow rate
+    model.M_dot = 2.0  # Higher mass flow rate
     model.calculate()
-    print("\nTurbulent flow (Re > 1000):")
+    print("\nTest case 4: Higher mass flow rate")
     print(model)
     
-    # Test case 4: Different fluid properties (ethylene glycol)
-    test_state_eg = {
-        'density': 1110.0,             # Ethylene glycol density [kg/m³]
-        'thermal_conductivity': 0.25,  # Ethylene glycol thermal conductivity [W/(m·K)]
-        'dynamic_viscosity': 0.016,    # Ethylene glycol dynamic viscosity [Pa·s]
-        'prandtl_number': 150.0        # Ethylene glycol Prandtl number
+    # Test case 5: Different fluid properties (ethylene glycol)
+    model.FluidState[0] = {
+        'density': 1110.0,              # Density [kg/m³]
+        'thermal_conductivity': 0.25,    # Thermal conductivity [W/(m·K)]
+        'dynamic_viscosity': 0.016,      # Dynamic viscosity [Pa·s]
+        'specific_heat_capacity': 2382.0  # Specific heat capacity [J/(kg·K)]
     }
-    model.update_state(test_state_eg)
-    model.m_dot = 1.0
+    
     model.calculate()
-    print("\nEthylene glycol properties:")
+    print("\nTest case 5: Different fluid properties (ethylene glycol)")
     print(model)
     
-    # Test case 5: Different plate geometry
-    model = MuleyManglik1999(
-        Re_lam=400.0,
-        Re_tur=1000.0
-    )
-    model.update_state(test_state)  # Back to water properties
-    model.m_dot = 1.0
-    model.q_dot = 1000.0
+    # Test case 6: Different temperature difference
+    for i in range(model.n):
+        model.thermalPortL[i].T = 373.15  # 100°C
+        model.T_fluid[i] = 273.15         # 0°C
+    
     model.calculate()
-    print("\nDifferent plate geometry:")
+    print("\nTest case 6: High temperature difference (0°C to 100°C)")
     print(model)
