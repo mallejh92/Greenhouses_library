@@ -1,3 +1,122 @@
+# import numpy as np
+# from ControlSystems.PID import PID
+
+# class Uvents_RH_T_Mdot:
+#     """
+#     Controller for window opening based on air humidity and temperature.
+
+#     Mimics Modelica Greenhouses.ControlSystems.Climate.Uvents_RH_T_Mdot:
+#       - Uses two PID loops (humidity & temperature) and a third temp-only PID
+#       - Blends their outputs via sigmoid functions of mass flow rate
+#     """
+
+#     def __init__(self):
+#         # Default (Modelica) inputs if not overridden by connector
+#         self.RH_air_input = 0.75        # [-], default relative humidity
+#         self.T_air = 293.15             # [K], actual air temperature
+#         self.T_air_sp = 293.15          # [K], setpoint air temperature
+#         self.Mdot = 0.528               # [kg/s], mass flow rate through vents
+
+#         # Effective humidity input (will remain default unless externally set)
+#         self.RH_air = self.RH_air_input
+
+#         # Parameters
+#         self.Tmax_tomato = 299.15       # [K], maximum allowable tomato temp
+#         self.U_max = 1.0                # [-], maximum vent opening fraction
+
+#         # PID for humidity control
+#         self.PID = PID(
+#             Kp=-0.5,
+#             Ti=650,
+#             PVmin=0.1,
+#             PVmax=1.0,
+#             CSmin=0.0,
+#             CSmax=self.U_max,
+#             PVstart=0.5,
+#             CSstart=0.5,
+#             steadyStateInit=False
+#         )
+
+#         # PID for temperature control (with humidity)
+#         self.PIDT = PID(
+#             Kp=-0.5,
+#             Ti=500,
+#             PVmin=12 + 273.15,
+#             PVmax=30 + 273.15,
+#             CSmin=0.0,
+#             CSmax=self.U_max,
+#             PVstart=0.5,
+#             CSstart=0.5,
+#             steadyStateInit=False
+#         )
+
+#         # PID for temperature control (no humidity)
+#         self.PIDT_noH = PID(
+#             Kp=-0.5,
+#             Ti=500,
+#             PVmin=12 + 273.15,
+#             PVmax=30 + 273.15,
+#             CSmin=0.0,
+#             CSmax=self.U_max,
+#             PVstart=0.5,
+#             CSstart=0.5,
+#             steadyStateInit=False
+#         )
+
+#         # Control output (vent opening fraction)
+#         self.U_vents = 0.0
+
+#     @property
+#     def y(self):
+#         """
+#         Expose control output under attribute 'y', matching Modelica interface.
+#         """
+#         return self.U_vents
+
+#     def compute(self):
+#         """
+#         Compute the ventilation control signal based on current RH_air, T_air, and Mdot.
+
+#         Returns
+#         -------
+#         float
+#             Vent opening control fraction between 0 and U_max.
+#         """
+#         # If no external RH_air was set, stick with default input
+#         # (Modelica: if cardinality(RH_air)==0 then RH_air=RH_air_input)
+#         if self.RH_air is None:
+#             self.RH_air = self.RH_air_input
+
+#         # Update humidity PID
+#         self.PID.PV = self.RH_air
+#         self.PID.SP = self.RH_air_input  # RH_max = 0.85 in Modelica, but default input is 0.75? use 0.85?
+#         # To strictly follow Modelica, use:
+#         self.PID.SP = 0.85
+#         self.PID.compute()
+
+#         # Update temperature PID with humidity
+#         self.PIDT.PV = self.T_air
+#         self.PIDT.SP = self.Tmax_tomato
+#         self.PIDT.compute()
+
+#         # Update temperature-only PID
+#         self.PIDT_noH.PV = self.T_air
+#         self.PIDT_noH.SP = self.T_air_sp + 2.0
+#         self.PIDT_noH.compute()
+
+#         # Sigmoid-based blending weights
+#         sigmoid1 = 1.0 / (1.0 + np.exp(-200.0 * (self.Mdot - 0.05)))
+#         sigmoid2 = 1.0 / (1.0 + np.exp( 200.0 * (self.Mdot - 0.05)))
+
+#         # Blend the PID outputs
+#         # Modelica: y = sigmoid1*max(PID.CS, PIDT.CS) + sigmoid2*max(PID.CS, PIDT_noH.CS)
+#         self.U_vents = (
+#             sigmoid1 * max(self.PID.CS, self.PIDT.CS)
+#           + sigmoid2 * max(self.PID.CS, self.PIDT_noH.CS)
+#         )
+
+#         return self.U_vents
+
 import numpy as np
 from ControlSystems.PID import PID
 
@@ -5,114 +124,89 @@ class Uvents_RH_T_Mdot:
     """
     Controller for window opening based on air humidity and temperature.
 
-    Mimics Modelica Greenhouses.ControlSystems.Climate.Uvents_RH_T_Mdot:
-      - Uses two PID loops (humidity & temperature) and a third temp-only PID
-      - Blends their outputs via sigmoid functions of mass flow rate
+    - If RH_air is not externally set, use RH_air_input (0.75).
+    - Humidity PID setpoint = RH_max (0.85).
+    - Two temperature PIDs (with/without humidity).
+    - Blend PID outputs via sigmoid functions of Mdot.
     """
 
     def __init__(self):
-        # Default (Modelica) inputs if not overridden by connector
-        self.RH_air_input = 0.75        # [-], default relative humidity
-        self.T_air = 293.15             # [K], actual air temperature
-        self.T_air_sp = 293.15          # [K], setpoint air temperature
-        self.Mdot = 0.528               # [kg/s], mass flow rate through vents
-
-        # Effective humidity input (will remain default unless externally set)
-        self.RH_air = self.RH_air_input
-
+        # Default inputs if not overridden by connector
+        self.RH_air_input = 0.75    # [-]
+        self.RH_air = None          # will default to RH_air_input
+        
+        self.T_air = 293.15         # [K]
+        self.T_air_sp = 293.15      # [K]
+        self.Mdot = 0.528           # [kg/s]
+        
         # Parameters
-        self.Tmax_tomato = 299.15       # [K], maximum allowable tomato temp
-        self.U_max = 1.0                # [-], maximum vent opening fraction
-
-        # PID for humidity control
+        self.RH_max = 0.85          # [-], maximum allowed RH
+        self.Tmax_tomato = 299.15   # [K]
+        self.U_max = 1.0            # [-]
+        
+        # PID controllers
         self.PID = PID(
-            Kp=-0.5,
-            Ti=650,
-            PVmin=0.1,
-            PVmax=1.0,
-            CSmin=0.0,
-            CSmax=self.U_max,
-            PVstart=0.5,
-            CSstart=0.5,
+            Kp=-0.5, Ti=650,
+            PVmin=0.1, PVmax=1.0,
+            CSmin=0.0, CSmax=self.U_max,
+            PVstart=0.5, CSstart=0.5,
             steadyStateInit=False
         )
-
-        # PID for temperature control (with humidity)
         self.PIDT = PID(
-            Kp=-0.5,
-            Ti=500,
-            PVmin=12 + 273.15,
-            PVmax=30 + 273.15,
-            CSmin=0.0,
-            CSmax=self.U_max,
-            PVstart=0.5,
-            CSstart=0.5,
+            Kp=-0.5, Ti=500,
+            PVmin=12+273.15, PVmax=30+273.15,
+            CSmin=0.0, CSmax=self.U_max,
+            PVstart=0.5, CSstart=0.5,
             steadyStateInit=False
         )
-
-        # PID for temperature control (no humidity)
         self.PIDT_noH = PID(
-            Kp=-0.5,
-            Ti=500,
-            PVmin=12 + 273.15,
-            PVmax=30 + 273.15,
-            CSmin=0.0,
-            CSmax=self.U_max,
-            PVstart=0.5,
-            CSstart=0.5,
+            Kp=-0.5, Ti=500,
+            PVmin=12+273.15, PVmax=30+273.15,
+            CSmin=0.0, CSmax=self.U_max,
+            PVstart=0.5, CSstart=0.5,
             steadyStateInit=False
         )
-
-        # Control output (vent opening fraction)
+        
+        # Control output
         self.U_vents = 0.0
 
     @property
     def y(self):
-        """
-        Expose control output under attribute 'y', matching Modelica interface.
-        """
+        """Expose control output as .y to match Modelica interface."""
         return self.U_vents
 
     def compute(self):
         """
-        Compute the ventilation control signal based on current RH_air, T_air, and Mdot.
-
-        Returns
-        -------
-        float
-            Vent opening control fraction between 0 and U_max.
+        Compute vent opening fraction based on RH_air, T_air, T_air_sp, and Mdot.
+        Returns: float between 0 and U_max.
         """
-        # If no external RH_air was set, stick with default input
-        # (Modelica: if cardinality(RH_air)==0 then RH_air=RH_air_input)
-        if self.RH_air is None:
-            self.RH_air = self.RH_air_input
+        # cardinality(RH_air)==0 -> use default input
+        rh = self.RH_air_input if self.RH_air is None else self.RH_air
 
-        # Update humidity PID
-        self.PID.PV = self.RH_air
-        self.PID.SP = self.RH_air_input  # RH_max = 0.85 in Modelica, but default input is 0.75? use 0.85?
-        # To strictly follow Modelica, use:
-        self.PID.SP = 0.85
+        # Humidity PID
+        self.PID.PV = rh
+        self.PID.SP = self.RH_max
         self.PID.compute()
 
-        # Update temperature PID with humidity
+        # Temperature PID (with humidity)
         self.PIDT.PV = self.T_air
         self.PIDT.SP = self.Tmax_tomato
         self.PIDT.compute()
 
-        # Update temperature-only PID
+        # Temperature-only PID
         self.PIDT_noH.PV = self.T_air
         self.PIDT_noH.SP = self.T_air_sp + 2.0
         self.PIDT_noH.compute()
 
-        # Sigmoid-based blending weights
-        sigmoid1 = 1.0 / (1.0 + np.exp(-200.0 * (self.Mdot - 0.05)))
-        sigmoid2 = 1.0 / (1.0 + np.exp( 200.0 * (self.Mdot - 0.05)))
+        # Stable sigmoid weights
+        x = 200.0 * (self.Mdot - 0.05)
+        x = np.clip(x, -500.0, 500.0)
+        sigmoid1 = 1.0 / (1.0 + np.exp(-x))
+        sigmoid2 = 1.0 / (1.0 + np.exp( x))
 
-        # Blend the PID outputs
-        # Modelica: y = sigmoid1*max(PID.CS, PIDT.CS) + sigmoid2*max(PID.CS, PIDT_noH.CS)
+        # Blend PID outputs
         self.U_vents = (
             sigmoid1 * max(self.PID.CS, self.PIDT.CS)
           + sigmoid2 * max(self.PID.CS, self.PIDT_noH.CS)
         )
-
         return self.U_vents

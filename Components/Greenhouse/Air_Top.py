@@ -1,6 +1,6 @@
 import numpy as np
 
-class TopAirCompartment:
+class Air_Top:
     """
     Python version of the Greenhouses.Components.Greenhouse.Air_Top model.
     Simplified air model for the top air zone above the thermal screen.

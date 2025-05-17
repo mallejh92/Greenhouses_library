@@ -1,5 +1,5 @@
-from Components.Greenhouse.Interfaces.Vapour.WaterMassPort import WaterMassPort
-from Components.Greenhouse.Flows.Sources.Vapour.PrescribedPressure import PrescribedPressure
+from Interfaces.Vapour.WaterMassPort import WaterMassPort
+from Flows.Sources.Vapour.PrescribedPressure import PrescribedPressure
 
 class AirVP:
     """

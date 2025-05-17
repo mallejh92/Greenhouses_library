@@ -1,5 +1,5 @@
 import numpy as np
-from BasicComponents.AirVP import AirVP  # Import AirVP class
+from BasicComponents.AirVP import AirVP
 import matplotlib.pyplot as plt
 
 class Air:

@@ -8280,4 +8280,3 @@ double tab(8279,3)   # time T_sp CO2_sp (Climate set points 10Dec-22Nov: daily s
 29797200	20	1300
 29800800	20	1300
 29804400	20	400
-		
