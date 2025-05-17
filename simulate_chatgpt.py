@@ -10,14 +10,22 @@ def simulate_greenhouse():
 
     times = np.linspace(0, sim_time/3600, n_steps)
     results = {
+        'time': np.zeros(n_steps),
         'T_air': np.zeros(n_steps),
         'RH_air': np.zeros(n_steps),
         'T_canopy': np.zeros(n_steps),
-        'T_cover': np.zeros(n_steps),
-        'T_floor': np.zeros(n_steps),
+        'LAI': np.zeros(n_steps),
+        'R_SunCov_Glob': np.zeros(n_steps),
+        'R_PAR_Can_umol': np.zeros(n_steps),
+        'q_low': np.zeros(n_steps),
+        'q_up': np.zeros(n_steps),
         'q_tot': np.zeros(n_steps),
         'E_th_tot_kWhm2': np.zeros(n_steps),
+        'E_th_tot': np.zeros(n_steps),
+        'W_el_illu': np.zeros(n_steps),
         'E_el_tot_kWhm2': np.zeros(n_steps),
+        'E_el_tot': np.zeros(n_steps),
+        'DM_Har': np.zeros(n_steps),
         'CO2_air': np.zeros(n_steps),
         'SC': np.zeros(n_steps),
         'vent_opening': np.zeros(n_steps)
@@ -32,8 +40,6 @@ def simulate_greenhouse():
     plt.subplot(3, 2, 1)
     plt.plot(times, results['T_air'], label='Air')
     plt.plot(times, results['T_canopy'], label='Canopy')
-    plt.plot(times, results['T_cover'], label='Cover')
-    plt.plot(times, results['T_floor'], label='Floor')
     plt.grid(True)
     plt.xlabel('Time [hours]')
     plt.ylabel('Temperature [°C]')

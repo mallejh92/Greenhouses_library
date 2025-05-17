@@ -122,7 +122,7 @@ class Greenhouse_2:
         self.air.RH_out = weather['RH_out'] / 100.0
         self.solar_model.I_glob = weather['I_glob']
         self.illu.switch = weather['ilu_sp']
-        self.illu.compute(dt)
+        self.illu.compute()
 
         self.Q_ven_AirOut.u = weather['u_wind']
         self.Q_ven_TopOut.u = weather['u_wind']
@@ -157,7 +157,7 @@ class Greenhouse_2:
         R_Air_Glob = [self.solar_model.R_SunAir_Glob, self.illu.P_el]
         self.air.set_inputs(Q_flow=Q_flow_air,
                             R_Air_Glob=R_Air_Glob,
-                            massPort_VP=self.cover.MV_flow + self.canopy.MV_flow)
+                            massPort_VP=0.0)
         self.air.step(dt)
 
         # Pipes and screens
@@ -171,7 +171,7 @@ class Greenhouse_2:
         self.air_top.step(dt)
 
         # Crop yield model and DM_Har
-        self.TYM.step(dt)
+        self.TYM.simulate(dt)
         self.DM_Har = self.TYM.DM_Har
 
     def _update_control_systems(self, weather, setpoint):
