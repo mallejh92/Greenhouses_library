@@ -1,13 +1,15 @@
+from typing import Optional, Union
+
 class HeatPort:
     """
-    Heat Port connector (Modelica.Thermal.HeatTransfer.Interfaces.HeatPort)
+    Thermal port for 1-dim. heat transfer
     
     This class implements the Modelica HeatPort connector in Python.
-    It represents a single-node heat port with temperature and heat flow rate.
+    It represents a thermal port with temperature and heat flow rate.
     
     Attributes:
-        T (float): Temperature in Kelvin
-        Q_flow (float): Heat flow rate in Watts
+        T (float): Port temperature in Kelvin
+        Q_flow (float): Heat flow rate in Watts (positive if flowing into the component)
     """
     
     def __init__(self, T: float = 293.15, Q_flow: float = 0.0):
@@ -20,6 +22,42 @@ class HeatPort:
         """
         self.T = float(T)
         self.Q_flow = float(Q_flow)
+    
+    def set_temperature(self, T: float) -> None:
+        """
+        Set temperature
+        
+        Args:
+            T (float): Temperature in Kelvin
+        """
+        self.T = float(T)
+    
+    def set_heat_flow(self, Q_flow: float) -> None:
+        """
+        Set heat flow rate
+        
+        Args:
+            Q_flow (float): Heat flow rate in Watts
+        """
+        self.Q_flow = float(Q_flow)
+    
+    def get_temperature(self) -> float:
+        """
+        Get temperature
+        
+        Returns:
+            float: Temperature in Kelvin
+        """
+        return self.T
+    
+    def get_heat_flow(self) -> float:
+        """
+        Get heat flow rate
+        
+        Returns:
+            float: Heat flow rate in Watts
+        """
+        return self.Q_flow
     
     def connect(self, other: 'HeatPort') -> None:
         """
@@ -40,6 +78,4 @@ class HeatPort:
     
     def __str__(self) -> str:
         """String representation of the heat port"""
-        return (f"HeatPort\n"
-                f"T = {self.T:.2f} K\n"
-                f"Q_flow = {self.Q_flow:.2f} W") 
+        return f"HeatPort(T={self.T:.2f} K, Q_flow={self.Q_flow:.2f} W)" 

@@ -1,75 +1,56 @@
 from typing import Optional
 from Interfaces.Heat.HeatFluxInput import HeatFlux
 from Interfaces.Heat.HeatPorts_a import HeatPorts_a
+from Interfaces.Heat.ThermalPort import ThermalPort
+from Interfaces.Heat.ThermalPortL import ThermalPortL
 import numpy as np
 
-class ThermalPortL:
+class HeatPortConverter_ThermoCycle_Modelica:
     """
-    Implementation of ThermalPortL interface
+    Heat port converter from the Modelica Library to the ThermoCycle Library heat port models
     
-    This is a placeholder class that will be implemented later.
-    For now, it just provides the basic structure for thermal port interface.
+    This class implements the Modelica HeatPortConverter_ThermoCycle_Modelica model in Python.
+    It converts between Modelica's HeatPort and ThermalPort interfaces.
     
     Attributes:
-        T (float): Temperature in Kelvin
-        phi (HeatFlux): Heat flux in W/m²
-    """
-    pass
-
-class HeatPortConverter:
-    """
-    Convert thermal port into heat port
-    
-    This class implements the Modelica HeatPortConverter model in Python.
-    It converts between Modelica's HeatPort and ThermalPortL interfaces.
-    
-    Attributes:
-        N (int): Number of ports (default: 10)
-        A (float): Heat exchange area in m² (default: 1.0)
-        heatPorts (HeatPorts_a): Input heat ports
-        thermalPortL (ThermalPortL): Output thermal port
+        N (int): Number of ports in series
+        A (float): Heat transfer area [m²]
+        Nt (int): Number of cells in parallel
+        thermocyclePort (ThermalPort): Thermal port for ThermoCycle
+        heatPorts (HeatPorts_a): Heat ports for Modelica
     """
     
-    def __init__(self, 
-                 N: int = 10,
-                 A: float = 1.0,
-                 T_start: float = 293.15):
+    def __init__(self, N: int = 2, A: float = 1.0, Nt: int = 1):
         """
-        Initialize the HeatPortConverter
+        Initialize the HeatPortConverter_ThermoCycle_Modelica
         
         Args:
-            N (int): Number of ports
-            A (float): Heat exchange area in m²
-            T_start (float): Initial temperature in Kelvin
+            N (int): Number of ports in series (default: 2)
+            A (float): Heat transfer area in m² (default: 1.0)
+            Nt (int): Number of cells in parallel (default: 1)
         """
         self.N = N
         self.A = A
-        self.heatPorts = HeatPorts_a(size=N, T_start=T_start)
-        # TODO: Implement proper ThermalPortL initialization when the class is fully implemented
-        self.thermalPortL = ThermalPortL()
-        self.thermalPortL.T = T_start
-        self.thermalPortL.phi = HeatFlux(0.0)
+        self.Nt = Nt
+        self.thermocyclePort = ThermalPort(N=N)
+        self.heatPorts = HeatPorts_a(size=N)
     
     def update(self) -> None:
         """
-        Update the thermal port based on heat port values
+        Update the heat ports based on thermal port values
         
         This method implements the equations from the Modelica model:
-        thermalPortL.T = heatPort.T
-        thermalPortL.phi = -heatPort.Q_flow/A
-        
-        For multiple ports, it uses the average values.
+        heatPorts[i].T = thermocyclePort.T[i]
+        heatPorts[i].Q_flow = -thermocyclePort.phi[i]*A/N*Nt
         """
-        # Get average temperature and heat flow from all ports
-        avg_T = np.mean(self.heatPorts.get_temperatures())
-        avg_Q_flow = np.mean(self.heatPorts.get_heat_flows())
+        # Get current values from thermal port
+        temps = self.thermocyclePort.get_temperatures()
+        fluxes = self.thermocyclePort.get_heat_fluxes()
         
-        # Update temperature
-        self.thermalPortL.T = avg_T
-        
-        # Update heat flux (convert from heat flow rate to heat flux)
-        heat_flux_value = -avg_Q_flow / self.A
-        self.thermalPortL.phi = HeatFlux(heat_flux_value)
+        # Update heat ports
+        for i in range(self.N):
+            self.heatPorts[i].T = temps[i]
+            self.heatPorts[i].Q_flow = -fluxes[i].value * self.A / self.N * self.Nt
     
     def connect_heat_ports(self, other_ports: HeatPorts_a) -> None:
         """
@@ -81,19 +62,9 @@ class HeatPortConverter:
         self.heatPorts.connect(other_ports)
         self.update()
     
-    def get_thermal_port(self) -> ThermalPortL:
-        """
-        Get the current thermal port values
-        
-        Returns:
-            ThermalPortL: Current thermal port state
-        """
-        return self.thermalPortL
-    
     def __str__(self) -> str:
         """String representation of the converter"""
         temps = self.heatPorts.get_temperatures()
         flows = self.heatPorts.get_heat_flows()
-        return (f"HeatPortConverter(N={self.N}, A={self.A} m²)\n"
-                f"Heat Ports: T_avg={np.mean(temps):.2f} K, Q_flow_avg={np.mean(flows):.2f} W\n"
-                f"Thermal Port: T={self.thermalPortL.T:.2f} K, phi={self.thermalPortL.phi}")
+        return (f"HeatPortConverter_ThermoCycle_Modelica(N={self.N}, A={self.A} m², Nt={self.Nt})\n"
+                f"Heat Ports: T_avg={np.mean(temps):.2f} K, Q_flow_avg={np.mean(flows):.2f} W")
