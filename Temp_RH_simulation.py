@@ -33,7 +33,7 @@ dt = 60  # 1분
 n_steps = min(len(df), 24 * 60)  # 데이터 길이와 24시간 중 작은 값
 
 # Air 객체 생성
-air = Air(A=1000, h_Air=4.0, T_start=293.15)  # 초기 20도
+air = Air(A=3000, h_Air=4.0, T_start=273.15)
 
 # 결과 저장
 T_in = np.zeros(n_steps)
@@ -47,21 +47,20 @@ for i in range(n_steps):
     RH_out_val = df.loc[i, "RH_out"]
     T_out_C = T_out_K - 273.15
     Psat_out = 610.78 * np.exp(T_out_C / (T_out_C + 238.3) * 17.2694)
-    VP_out = RH_out_val * Psat_out
+    # RH_out_val이 0~1 사이의 값이므로 100으로 나눠줌
+    VP_out = (RH_out_val / 100) * Psat_out
     print(f"VP_out: {VP_out}")
+    
+    air.set_outside_conditions(T_out=T_out_K, RH_out=RH_out_val)
     air.set_inputs(Q_flow=0, R_Air_Glob=None, massPort_VP=VP_out)
     air.step(dt)
     print(f"AirVP.VP: {air.airVP.VP}, T_in: {air.T-273.15}, Psat: {610.78 * np.exp((air.T-273.15) / ((air.T-273.15) + 238.3) * 17.2694)}, Psat_out: {Psat_out}, RH_in: {air.RH}")
 
-    air.set_outside_conditions(T_out=T_out_K, RH_out=RH_out_val)
-    air.set_inputs(Q_flow=0, R_Air_Glob=None, massPort_VP=VP_out)  # VP 입력!
-    air.step(dt)
     T_out[i] = T_out_C
     RH_out[i] = RH_out_val
     time[i] = i * dt / 3600  # 시간(시)
     T_in[i] = air.T - 273.15
-    RH_in[i] = air.RH
-    # print(RH_in[i])
+    RH_in[i] = air.RH *100
 
 # 그래프 출력
 plt.figure(figsize=(12, 6))

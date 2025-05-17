@@ -2,7 +2,7 @@ import numpy as np
 from BasicComponents.AirVP import AirVP
 
 class Air:
-    def __init__(self, A, h_Air=4.0, rho=1.2, c_p=1000.0, T_start=298.0, N_rad=2, steadystate=False, steadystateVP=True):
+    def __init__(self, A, h_Air=4.0, rho=1.2, c_p=1000.0, T_start=298.0, N_rad=2, steadystate=False, steadystateVP=False):
         self.A = A
         self.h_Air = h_Air
         self.rho = rho
@@ -36,14 +36,13 @@ class Air:
     def update_humidity(self):
         if self.steadystateVP:
             return
-        # 기존 객체의 update만 호출!
-        self.airVP.update(VP_external=self.massPort_VP)
         VP = self.airVP.VP
         self.w_air = VP * self.R_a / ((self.P_atm - VP) * self.R_s)
         T_C = self.T - 273.15
         Psat = 610.78 * np.exp(T_C / (T_C + 238.3) * 17.2694)
         self.RH = VP / Psat
         self.RH = np.clip(self.RH, 0, 1)
+        print(f"Debug - VP: {VP}, Psat: {Psat}, RH: {self.RH}")
 
     def set_outside_conditions(self, T_out=None, RH_out=None):
         self.T_out = T_out
@@ -62,5 +61,5 @@ class Air:
         else:
             self.R_Air_Glob = np.array(R_Air_Glob)
         self.massPort_VP = massPort_VP
-        # AirVP 객체의 update 메서드 호출
-        self.airVP.update(VP_external=massPort_VP)
+        if massPort_VP is not None:
+            self.airVP.VP = massPort_VP  # 여기서만 VP를 세팅
