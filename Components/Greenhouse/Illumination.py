@@ -35,6 +35,9 @@ class Illumination:
         # Inputs
         self.switch = 0.0  # Lamp on/off (0 or 1)
         self.LAI = 1.0     # Leaf Area Index
+        
+        # Outputs
+        self.W_el = 0.0    # Electrical power [W]
 
     def multilayer_tau_rho(self, tau_Can, tau_Flr, rho_Can, rho_Flr):
         tau = tau_Can * tau_Flr / (1 - rho_Can * rho_Flr)
@@ -46,7 +49,7 @@ class Illumination:
 
         # Power per area
         P = self.p_el if self.power_input else self.P_el / self.A
-        W_el = P * self.A * switch
+        self.W_el = P * self.A * switch  # Store W_el as instance variable
 
         # Radiation components
         R_PAR = 0.25 * P * switch
@@ -86,5 +89,5 @@ class Illumination:
             "R_IluCan_Glob": R_IluCan_Glob,
             "R_IluFlr_Glob": R_IluFlr_Glob,
             "R_PAR_Can_umol": R_PAR_Can_umol,
-            "W_el": W_el
+            "W_el": self.W_el
         }
