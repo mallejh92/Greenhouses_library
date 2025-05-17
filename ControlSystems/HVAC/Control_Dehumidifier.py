@@ -1,4 +1,4 @@
-from ControlSystems.PID import PID, PIDParameters
+from ControlSystems.PID import PID
 
 class Control_Dehumidifier:
     """
@@ -20,7 +20,7 @@ class Control_Dehumidifier:
         self.CS = 0.5  # Control signal
         
         # PID controller for humidity control
-        pid_params = PIDParameters(
+        pid_params = PID(
             Kp=-0.9,
             Ti=100,
             Td=0,

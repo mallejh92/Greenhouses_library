@@ -9,7 +9,7 @@ class Radiation_T4(Element1D):
     in a greenhouse system.
     """
     
-    def __init__(self, A, epsilon_a, epsilon_b):
+    def __init__(self, A, epsilon_a, epsilon_b, FFa=1.0, FFb=1.0, FFab1=0.0, FFab2=0.0, FFab3=0.0, FFab4=0.0):
         """
         Initialize the Radiation_T4 model
         
@@ -21,6 +21,18 @@ class Radiation_T4(Element1D):
             Emissivity coefficient of surface A
         epsilon_b : float
             Emissivity coefficient of surface B
+        FFa : float, optional
+            View factor of element A, default is 1.0
+        FFb : float, optional
+            View factor of element B, default is 1.0
+        FFab1 : float, optional
+            View factor of intermediate element between A and B, default is 0.0
+        FFab2 : float, optional
+            View factor of intermediate element between A and B, default is 0.0
+        FFab3 : float, optional
+            View factor of intermediate element between A and B, default is 0.0
+        FFab4 : float, optional
+            View factor of intermediate element between A and B, default is 0.0
         """
         super().__init__()  # Initialize Element1D
         
@@ -32,12 +44,12 @@ class Radiation_T4(Element1D):
         self.sigma = 5.67e-8  # Stefan-Boltzmann constant [W/(m²·K⁴)]
         
         # State variables
-        self.FFa = 1.0  # View factor of element A
-        self.FFb = 1.0  # View factor of element B
-        self.FFab1 = 0.0  # View factor of intermediate element between A and B
-        self.FFab2 = 0.0  # View factor of intermediate element between A and B
-        self.FFab3 = 0.0  # View factor of intermediate element between A and B
-        self.FFab4 = 0.0  # View factor of intermediate element between A and B
+        self.FFa = FFa  # View factor of element A
+        self.FFb = FFb  # View factor of element B
+        self.FFab1 = FFab1  # View factor of intermediate element between A and B
+        self.FFab2 = FFab2  # View factor of intermediate element between A and B
+        self.FFab3 = FFab3  # View factor of intermediate element between A and B
+        self.FFab4 = FFab4  # View factor of intermediate element between A and B
         
     def calculate(self):
         """

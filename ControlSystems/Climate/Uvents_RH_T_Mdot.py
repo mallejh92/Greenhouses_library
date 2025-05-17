@@ -1,4 +1,4 @@
-from ControlSystems.PID import PID, PIDParameters
+from ControlSystems.PID import PID
 import numpy as np
 
 class Uvents_RH_T_Mdot:
@@ -12,7 +12,7 @@ class Uvents_RH_T_Mdot:
         self.U_max = 1  # Maximum control signal
         
         # PID controllers
-        pid_humidity_params = PIDParameters(
+        pid_humidity_params = PID(
             Kp=-0.5,
             Ti=650,
             Td=0,
@@ -26,7 +26,7 @@ class Uvents_RH_T_Mdot:
         )
         self.PID = PID(pid_humidity_params)
         
-        pid_temp_params = PIDParameters(
+        pid_temp_params = PID(
             Kp=-0.5,
             Ti=500,
             Td=0,
@@ -40,7 +40,7 @@ class Uvents_RH_T_Mdot:
         )
         self.PIDT = PID(pid_temp_params)
         
-        pid_temp_noH_params = PIDParameters(
+        pid_temp_noH_params = PID(
             Kp=-0.5,
             Ti=500,
             Td=0,

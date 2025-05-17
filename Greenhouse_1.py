@@ -12,7 +12,14 @@ from Components.Greenhouse.ThermalScreen import ThermalScreen
 from Flows.HeatTransfer.CanopyFreeConvection import CanopyFreeConvection
 from Flows.HeatTransfer.FreeConvection import FreeConvection
 from Flows.HeatTransfer.OutsideAirConvection import OutsideAirConvection
+from Flows.HeatTransfer.Radiation_T4 import Radiation_T4
+from Flows.HeatTransfer.Radiation_N import Radiation_N
 from Flows.CO2MassTransfer.MC_AirCan import MC_AirCan
+from Flows.CO2MassTransfer.CO2_Air import CO2_Air
+from Flows.HeatAndVapourTransfer.Ventilation import Ventilation
+from ControlSystems.PID import PID
+from ControlSystems.Climate.Control_ThScreen import Control_ThScreen
+from ControlSystems.Climate.Uvents_RH_T_Mdot import Uvents_RH_T_Mdot
 
 class Greenhouse_1:
     """
@@ -44,7 +51,7 @@ class Greenhouse_1:
         self.canopy = Canopy(
             A=self.surface,
             steadystate=True,
-            LAI=1.06  # Will be updated from TYM
+            LAI=1.06  # Will be updated from weather if available
         )
         
         self.floor = Floor(
@@ -64,7 +71,7 @@ class Greenhouse_1:
         
         self.solar_model = SolarModel(
             A=self.surface,
-            LAI=1.06,  # Will be updated from TYM
+            LAI=1.06,  # Will be updated from weather if available
             I_glob=0.0  # Initial value, will be updated from weather data
         )
         
@@ -98,16 +105,81 @@ class Greenhouse_1:
             SC=0,  # Will be updated from control
             steadystate=False
         )
+
+        # Initialize CO2 components
+        self.CO2_air = CO2_Air(cap_CO2=3.8)  # Will be updated dynamically
+        self.CO2_top = CO2_Air(cap_CO2=0.4)
         
         # Initialize heat transfer components
-        self.Q_rad_CanCov = None  # Will be initialized with proper parameters
+        self.Q_rad_CanCov = Radiation_T4(
+            A=self.surface,
+            epsilon_a=1,
+            epsilon_b=0.84,
+            FFa=self.canopy.FF,
+            FFb=1
+        )
+        
         self.Q_cnv_CanAir = CanopyFreeConvection(A=self.surface)
         self.Q_cnv_FlrAir = FreeConvection(phi=0, A=self.surface, floor=True)
-        self.Q_rad_CovSky = None  # Will be initialized with proper parameters
-        self.Q_cnv_CovOut = OutsideAirConvection(A=self.surface, phi=0.43633231299858)
         
-        # Initialize CO2 mass transfer
-        self.MC_AirCan = MC_AirCan()
+        self.Q_rad_CovSky = Radiation_T4(
+            epsilon_a=0.84,
+            epsilon_b=1,
+            A=self.surface
+        )
+        
+        self.Q_cnv_CovOut = OutsideAirConvection(
+            A=self.surface,
+            phi=0.43633231299858
+        )
+
+        # Initialize ventilation components
+        self.Q_ven_AirOut = Ventilation(
+            A=self.surface,
+            thermalScreen=True,
+            topAir=False
+        )
+        
+        self.Q_ven_TopOut = Ventilation(
+            A=self.surface,
+            thermalScreen=True,
+            topAir=True
+        )
+
+        # Initialize control systems
+        self.PID_Mdot = PID(
+            PVmin=18 + 273.15,
+            PVmax=22 + 273.15,
+            PVstart=0.5,
+            CSstart=0.5,
+            CSmin=0,
+            Kp=0.7,
+            Ti=600,
+            CSmax=86.75
+        )
+
+        self.PID_CO2 = PID(
+            PVstart=0.5,
+            CSstart=0.5,
+            PVmin=708.1,
+            PVmax=1649,
+            CSmin=0,
+            CSmax=1,
+            Kp=0.4,
+            Ti=0.5
+        )
+
+        self.SC = Control_ThScreen(
+            R_Glob_can=0.0,  # Will be updated from solar model
+            R_Glob_can_min=35
+        )
+
+        self.U_vents = Uvents_RH_T_Mdot(
+            T_air=273.15,  # Will be updated from air component
+            T_air_sp=293.15,  # Will be updated from setpoint
+            Mdot=0.0,  # Will be updated from PID
+            RH_air_input=0.0  # Will be updated from air component
+        )
         
         # State variables
         self.q_low = 0.0  # Heat flux from lower pipe [W/m²]
@@ -126,13 +198,13 @@ class Greenhouse_1:
         # Load weather and setpoint data
         self.weather_df = pd.read_csv("./10Dec-22Nov.txt", 
                                     delimiter="\t", skiprows=2, header=None)
-        self.weather_df.columns = ["time", "T_air", "P_air", "RH", "I_glob", 
-                                 "wind", "T_sky", "VP", "lighting_on", "unused"]
+        self.weather_df.columns = ["time", "T_out", "RH_out", "P_out", "I_glob", 
+                                 "u_wind", "T_sky", "T_air_sp", "CO2_air_sp", "ilu_sp"]
         
         self.sp_df = pd.read_csv("./SP_10Dec-22Nov.txt",
                                 delimiter="\t", skiprows=2, header=None)
-        self.sp_df.columns = ["time", "T_set", "CO2_set"]
-        
+        self.sp_df.columns = ["time", "T_sp", "CO2_sp"]
+    
     def step(self, dt, time_idx):
         """
         Advance the simulation by one time step
@@ -143,7 +215,7 @@ class Greenhouse_1:
             Time step [s]
         time_idx : int
             Index for weather and setpoint data
-            
+        
         Returns:
         --------
         dict
@@ -153,34 +225,98 @@ class Greenhouse_1:
         weather = self.weather_df.iloc[time_idx]
         setpoint = self.sp_df.iloc[time_idx]
         
-        # Update component states
+        # Update component states with weather and setpoint
         self._update_components(dt, weather, setpoint)
+        
+        # Update control systems
+        self._update_control_systems(weather, setpoint)
         
         # Calculate energy flows
         self._calculate_energy_flows()
+        
+        # Print key variables for debugging
+        print(f"Step {time_idx}: T_out={weather['T_out']:.2f}°C, RH_out={weather['RH_out']:.2f}%, "
+              f"I_glob={weather['I_glob']}, Illu_switch={weather['ilu_sp']}, "
+              f"T_set={setpoint['T_sp']:.2f}°C")
         
         # Return current state
         return self._get_state()
         
     def _update_components(self, dt, weather, setpoint):
-        """Update all component states"""
-        # Update air height based on screen closure
+        """
+        Update all component states with weather and setpoint data
+        """
+        # Update air height based on screen state
         h_Air = 3.8 + (1 - self.thScreen.SC) * 0.4
         self.air.h_Air = h_Air
+        self.CO2_air.cap_CO2 = h_Air
         
-        # Update component temperatures and states
+        # Propagate weather data to components
+        self.air.T_out = weather['T_out'] + 273.15  # Convert to Kelvin
+        self.air.RH_out = weather['RH_out'] / 100.0 # Convert to 0~1
+        self.solar_model.I_glob = weather['I_glob']
+        self.illu.switch = weather['ilu_sp']        # Lamp on/off (0 or 1)
+        self.illu.compute()                         # Update illumination state
+        
+        # Update ventilation parameters
+        self.Q_ven_AirOut.u = weather['u_wind']
+        self.Q_ven_TopOut.u = weather['u_wind']
+        
+        # Propagate setpoint data
+        self.air.T_set = setpoint['T_sp'] + 273.15  # Convert to Kelvin
+        self.air.CO2_set = setpoint['CO2_sp']
+        
+        # Update all components
         self.cover.step(dt)
         self.air.step(dt)
         self.canopy.step(dt)
         self.floor.step(dt)
         self.air_top.step(dt)
+        self.solar_model.step(dt)
+        self.pipe_low.step(dt)
+        self.pipe_up.step(dt)
+        self.thScreen.step(dt)
+        self.CO2_air.step(dt)
+        self.CO2_top.step(dt)
+    
+    def _update_control_systems(self, weather, setpoint):
+        """
+        Update control systems based on current state and setpoints
+        """
+        # Update PID controllers
+        self.PID_Mdot.PV = self.air.T
+        self.PID_Mdot.SP = setpoint['T_sp'] + 273.15
+        self.PID_Mdot.compute()
         
+        self.PID_CO2.PV = self.CO2_air.CO2
+        self.PID_CO2.SP = setpoint['CO2_sp']
+        self.PID_CO2.compute()
+        
+        # Update screen control
+        self.SC.R_Glob_can = self.solar_model.I_glob
+        self.SC.T_air_sp = setpoint['T_sp'] + 273.15
+        self.SC.T_out = weather['T_out'] + 273.15
+        self.SC.RH_air = self.air.RH
+        self.SC.compute()
+        
+        # Update ventilation control
+        self.U_vents.T_air = self.air.T
+        self.U_vents.T_air_sp = setpoint['T_sp'] + 273.15
+        self.U_vents.Mdot = self.PID_Mdot.CS
+        self.U_vents.RH_air_input = self.air.RH
+        self.U_vents.compute()
+        
+        # Update screen state
+        self.thScreen.SC = self.SC.SC
+    
     def _calculate_energy_flows(self):
-        """Calculate all energy flows between components"""
+        """
+        Calculate all energy flows between components
+        """
         # Calculate heat fluxes
-        self.q_low = -self.pipe_low.Q_tot / self.surface
-        self.q_up = -self.pipe_up.Q_tot / self.surface
-        self.q_tot = -(self.pipe_low.Q_tot + self.pipe_up.Q_tot) / self.surface
+        self.q_low = -self.pipe_low.Q_tot / self.surface if hasattr(self.pipe_low, 'Q_tot') else 0.0
+        self.q_up = -self.pipe_up.Q_tot / self.surface if hasattr(self.pipe_up, 'Q_tot') else 0.0
+        self.q_tot = -(getattr(self.pipe_low, 'Q_tot', 0.0) + getattr(self.pipe_up, 'Q_tot', 0.0)) / self.surface
         
         # Update accumulated energies
         if self.q_tot > 0:
@@ -191,9 +327,11 @@ class Greenhouse_1:
         self.W_el_illu += self.illu.W_el / self.surface
         self.E_el_tot_kWhm2 = self.W_el_illu
         self.E_el_tot = self.E_el_tot_kWhm2 * self.surface
-        
+    
     def _get_state(self):
-        """Get current state variables"""
+        """
+        Get current state variables
+        """
         return {
             'q_low': self.q_low,
             'q_up': self.q_up,
@@ -204,9 +342,12 @@ class Greenhouse_1:
             'W_el_illu': self.W_el_illu,
             'E_el_tot_kWhm2': self.E_el_tot_kWhm2,
             'E_el_tot': self.E_el_tot,
-            'T_air': self.air.T - 273.15,  # Convert to Celsius
-            'RH_air': self.air.RH * 100,   # Convert to percentage
-            'T_canopy': self.canopy.T - 273.15,
-            'T_cover': self.cover.T - 273.15,
-            'T_floor': self.floor.T - 273.15
+            'T_air': getattr(self.air, 'T', 273.15) - 273.15,  # Convert to Celsius
+            'RH_air': getattr(self.air, 'RH', 0.0) * 100,      # Convert to percentage
+            'T_canopy': getattr(self.canopy, 'T', 273.15) - 273.15,
+            'T_cover': getattr(self.cover, 'T', 273.15) - 273.15,
+            'T_floor': getattr(self.floor, 'T', 273.15) - 273.15,
+            'CO2_air': getattr(self.CO2_air, 'CO2', 0.0),
+            'SC': self.thScreen.SC,
+            'vent_opening': self.U_vents.U_vents
         }

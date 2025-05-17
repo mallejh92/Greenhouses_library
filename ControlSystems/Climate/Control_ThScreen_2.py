@@ -1,4 +1,4 @@
-from ControlSystems.PID import PID, PIDParameters
+from ControlSystems.PID import PID
 
 class Control_ThScreen_2:
     """
@@ -19,7 +19,7 @@ class Control_ThScreen_2:
         self.SC_CCD_value = 0.98  # Closing Cold Day value
         
         # PID controllers
-        pid_humidity_params = PIDParameters(
+        pid_humidity_params = PID(
             Kp=0.5,
             Ti=600,
             Td=0,
@@ -33,7 +33,7 @@ class Control_ThScreen_2:
         )
         self.PID_crack = PID(pid_humidity_params)
         
-        pid_temp_params = PIDParameters(
+        pid_temp_params = PID(
             Kp=0.5,
             Ti=600,
             Td=0,
