@@ -174,12 +174,7 @@ class Greenhouse_1:
             R_Glob_can_min=35
         )
 
-        self.U_vents = Uvents_RH_T_Mdot(
-            T_air=273.15,  # Will be updated from air component
-            T_air_sp=293.15,  # Will be updated from setpoint
-            Mdot=0.0,  # Will be updated from PID
-            RH_air_input=0.0  # Will be updated from air component
-        )
+        self.U_vents = Uvents_RH_T_Mdot()  # Initialize without parameters
         
         # State variables
         self.q_low = 0.0  # Heat flux from lower pipe [W/m²]
@@ -246,38 +241,73 @@ class Greenhouse_1:
         """
         Update all component states with weather and setpoint data
         """
-        # Update air height based on screen state
+        # 1. 외부 환경 및 제어 입력 반영
         h_Air = 3.8 + (1 - self.thScreen.SC) * 0.4
         self.air.h_Air = h_Air
         self.CO2_air.cap_CO2 = h_Air
-        
-        # Propagate weather data to components
-        self.air.T_out = weather['T_out'] + 273.15  # Convert to Kelvin
-        self.air.RH_out = weather['RH_out'] / 100.0 # Convert to 0~1
+
+        self.air.T_out = weather['T_out'] + 273.15
+        self.air.RH_out = weather['RH_out'] / 100.0
         self.solar_model.I_glob = weather['I_glob']
-        self.illu.switch = weather['ilu_sp']        # Lamp on/off (0 or 1)
-        self.illu.compute()                         # Update illumination state
-        
-        # Update ventilation parameters
+        self.illu.switch = weather['ilu_sp']
+        self.illu.compute()
+
         self.Q_ven_AirOut.u = weather['u_wind']
         self.Q_ven_TopOut.u = weather['u_wind']
-        
-        # Propagate setpoint data
-        self.air.T_set = setpoint['T_sp'] + 273.15  # Convert to Kelvin
+
+        self.air.T_set = setpoint['T_sp'] + 273.15
         self.air.CO2_set = setpoint['CO2_sp']
-        
-        # Update all components
-        self.cover.step(dt)
-        self.air.step(dt)
-        self.canopy.step(dt)
-        self.floor.step(dt)
-        self.air_top.step(dt)
+
+        # 2. SolarModel → Cover, Canopy, Floor 등으로 복사 전달
+        self.solar_model.LAI = self.canopy.LAI
+        self.solar_model.SC = self.thScreen.SC
         self.solar_model.step(dt)
+
+        # 3. Cover 입력 연결
+        self.cover.set_inputs(
+            Q_flow=0.0,  # 예시: 실제로는 열전달 모델에서 계산된 값 사용
+            R_SunCov_Glob=self.solar_model.R_SunCov_Glob,
+            MV_flow=0.0  # 예시: 실제로는 응축 등에서 계산된 값 사용
+        )
+        self.cover.step(dt)
+
+        # 4. Canopy 입력 연결
+        self.canopy.set_inputs(
+            Q_flow=0.0,  # 예시: 실제로는 열전달 모델에서 계산된 값 사용
+            R_Can_Glob=[self.solar_model.R_PAR_Can_umol, 0.0],  # 예시
+            MV_flow=0.0
+        )
+        self.canopy.step(dt)
+
+        # 5. Floor 입력 연결
+        self.floor.set_inputs(
+            Q_flow=0.0,  # 예시
+            R_Flr_Glob=[self.solar_model.R_SunFlr_Glob, self.illu.P_el]  # 예시
+        )
+        self.floor.step(dt)
+
+        # 6. Air 입력 연결 (Cover, Canopy, Floor 등에서 온 에너지 합산)
+        Q_flow_air = (
+            self.cover.Q_flow +
+            self.canopy.Q_flow +
+            self.floor.Q_flow
+            # + 기타 열전달(환기, 파이프 등) 필요시 추가
+        )
+        R_Air_Glob = [self.solar_model.R_SunAir_Glob, self.illu.P_el]  # 예시
+        self.air.set_inputs(
+            Q_flow=Q_flow_air,
+            R_Air_Glob=R_Air_Glob,
+            massPort_VP=0.0  # 예시: 실제로는 수증기 흐름 등 계산
+        )
+        self.air.step(dt)
+
+        # 7. HeatingPipe, ThermalScreen, CO2 등도 필요시 연결
         self.pipe_low.step(dt)
         self.pipe_up.step(dt)
         self.thScreen.step(dt)
         self.CO2_air.step(dt)
         self.CO2_top.step(dt)
+        self.air_top.step(dt)
     
     def _update_control_systems(self, weather, setpoint):
         """

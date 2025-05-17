@@ -12,7 +12,7 @@ class Uvents_RH_T_Mdot:
         self.U_max = 1  # Maximum control signal
         
         # PID controllers
-        pid_humidity_params = PID(
+        self.PID = PID(
             Kp=-0.5,
             Ti=650,
             Td=0,
@@ -24,9 +24,8 @@ class Uvents_RH_T_Mdot:
             CSmax=self.U_max,
             PVstart=0.5
         )
-        self.PID = PID(pid_humidity_params)
         
-        pid_temp_params = PID(
+        self.PIDT = PID(
             Kp=-0.5,
             Ti=500,
             Td=0,
@@ -38,9 +37,8 @@ class Uvents_RH_T_Mdot:
             CSmax=self.U_max,
             PVstart=0.5
         )
-        self.PIDT = PID(pid_temp_params)
         
-        pid_temp_noH_params = PID(
+        self.PIDT_noH = PID(
             Kp=-0.5,
             Ti=500,
             Td=0,
@@ -52,33 +50,47 @@ class Uvents_RH_T_Mdot:
             CSmax=self.U_max,
             PVstart=0.5
         )
-        self.PIDT_noH = PID(pid_temp_noH_params)
         
         # Setpoints
         self.RH_max = 0.85  # Maximum relative humidity
         
-    def update(self, T_air: float, T_air_sp: float, RH_air: float, Mdot: float, dt: float):
-        """
-        Update control system and outputs
+        # Inputs (initialized with default values)
+        self.T_air = 293.15  # Air temperature [K]
+        self.T_air_sp = 293.15  # Air temperature setpoint [K]
+        self.RH_air = 0.0  # Air relative humidity [0-1]
+        self.Mdot = 0.0  # Mass flow rate [kg/s]
         
-        Parameters:
-            T_air (float): Air temperature [K]
-            T_air_sp (float): Air temperature setpoint [K]
-            RH_air (float): Air relative humidity [0-1]
-            Mdot (float): Mass flow rate [kg/s]
-            dt (float): Time step [s]
+        # Output
+        self.U_vents = 0.0  # Control signal
+        
+    def compute(self):
+        """
+        Compute control signal based on current state and inputs
+        
+        Returns:
+        --------
+        float
+            Ventilation control signal (0-1)
         """
         # Update PID controllers
-        self.PID.update(RH_air, self.RH_max, dt)
-        self.PIDT.update(T_air, self.Tmax_tomato, dt)
-        self.PIDT_noH.update(T_air, T_air_sp + 2, dt)
+        self.PID.PV = self.RH_air
+        self.PID.SP = self.RH_max
+        self.PID.compute()
+        
+        self.PIDT.PV = self.T_air
+        self.PIDT.SP = self.Tmax_tomato
+        self.PIDT.compute()
+        
+        self.PIDT_noH.PV = self.T_air
+        self.PIDT_noH.SP = self.T_air_sp + 2
+        self.PIDT_noH.compute()
         
         # Calculate sigmoid functions for mass flow rate
-        sigmoid1 = 1 / (1 + np.exp(-200 * (Mdot - 0.05)))
-        sigmoid2 = 1 / (1 + np.exp(200 * (Mdot - 0.05)))
+        sigmoid1 = 1 / (1 + np.exp(-200 * (self.Mdot - 0.05)))
+        sigmoid2 = 1 / (1 + np.exp(200 * (self.Mdot - 0.05)))
         
         # Calculate control signal
-        y = (sigmoid1 * max(self.PID.CS, self.PIDT.CS) + 
-             sigmoid2 * max(self.PID.CS, self.PIDT_noH.CS))
+        self.U_vents = (sigmoid1 * max(self.PID.CS, self.PIDT.CS) + 
+                       sigmoid2 * max(self.PID.CS, self.PIDT_noH.CS))
         
-        return y
+        return self.U_vents

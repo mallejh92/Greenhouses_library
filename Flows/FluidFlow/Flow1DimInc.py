@@ -183,9 +183,9 @@ class Flow1DimInc:
         """Calculate specific enthalpy of water"""
         return self.c_p * (T - 273.15)
     
-    def update(self, dt):
+    def step(self, dt):
         """
-        Update flow model state
+        Advance the simulation by one time step
         
         Parameters:
         -----------

@@ -3,9 +3,20 @@ class Control_ThScreen:
     Controller for the thermal screen closure including a crack for dehumidification
     """
     
-    def __init__(self):
+    def __init__(self, R_Glob_can=0.0, R_Glob_can_min=32):
+        """
+        Initialize thermal screen controller
+        
+        Parameters:
+        -----------
+        R_Glob_can : float, optional
+            Global radiation at canopy level [W/m2], default is 0.0
+        R_Glob_can_min : float, optional
+            Minimum global radiation [W/m2], default is 32
+        """
         # Parameters
-        self.R_Glob_can_min = 32  # Minimum global radiation
+        self.R_Glob_can = R_Glob_can
+        self.R_Glob_can_min = R_Glob_can_min
         
         # State variables
         self.state = "closed"  # Initial state
@@ -26,36 +37,34 @@ class Control_ThScreen:
         self.cl = 1
         self.crack = 0
         self.crack2 = 0
-        self.y = 0
+        self.SC = 0  # Final control signal
         
-    def update(self, T_out: float, T_air_sp: float, R_Glob_can: float, 
-              RH_air: float, SC_usable: float, dt: float):
-        """
-        Update control system state and outputs
+        # Additional inputs
+        self.T_air_sp = 293.15  # Default air temperature setpoint [K]
+        self.T_out = 273.15    # Default outside temperature [K]
+        self.RH_air = 0.0      # Default relative humidity [0-1]
+        self.SC_usable = 0.0   # Default screen usability
         
-        Parameters:
-            T_out (float): Outside temperature [K]
-            T_air_sp (float): Air temperature setpoint [K]
-            R_Glob_can (float): Global radiation at canopy level [W/m2]
-            RH_air (float): Air relative humidity [0-1]
-            SC_usable (float): Screen usability
-            dt (float): Time step [s]
+    def compute(self):
         """
-        # Update timer
-        if self.state in ["opening_ColdDay", "opening_WarmDay", "closing_ColdDay"]:
-            self.timer += dt
-            
+        Compute control signal based on current state and inputs
+        
+        Returns:
+        --------
+        float
+            Screen control signal (0-1)
+        """
         # State machine logic
         if self.state == "closed":
-            if RH_air > 0.83:
+            if self.RH_air > 0.83:
                 self.state = "crack"
-            elif R_Glob_can > self.R_Glob_can_min and T_out <= (T_air_sp - 7):
+            elif self.R_Glob_can > self.R_Glob_can_min and self.T_out <= (self.T_air_sp - 7):
                 self.state = "opening_ColdDay"
                 self.timer = 0
-            elif R_Glob_can > self.R_Glob_can_min and T_out > (T_air_sp - 7):
+            elif self.R_Glob_can > self.R_Glob_can_min and self.T_out > (self.T_air_sp - 7):
                 self.state = "opening_WarmDay"
                 self.timer = 0
-            elif SC_usable > 0 and T_out < (T_air_sp - 7):
+            elif self.SC_usable > 0 and self.T_out < (self.T_air_sp - 7):
                 self.state = "closing_ColdDay"
                 self.timer = 0
                 
@@ -72,23 +81,23 @@ class Control_ThScreen:
                 self.state = "closed"
                 
         elif self.state == "crack":
-            if RH_air < 0.7:
+            if self.RH_air < 0.7:
                 self.state = "closed"
-            elif RH_air > 0.85:
+            elif self.RH_air > 0.85:
                 self.state = "crack2"
                 
         elif self.state == "crack2":
-            if RH_air < 0.7:
+            if self.RH_air < 0.7:
                 self.state = "closed"
-            elif R_Glob_can > self.R_Glob_can_min and T_out <= (T_air_sp - 7):
+            elif self.R_Glob_can > self.R_Glob_can_min and self.T_out <= (self.T_air_sp - 7):
                 self.state = "opening_ColdDay"
-            elif R_Glob_can > self.R_Glob_can_min and T_out > (T_air_sp - 7):
+            elif self.R_Glob_can > self.R_Glob_can_min and self.T_out > (self.T_air_sp - 7):
                 self.state = "opening_WarmDay"
                 
         elif self.state == "open":
-            if R_Glob_can > self.R_Glob_can_min and T_out <= (T_air_sp - 7):
+            if self.R_Glob_can > self.R_Glob_can_min and self.T_out <= (self.T_air_sp - 7):
                 self.state = "opening_ColdDay"
-            elif R_Glob_can > self.R_Glob_can_min and T_out > (T_air_sp - 7):
+            elif self.R_Glob_can > self.R_Glob_can_min and self.T_out > (self.T_air_sp - 7):
                 self.state = "opening_WarmDay"
         
         # Update screen values
@@ -101,7 +110,7 @@ class Control_ThScreen:
         self.crack2 = self.SC_crack2_value if self.state == "crack2" else 0
         
         # Calculate final control signal
-        self.y = (self.opening_CD + self.opening_WD + self.closing_CD + 
-                 self.op + self.cl + self.crack + self.crack2)
+        self.SC = (self.opening_CD + self.opening_WD + self.closing_CD + 
+                  self.op + self.cl + self.crack + self.crack2)
         
-        return self.y
+        return self.SC

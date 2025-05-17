@@ -2,25 +2,31 @@ import numpy as np
 from scipy.integrate import odeint
 
 class TomatoYieldModel:
-    def __init__(self, n_dev=50):
+    def __init__(self, 
+                 n_dev=50,
+                 LAI_MAX=3.5,
+                 LAI_0=0.4,
+                 T_canSumC_0=0,
+                 C_Leaf_0=15e3,
+                 C_Stem_0=15e3):
         #***************** Parameters *******************//
         self.n_dev = n_dev  # "Number of fruit development stages"
-        self.LAI_MAX = 3.5  # "Maximum leaf area index, m2 leaf/m2 greenhouse"
+        self.LAI_MAX = LAI_MAX  # "Maximum leaf area index, m2 leaf/m2 greenhouse"
         
         #***************** Varying inputs *******************//
-        self.R_PAR_can = None  # "Total PAR absorbed by the canopy, umol/(s.m2)"
-        self.CO2_air = None    # "CO2 concentration of the greenhouse air, umol CO2/mol air"
-        self.T_canK = None     # "Instantaneous canopy temperature, K"
+        self.R_PAR_can = 460  # "Total PAR absorbed by the canopy, umol/(s.m2)"
+        self.CO2_air = 600    # "CO2 concentration of the greenhouse air, umol CO2/mol air"
+        self.T_canK = 293.15  # "Instantaneous canopy temperature, K"
         
         #***************** Constant parameters characteristic of the plant ***************************//
         self.C_Buf_MAX = 20e3  # "Maximum buffer capacity, mg/m2"
         self.C_Buf_MIN = 1e3   # "Minimum amount of carbohydrates in the buffer, mg/m2"
         
         #***************** Initialization parameters *******************//
-        self.LAI_0 = 0.4       # "Initial leaf area index"
-        self.T_canSumC_0 = 0   # "Initial temperature sum"
-        self.C_Leaf_0 = 15e3   # "Initial carbohydrate weight of leaves, mg/m2"
-        self.C_Stem_0 = 15e3   # "Initial carbohydrate weight of stems and roots, mg/m2"
+        self.LAI_0 = LAI_0       # "Initial leaf area index"
+        self.T_canSumC_0 = T_canSumC_0   # "Initial temperature sum"
+        self.C_Leaf_0 = C_Leaf_0   # "Initial carbohydrate weight of leaves, mg/m2"
+        self.C_Stem_0 = C_Stem_0   # "Initial carbohydrate weight of stems and roots, mg/m2"
         self.n_plants = 2.5    # "Number of plants per square meter"
         
         #***************** Protected parameters *********************/

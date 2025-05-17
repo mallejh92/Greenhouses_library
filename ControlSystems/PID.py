@@ -111,6 +111,6 @@ class PID:
         self.CSs = np.clip(self.CSbs, 0, 1)  # Saturated control signal
         
         # Convert to actual control signal
-        CS = self.CSmin + self.CSs * (self.CSmax - self.CSmin)
+        self.CS = self.CSmin + self.CSs * (self.CSmax - self.CSmin)
         
-        return CS
+        return self.CS

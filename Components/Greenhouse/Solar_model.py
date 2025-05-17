@@ -49,10 +49,44 @@ class SolarModel:
         self.eta_glob_NIR = eta_glob_NIR
         self.eta_GlobPAR = eta_GlobPAR
 
+        # Initialize output variables
+        self.R_SunCov_Glob = 0.0
+        self.P_SunCov_Glob = 0.0
+        self.R_SunCan_Glob = 0.0
+        self.P_SunCan_Glob = 0.0
+        self.R_SunFlr_Glob = 0.0
+        self.P_SunFlr_Glob = 0.0
+        self.R_SunAir_Glob = 0.0
+        self.P_SunAir_Glob = 0.0
+        self.R_PAR_Can_umol = 0.0
+        self.R_t_Glob = 0.0
+
     def multi_layer_tau_rho(self, tau1, tau2, rho1, rho2):
         tau_total = tau1 * tau2 / (1 - rho1 * rho2)
         rho_total = rho1 + (tau1**2 * rho2 / (1 - rho1 * rho2))
         return tau_total, rho_total
+
+    def step(self, dt):
+        """
+        Advance the simulation by one time step
+        
+        Parameters:
+        -----------
+        dt : float
+            Time step [s]
+        """
+        results = self.compute()
+        
+        # Update class attributes with computed values
+        self.R_SunCov_Glob = results["R_SunCov_Glob"]
+        self.P_SunCov_Glob = results["P_SunCov_Glob"]
+        self.R_SunCan_Glob = results["R_SunCan_Glob"]
+        self.P_SunCan_Glob = results["P_SunCan_Glob"]
+        self.R_SunFlr_Glob = results["R_SunFlr_Glob"]
+        self.P_SunFlr_Glob = results["P_SunFlr_Glob"]
+        self.R_SunAir_Glob = results["R_SunAir_Glob"]
+        self.P_SunAir_Glob = results["P_SunAir_Glob"]
+        self.R_PAR_Can_umol = results["R_PAR_Can_umol"]
 
     def compute(self):
         tau_ML_covPAR, rho_ML_covPAR = self.multi_layer_tau_rho(
@@ -99,6 +133,9 @@ class SolarModel:
 
         R_SunAir_Glob = self.eta_glob_air * self.I_glob * (tau_covPAR * self.eta_glob_PAR + (alpha_CanNIR + alpha_FlrNIR) * self.eta_glob_NIR)
         P_SunAir_Glob = R_SunAir_Glob * self.A
+
+        # Calculate total transmitted radiation above the canopy
+        self.R_t_Glob = self.I_glob * (1 - self.eta_glob_air) * (self.eta_glob_PAR * tau_covPAR + self.eta_glob_NIR * (alpha_CanNIR + alpha_FlrNIR))
 
         return {
             "R_SunCov_Glob": R_SunCov_Glob,

@@ -45,7 +45,7 @@ class CO2_Air:
         self.CO2_ppm = self.CO2 / 1.94
         self.port_CO2 = self.CO2
         
-    def update(self, dt: float):
+    def step(self, dt: float):
         """
         Update CO2 concentration
         

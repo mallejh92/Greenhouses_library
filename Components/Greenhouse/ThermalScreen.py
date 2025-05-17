@@ -26,15 +26,28 @@ class ThermalScreen:
     def set_vapor_mass_flow(self, MV_flow):
         self.MV_flow = MV_flow
 
-    def update(self, Q_flow_input, SC_input=None, dt=1.0):
-        """Update screen temperature based on current inputs and timestep."""
+    def step(self, dt, Q_flow_input=None, SC_input=None):
+        """
+        Advance the simulation by one time step
+        
+        Parameters:
+        -----------
+        dt : float
+            Time step [s]
+        Q_flow_input : float, optional
+            Heat flow rate input [W]
+        SC_input : float, optional
+            Screen closure input (0-1)
+        """
         if SC_input is not None:
             self.SC = SC_input
 
         self.FF_i = self.SC
         self.FF_ij = self.SC * (1 - self.tau_FIR)
 
-        self.Q_flow = Q_flow_input
+        if Q_flow_input is not None:
+            self.Q_flow = Q_flow_input
+            
         self.L_scr = self.MV_flow * self.Lv  # [W]
 
         if not self.steadystate:

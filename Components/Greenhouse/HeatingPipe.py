@@ -61,7 +61,8 @@ class HeatingPipe:
             V=self.pi * ((self.d - 0.004)/2)**2 * self.l,
             pstart=200000,
             Tstart_inlet=353.15,
-            Tstart_outlet=323.15
+            Tstart_outlet=323.15,
+            steadystate=True
         )
         
         # Heat ports
@@ -80,7 +81,7 @@ class HeatingPipe:
             Time step [s]
         """
         # Update Flow1DimInc model
-        self.flow1DimInc.simulate_step()
+        self.flow1DimInc.step(dt)
         
         # Calculate total heat flow
         self.Q_tot = self.flow1DimInc.Q_tot
