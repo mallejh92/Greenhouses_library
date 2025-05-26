@@ -51,13 +51,18 @@ class Radiation_T4(Element1D):
         self.FFab3 = FFab3  # View factor of intermediate element between A and B
         self.FFab4 = FFab4  # View factor of intermediate element between A and B
         
-    def calculate(self):
+    def step(self, dt=None):
         """
         Calculate heat transfer by radiation
         
         This method updates the Q_flow values in the heat ports directly,
         similar to the Modelica implementation.
         
+        Parameters:
+        -----------
+        dt : float, optional
+            Time step [s]. Not used in this calculation but included for interface consistency.
+            
         Returns:
         --------
         Q_flow : float

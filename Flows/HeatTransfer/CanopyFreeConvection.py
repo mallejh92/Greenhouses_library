@@ -1,4 +1,6 @@
-class CanopyFreeConvection:
+from Modelica.Thermal.HeatTransfer.Interfaces.Element1D import Element1D
+
+class CanopyFreeConvection(Element1D):
     """
     Leaves heat exchange by free convection with air
     
@@ -19,33 +21,23 @@ class CanopyFreeConvection:
         U : float, optional
             Leaves heat transfer coefficient [W/(m²·K)], default is 5
         """
+        super().__init__()
         self.A = A
         self.U = U
         self.LAI = LAI
+        self.HEC_ab = 0.0  # Heat exchange coefficient
         
-    def calculate_heat_transfer(self, T_a, T_b):
+    def step(self, dt):
         """
         Calculate heat transfer between leaves and air
         
         Parameters:
         -----------
-        T_a : float
-            Temperature at port a [K]
-        T_b : float
-            Temperature at port b [K]
-            
-        Returns:
-        --------
-        Q_flow : float
-            Heat flow rate [W]
+        dt : float
+            Time step [s]
         """
         # Calculate heat exchange coefficient
-        HEC_ab = 2 * self.LAI * self.U
-        
-        # Calculate temperature difference
-        dT = T_b - T_a
+        self.HEC_ab = 2 * self.LAI * self.U
         
         # Calculate heat flow
-        Q_flow = self.A * HEC_ab * dT
-        
-        return Q_flow
+        self.Q_flow = self.A * self.HEC_ab * self.dT

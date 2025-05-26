@@ -72,6 +72,9 @@ class HeatingPipe:
         # Connect heat ports to Flow1DimInc
         for i in range(self.N):
             self.heatPorts[i] = self.flow1DimInc.heatPorts_a[i]
+            
+        # Add single heatPort for compatibility with Greenhouse_1
+        self.heatPort = self.heatPorts[0]
         
         # State variables
         self.Q_tot = 0.0  # Total heat flow [W]

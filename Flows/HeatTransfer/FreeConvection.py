@@ -1,6 +1,7 @@
 import numpy as np
+from Modelica.Thermal.HeatTransfer.Interfaces.Element1D import Element1D
 
-class FreeConvection:
+class FreeConvection(Element1D):
     """
     Upward or downward heat exchange by free convection from an horizontal or inclined surface.
     If studying heat exchange of Air-Floor: connect the filled port to the floor 
@@ -26,6 +27,7 @@ class FreeConvection:
         topAir : bool, optional
             False if MainAir-Cov; True for: TopAir-Cov, default is False
         """
+        super().__init__()
         self.phi = phi
         self.A = A
         self.floor = floor
@@ -37,52 +39,45 @@ class FreeConvection:
         self.SC = 0  # Screen closure (1:closed, 0:open)
         self.s = 11  # Slope of the differentiable switch function
         
-    def calculate_heat_transfer(self, T_a, T_b):
+        # Heat exchange coefficients
+        self.HEC_ab = 0.0
+        self.HEC_up_flr = 0.0
+        self.HEC_down_flr = 0.0
+        
+    def step(self, dt):
         """
         Calculate heat transfer by free convection
         
         Parameters:
         -----------
-        T_a : float
-            Temperature at port a [K]
-        T_b : float
-            Temperature at port b [K]
-            
-        Returns:
-        --------
-        Q_flow : float
-            Heat flow rate [W]
+        dt : float
+            Time step [s]
         """
-        # Calculate temperature difference
-        dT = T_b - T_a
-        
         # Calculate heat exchange coefficient based on conditions
         if not self.floor:
             if self.thermalScreen:
                 if self.Air_Cov:
                     if not self.topAir:
                         # Exchange main air-cover (with screen)
-                        HEC_ab = 0
+                        self.HEC_ab = 0
                     else:
                         # Exchange top air-cover
-                        HEC_ab = 1.7 * max(1e-9, abs(dT))**0.33 * (np.cos(self.phi))**(-0.66)
+                        self.HEC_ab = 1.7 * max(1e-9, abs(self.dT))**0.33 * (np.cos(self.phi))**(-0.66)
                 else:
                     # Exchange air-screen
-                    HEC_ab = self.SC * 1.7 * max(1e-9, abs(dT))**0.33
+                    self.HEC_ab = self.SC * 1.7 * max(1e-9, abs(self.dT))**0.33
             else:
                 # Exchange main air-cover (no screen)
-                HEC_ab = 1.7 * max(1e-9, abs(dT))**0.33 * (np.cos(self.phi))**(-0.66)
+                self.HEC_ab = 1.7 * max(1e-9, abs(self.dT))**0.33 * (np.cos(self.phi))**(-0.66)
             
-            HEC_up_flr = 0
-            HEC_down_flr = 0
+            self.HEC_up_flr = 0
+            self.HEC_down_flr = 0
             
         else:
             # Floor heat exchange with differentiable switch function
-            HEC_up_flr = 1/(1 + np.exp(-self.s * dT)) * 1.7 * abs(dT)**0.33  # Used for dT>0
-            HEC_down_flr = 1/(1 + np.exp(self.s * dT)) * 1.3 * abs(dT)**0.25  # Used for dT<0
-            HEC_ab = HEC_up_flr + HEC_down_flr
+            self.HEC_up_flr = 1/(1 + np.exp(-self.s * self.dT)) * 1.7 * abs(self.dT)**0.33  # Used for dT>0
+            self.HEC_down_flr = 1/(1 + np.exp(self.s * self.dT)) * 1.3 * abs(self.dT)**0.25  # Used for dT<0
+            self.HEC_ab = self.HEC_up_flr + self.HEC_down_flr
         
         # Calculate heat flow
-        Q_flow = self.A * HEC_ab * dT
-        
-        return Q_flow
+        self.Q_flow = self.A * self.HEC_ab * self.dT

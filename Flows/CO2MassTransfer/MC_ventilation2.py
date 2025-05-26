@@ -17,7 +17,7 @@ class MC_ventilation2:
         self.MC_flow = 0.0  # CO2 mass flow rate [mg/(m2.s)]
         self.dC = 0.0  # CO2 concentration difference [mg/m3]
         
-    def update(self, f_vent: float = None, dC: float = None) -> float:
+    def step(self, f_vent: float = None, dC: float = None) -> float:
         """
         Update CO2 mass flow
         

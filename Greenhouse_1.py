@@ -16,6 +16,7 @@ from Flows.HeatTransfer.Radiation_N import Radiation_N
 from Flows.CO2MassTransfer.MC_AirCan import MC_AirCan
 from Flows.CO2MassTransfer.CO2_Air import CO2_Air
 from Flows.HeatAndVapourTransfer.Ventilation import Ventilation
+from Flows.HeatAndVapourTransfer.AirThroughScreen import AirThroughScreen
 from ControlSystems.PID import PID
 from ControlSystems.Climate.Control_ThScreen import Control_ThScreen
 from ControlSystems.Climate.Uvents_RH_T_Mdot import Uvents_RH_T_Mdot
@@ -24,7 +25,6 @@ from Flows.HeatTransfer.PipeFreeConvection_N import PipeFreeConvection_N
 from Flows.CO2MassTransfer.MC_ventilation2 import MC_ventilation2
 from Flows.HeatAndVapourTransfer.Convection_Condensation import Convection_Condensation
 from Flows.HeatAndVapourTransfer.Convection_Evaporation import Convection_Evaporation
-from Flows.HeatAndVapourTransfer.AirThroughScreen import AirThroughScreen
 
 class Greenhouse_1:
     """
@@ -141,36 +141,37 @@ class Greenhouse_1:
             topAir=True
         )
         
-        self.Q_ven_AirTop = Ventilation(
+        self.Q_ven_AirTop = AirThroughScreen(
             A=self.surface,
-            thermalScreen=True,
-            topAir=True
+            K=0.2e-3,
+            SC=self.thScreen.SC,
+            W=9.6
         )
         
         # Connect ventilation ports
         # Q_ven_AirOut
-        self.Q_ven_AirOut.port_a.T = self.air.heatPort.T
-        self.Q_ven_AirOut.port_b.T = self.air.T_out
-        self.Q_ven_AirOut.massPort_a.VP = self.air.massPort.VP
-        self.Q_ven_AirOut.massPort_b.VP = self.air.VP_out
-        self.Q_ven_AirOut.massPort_a.P = self.air.massPort.P
-        self.Q_ven_AirOut.massPort_b.P = self.air.P_out
+        self.Q_ven_AirOut.HeatPort_a.T = self.air.heatPort.T
+        self.Q_ven_AirOut.HeatPort_b.T = self.air.T
+        self.Q_ven_AirOut.MassPort_a.VP = self.air.massPort.VP
+        self.Q_ven_AirOut.MassPort_b.VP = self.air.VP
+        self.Q_ven_AirOut.MassPort_a.P = self.air.massPort.P
+        self.Q_ven_AirOut.MassPort_b.P = self.air.P_Air
         
         # Q_ven_TopOut
-        self.Q_ven_TopOut.port_a.T = self.air_top.heatPort.T
-        self.Q_ven_TopOut.port_b.T = self.air.T_out
-        self.Q_ven_TopOut.massPort_a.VP = self.air_top.massPort.VP
-        self.Q_ven_TopOut.massPort_b.VP = self.air.VP_out
-        self.Q_ven_TopOut.massPort_a.P = self.air_top.massPort.P
-        self.Q_ven_TopOut.massPort_b.P = self.air.P_out
+        self.Q_ven_TopOut.HeatPort_a.T = self.air_top.heatPort.T
+        self.Q_ven_TopOut.HeatPort_b.T = self.air.T
+        self.Q_ven_TopOut.MassPort_a.VP = self.air_top.massPort.VP
+        self.Q_ven_TopOut.MassPort_b.VP = self.air.VP
+        self.Q_ven_TopOut.MassPort_a.P = self.air_top.massPort.P
+        self.Q_ven_TopOut.MassPort_b.P = self.air.P_Air
         
         # Q_ven_AirTop
-        self.Q_ven_AirTop.port_a.T = self.air.heatPort.T
-        self.Q_ven_AirTop.port_b.T = self.air_top.heatPort.T
-        self.Q_ven_AirTop.massPort_a.VP = self.air.massPort.VP
-        self.Q_ven_AirTop.massPort_b.VP = self.air_top.massPort.VP
-        self.Q_ven_AirTop.massPort_a.P = self.air.massPort.P
-        self.Q_ven_AirTop.massPort_b.P = self.air_top.massPort.P
+        self.Q_ven_AirTop.HeatPort_a.T = self.air.heatPort.T
+        self.Q_ven_AirTop.HeatPort_b.T = self.air_top.heatPort.T
+        self.Q_ven_AirTop.MassPort_a.VP = self.air.massPort.VP
+        self.Q_ven_AirTop.MassPort_b.VP = self.air_top.massPort.VP
+        self.Q_ven_AirTop.MassPort_a.P = self.air.massPort.P
+        self.Q_ven_AirTop.MassPort_b.P = self.air_top.massPort.P
 
         # Initialize CO2 components
         self.CO2_air = CO2_Air(cap_CO2=3.8)  # Will be updated dynamically
@@ -440,12 +441,82 @@ class Greenhouse_1:
             C_Stem_0=30e3  # Initial stem carbon content
         )
         
+        # Connect all heat ports
+        self._connect_heat_ports()
+        
         # Set initial environmental conditions
         self.TYM.set_environmental_conditions(
             R_PAR_can=self.solar_model.R_PAR_Can_umol + self.illu.R_PAR_Can_umol if hasattr(self.illu, 'R_PAR_Can_umol') else 0,
             CO2_air=self.CO2_air.CO2_ppm if hasattr(self, 'CO2_air') else 0,
             T_canK=self.canopy.T if hasattr(self.canopy, 'T') else 293.15
         )
+    
+    def _connect_heat_ports(self):
+        """
+        Connect all heat ports between components
+        """
+        # Connect radiation components
+        # Q_rad_FlrCan (Floor to Canopy)
+        self.Q_rad_FlrCan.port_a.T = self.floor.heatPort.T
+        self.Q_rad_FlrCan.port_b.T = self.canopy.heatPort.T
+        
+        # Q_rad_FlrCov (Floor to Cover)
+        self.Q_rad_FlrCov.port_a.T = self.floor.heatPort.T
+        self.Q_rad_FlrCov.port_b.T = self.cover.heatPort.T
+        
+        # Q_rad_CanScr (Canopy to Screen)
+        self.Q_rad_CanScr.port_a.T = self.canopy.heatPort.T
+        self.Q_rad_CanScr.port_b.T = self.thScreen.heatPort.T
+        
+        # Q_rad_FlrScr (Floor to Screen)
+        self.Q_rad_FlrScr.port_a.T = self.floor.heatPort.T
+        self.Q_rad_FlrScr.port_b.T = self.thScreen.heatPort.T
+        
+        # Q_rad_ScrCov (Screen to Cover)
+        self.Q_rad_ScrCov.port_a.T = self.thScreen.heatPort.T
+        self.Q_rad_ScrCov.port_b.T = self.cover.heatPort.T
+        
+        # Q_rad_CanCov (Canopy to Cover)
+        self.Q_rad_CanCov.port_a.T = self.canopy.heatPort.T
+        self.Q_rad_CanCov.port_b.T = self.cover.heatPort.T
+        
+        # Q_rad_CovSky (Cover to Sky)
+        self.Q_rad_CovSky.port_a.T = self.cover.heatPort.T
+        self.Q_rad_CovSky.port_b.T = self.air.T
+        
+        # Connect convection components
+        # Q_cnv_CanAir (Canopy to Air)
+        self.Q_cnv_CanAir.port_a.T = self.canopy.heatPort.T
+        self.Q_cnv_CanAir.port_b.T = self.air.heatPort.T
+        
+        # Q_cnv_FlrAir (Floor to Air)
+        self.Q_cnv_FlrAir.port_a.T = self.floor.heatPort.T
+        self.Q_cnv_FlrAir.port_b.T = self.air.heatPort.T
+        
+        # Q_cnv_CovOut (Cover to Outside)
+        self.Q_cnv_CovOut.port_a.T = self.cover.heatPort.T
+        self.Q_cnv_CovOut.port_b.T = self.air.T
+        
+        # Connect pipe heat transfer components
+        # Q_cnv_LowAir (Lower Pipe to Air)
+        self.Q_cnv_LowAir.heatPorts_a[0].T = self.pipe_low.heatPort.T
+        self.Q_cnv_LowAir.port_b.T = self.air.heatPort.T
+        
+        # Q_rad_LowScr (Lower Pipe to Screen)
+        self.Q_rad_LowScr.heatPorts_a[0].T = self.pipe_low.heatPort.T
+        self.Q_rad_LowScr.port_b.T = self.thScreen.heatPort.T
+        
+        # Q_rad_LowFlr (Lower Pipe to Floor)
+        self.Q_rad_LowFlr.heatPorts_a[0].T = self.pipe_low.heatPort.T
+        self.Q_rad_LowFlr.port_b.T = self.floor.heatPort.T
+        
+        # Q_rad_LowCan (Lower Pipe to Canopy)
+        self.Q_rad_LowCan.heatPorts_a[0].T = self.pipe_low.heatPort.T
+        self.Q_rad_LowCan.port_b.T = self.canopy.heatPort.T
+        
+        # Q_rad_LowCov (Lower Pipe to Cover)
+        self.Q_rad_LowCov.heatPorts_a[0].T = self.pipe_low.heatPort.T
+        self.Q_rad_LowCov.port_b.T = self.cover.heatPort.T
     
     def step(self, dt, time_idx):
         """
@@ -531,7 +602,7 @@ class Greenhouse_1:
         self.MC_TopOut.f_vent = self.Q_ven_TopOut.f_vent_total
         
         # Update CO2 exchange between air and canopy
-        self.MC_AirCan.update(MC_AirCan=self.TYM.MC_AirCan_mgCO2m2s)
+        self.MC_AirCan.step(MC_AirCan=self.TYM.MC_AirCan_mgCO2m2s)
         
         # Step all CO2 components
         self.MC_AirCan.step(dt)
@@ -603,6 +674,7 @@ class Greenhouse_1:
         self.Q_cnv_TopCov.step(dt)
         self.Q_cnv_ScrTop.step(dt)
         
+        # Update HeatPort connections
         # Update port connections for convection components
         # Q_cnv_AirScr
         self.Q_cnv_AirScr.port_a.T = self.air.heatPort.T

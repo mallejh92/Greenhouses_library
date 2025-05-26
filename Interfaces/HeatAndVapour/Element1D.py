@@ -1,7 +1,7 @@
 from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
 from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_b import HeatPort_b
-from Modelica.Fluid.Interfaces.WaterMassPort_a import WaterMassPort_a
-from Modelica.Fluid.Interfaces.WaterMassPort_b import WaterMassPort_b
+from Interfaces.Vapour.WaterMassPort_a import WaterMassPort_a
+from Interfaces.Vapour.WaterMassPort_b import WaterMassPort_b
 
 class Element1D:
     """

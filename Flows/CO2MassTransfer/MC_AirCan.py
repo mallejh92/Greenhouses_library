@@ -17,7 +17,7 @@ class MC_AirCan:
         # Port variable
         self.port_MC_flow = MC_AirCan  # CO2 mass flow rate at the port [mg/(m2.s)]
         
-    def update(self, MC_AirCan: float = None) -> float:
+    def step(self, MC_AirCan: float = None) -> float:
         """
         Update CO2 net assimilation rate
         

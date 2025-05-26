@@ -100,6 +100,10 @@ class TomatoYieldModel:
         self.MC_BufFruit_j = np.zeros(self.n_dev)  # "Buffer to fruit flow"
         self.MC_FruitAir_j = np.zeros(self.n_dev)  # "Fruit maintenance respiration"
         
+        # Air exchange variables
+        self.MC_AirCan = 0.0  # "CH2O flux between air and canopy"
+        self.MC_AirCan_mgCO2m2s = 0.0  # "CO2 flux between air and canopy"
+        
     def calculate_derivatives(self, t, y):
         # Unpack state variables
         C_Buf, C_Leaf, C_Stem = y[0:3]
@@ -154,6 +158,22 @@ class TomatoYieldModel:
         MC_LeafAir_g = self.c_Leaf_g * MC_BufLeaf
         MC_StemAir_g = self.c_Stem_g * MC_BufStem
         MC_BufAir = MC_FruitAir_g + MC_LeafAir_g + MC_StemAir_g
+        
+        # Calculate maintenance respiration
+        RGR_Leaf = 1/C_Leaf * self.rg_Leaf
+        RGR_Stem = 1/C_Stem * self.rg_Stem
+        
+        MC_FruitAir_m = np.zeros(self.n_dev)
+        for j in range(self.n_dev):
+            MC_FruitAir_m[j] = self.c_Fruit_m * C_Fruit[j] * self.Q_10_m**((T_canC - 20) / 10)
+        
+        MC_FruitAir = np.sum(MC_FruitAir_m)  # Sum of all fruit maintenance respiration
+        MC_LeafAir = self.c_Leaf_m * self.Q_10_m**(0.1*(T_can24C-25)) * C_Leaf * (1 - np.exp(-self.c_RGR*RGR_Leaf))
+        MC_StemAir = self.c_Stem_m * self.Q_10_m**(0.1*(T_can24C-25)) * C_Stem * (1 - np.exp(-self.c_RGR*RGR_Stem))
+        
+        # Calculate air exchange
+        self.MC_AirCan = MC_AirBuf - MC_BufAir - MC_FruitAir - MC_LeafAir - MC_StemAir
+        self.MC_AirCan_mgCO2m2s = self.MC_AirCan/self.M_CH2O*self.M_CO2
         
         # Calculate derivatives
         dC_Buf = MC_AirBuf - MC_BufFruit - MC_BufLeaf - MC_BufStem - MC_BufAir
