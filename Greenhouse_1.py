@@ -1,11 +1,10 @@
-import numpy as np
 import pandas as pd
 from Components.Greenhouse.Cover import Cover
 from Components.Greenhouse.Air import Air
 from Components.Greenhouse.Canopy import Canopy
 from Components.Greenhouse.Floor import Floor
-from Components.Greenhouse.Air_Top import TopAirCompartment
-from Components.Greenhouse.Solar_model import SolarModel
+from Components.Greenhouse.Air_Top import Air_Top
+from Components.Greenhouse.Solar_model import Solar_model
 from Components.Greenhouse.HeatingPipe import HeatingPipe
 from Components.Greenhouse.Illumination import Illumination
 from Components.Greenhouse.ThermalScreen import ThermalScreen
@@ -20,6 +19,12 @@ from Flows.HeatAndVapourTransfer.Ventilation import Ventilation
 from ControlSystems.PID import PID
 from ControlSystems.Climate.Control_ThScreen import Control_ThScreen
 from ControlSystems.Climate.Uvents_RH_T_Mdot import Uvents_RH_T_Mdot
+from Components.CropYield.TomatoYieldModel import TomatoYieldModel
+from Flows.HeatTransfer.PipeFreeConvection_N import PipeFreeConvection_N
+from Flows.CO2MassTransfer.MC_ventilation2 import MC_ventilation2
+from Flows.HeatAndVapourTransfer.Convection_Condensation import Convection_Condensation
+from Flows.HeatAndVapourTransfer.Convection_Evaporation import Convection_Evaporation
+from Flows.HeatAndVapourTransfer.AirThroughScreen import AirThroughScreen
 
 class Greenhouse_1:
     """
@@ -31,6 +36,23 @@ class Greenhouse_1:
         # Constants
         self.surface = 1.4e4  # Floor surface area [m²]
         
+        # State variables
+        self.q_low = 0.0  # Heat flux from lower pipe [W/m²]
+        self.q_up = 0.0   # Heat flux from upper pipe [W/m²]
+        self.q_tot = 0.0  # Total heat flux [W/m²]
+        
+        self.E_th_tot_kWhm2 = 0.0  # Total thermal energy per m² [kW·h/m²]
+        self.E_th_tot = 0.0        # Total thermal energy [kW·h]
+        
+        self.DM_Har = 0.0  # Accumulated harvested tomato dry matter [mg/m²]
+        
+        self.W_el_illu = 0.0       # Electrical energy for illumination per m² [kW·h/m²]
+        self.E_el_tot_kWhm2 = 0.0  # Total electrical energy per m² [kW·h/m²]
+        self.E_el_tot = 0.0        # Total electrical energy [kW·h]
+
+        # CO2 injection parameters
+        self.phi_ExtCO2 = 27  # External CO2 injection rate [mg/(m²·s)]
+
         # Initialize components
         self.cover = Cover(
             rho=2600,
@@ -62,14 +84,14 @@ class Greenhouse_1:
             steadystate=True
         )
         
-        self.air_top = TopAirCompartment(
+        self.air_top = Air_Top(
             A=self.surface,
             steadystate=True,
             steadystateVP=True,
             h_Top=0.4
         )
         
-        self.solar_model = SolarModel(
+        self.solar_model = Solar_model(
             A=self.surface,
             LAI=1.06,  # Will be updated from weather if available
             I_glob=0.0  # Initial value, will be updated from weather data
@@ -106,10 +128,62 @@ class Greenhouse_1:
             steadystate=False
         )
 
+        # Initialize ventilation components
+        self.Q_ven_AirOut = Ventilation(
+            A=self.surface,
+            thermalScreen=True,
+            topAir=False
+        )
+        
+        self.Q_ven_TopOut = Ventilation(
+            A=self.surface,
+            thermalScreen=True,
+            topAir=True
+        )
+        
+        self.Q_ven_AirTop = Ventilation(
+            A=self.surface,
+            thermalScreen=True,
+            topAir=True
+        )
+        
+        # Connect ventilation ports
+        # Q_ven_AirOut
+        self.Q_ven_AirOut.port_a.T = self.air.heatPort.T
+        self.Q_ven_AirOut.port_b.T = self.air.T_out
+        self.Q_ven_AirOut.massPort_a.VP = self.air.massPort.VP
+        self.Q_ven_AirOut.massPort_b.VP = self.air.VP_out
+        self.Q_ven_AirOut.massPort_a.P = self.air.massPort.P
+        self.Q_ven_AirOut.massPort_b.P = self.air.P_out
+        
+        # Q_ven_TopOut
+        self.Q_ven_TopOut.port_a.T = self.air_top.heatPort.T
+        self.Q_ven_TopOut.port_b.T = self.air.T_out
+        self.Q_ven_TopOut.massPort_a.VP = self.air_top.massPort.VP
+        self.Q_ven_TopOut.massPort_b.VP = self.air.VP_out
+        self.Q_ven_TopOut.massPort_a.P = self.air_top.massPort.P
+        self.Q_ven_TopOut.massPort_b.P = self.air.P_out
+        
+        # Q_ven_AirTop
+        self.Q_ven_AirTop.port_a.T = self.air.heatPort.T
+        self.Q_ven_AirTop.port_b.T = self.air_top.heatPort.T
+        self.Q_ven_AirTop.massPort_a.VP = self.air.massPort.VP
+        self.Q_ven_AirTop.massPort_b.VP = self.air_top.massPort.VP
+        self.Q_ven_AirTop.massPort_a.P = self.air.massPort.P
+        self.Q_ven_AirTop.massPort_b.P = self.air_top.massPort.P
+
         # Initialize CO2 components
         self.CO2_air = CO2_Air(cap_CO2=3.8)  # Will be updated dynamically
         self.CO2_top = CO2_Air(cap_CO2=0.4)
         
+        # Initialize MC_AirCan for CO2 exchange between air and canopy
+        self.MC_AirCan = MC_AirCan(MC_AirCan=0.0)  # Initial value, will be updated from TYM
+        
+        # Initialize CO2 exchange components
+        self.MC_AirTop = MC_ventilation2(f_vent=self.Q_ven_AirTop.f_AirTop)
+        self.MC_AirOut = MC_ventilation2(f_vent=self.Q_ven_AirOut.f_vent_total)
+        self.MC_TopOut = MC_ventilation2(f_vent=self.Q_ven_TopOut.f_vent_total)
+
         # Initialize heat transfer components
         self.Q_rad_CanCov = Radiation_T4(
             A=self.surface,
@@ -133,18 +207,174 @@ class Greenhouse_1:
             phi=0.43633231299858
         )
 
-        # Initialize ventilation components
-        self.Q_ven_AirOut = Ventilation(
+        # Initialize pipe heat transfer components
+        self.Q_cnv_LowAir = PipeFreeConvection_N(
             A=self.surface,
+            d=self.pipe_low.d,
+            freePipe=False,
+            N_p=self.pipe_low.N_p,
+            l=self.pipe_low.l,
+            N=self.pipe_low.N
+        )
+
+        self.Q_rad_LowScr = Radiation_N(
+            A=self.surface,
+            epsilon_a=0.88,
+            epsilon_b=1,
+            N=self.pipe_low.N
+        )
+        self.Q_rad_LowScr.FFa = self.pipe_low.FF
+        self.Q_rad_LowScr.FFb = self.thScreen.FF_i
+        self.Q_rad_LowScr.FFab1 = self.canopy.FF
+        self.Q_rad_LowScr.FFab2 = self.pipe_up.FF
+
+        self.Q_rad_LowFlr = Radiation_N(
+            A=self.surface,
+            epsilon_a=0.88,
+            epsilon_b=0.89,
+            N=self.pipe_low.N
+        )
+        self.Q_rad_LowFlr.FFa = self.pipe_low.FF
+        self.Q_rad_LowFlr.FFb = 1
+
+        self.Q_rad_LowCan = Radiation_N(
+            A=self.surface,
+            epsilon_a=0.88,
+            epsilon_b=1,
+            N=self.pipe_low.N
+        )
+        self.Q_rad_LowCan.FFa = self.pipe_low.FF
+        self.Q_rad_LowCan.FFb = self.canopy.FF
+
+        self.Q_rad_LowCov = Radiation_N(
+            A=self.surface,
+            epsilon_a=0.88,
+            epsilon_b=0.84,
+            N=self.pipe_low.N
+        )
+        self.Q_rad_LowCov.FFa = self.pipe_low.FF
+        self.Q_rad_LowCov.FFb = 1
+        self.Q_rad_LowCov.FFab1 = self.canopy.FF
+        self.Q_rad_LowCov.FFab2 = self.pipe_up.FF
+        self.Q_rad_LowCov.FFab3 = self.thScreen.FF_ij
+
+        # Initialize additional heat transfer components
+        self.Q_rad_FlrCan = Radiation_T4(
+            A=self.surface,
+            epsilon_a=0.89,
+            epsilon_b=1,
+            FFa=1,
+            FFb=self.canopy.FF,
+            FFab1=self.pipe_low.FF
+        )
+
+        self.Q_rad_FlrCov = Radiation_T4(
+            A=self.surface,
+            epsilon_a=0.89,
+            epsilon_b=0.84,
+            FFa=1,
+            FFb=1,
+            FFab1=self.pipe_low.FF,
+            FFab2=self.canopy.FF,
+            FFab3=self.pipe_up.FF,
+            FFab4=self.thScreen.FF_ij
+        )
+
+        self.Q_rad_CanScr = Radiation_T4(
+            A=self.surface,
+            epsilon_a=1,
+            epsilon_b=1,
+            FFa=self.canopy.FF,
+            FFb=self.thScreen.FF_i,
+            FFab1=self.pipe_up.FF
+        )
+
+        self.Q_rad_FlrScr = Radiation_T4(
+            A=self.surface,
+            epsilon_a=0.89,
+            epsilon_b=1,
+            FFa=1,
+            FFb=self.thScreen.FF_i,
+            FFab1=self.canopy.FF,
+            FFab2=self.pipe_up.FF,
+            FFab3=self.pipe_low.FF
+        )
+
+        self.Q_rad_ScrCov = Radiation_T4(
+            A=self.surface,
+            epsilon_a=1,
+            epsilon_b=0.84,
+            FFa=self.thScreen.FF_i,
+            FFb=1
+        )
+
+        # Initialize convection and evaporation components
+        self.Q_cnv_AirScr = Convection_Condensation(
+            A=self.surface,
+            phi=0,
+            floor=False,
             thermalScreen=True,
-            topAir=False
+            Air_Cov=False,
+            SC=self.thScreen.SC
         )
         
-        self.Q_ven_TopOut = Ventilation(
+        self.Q_cnv_AirCov = Convection_Condensation(
             A=self.surface,
+            floor=False,
             thermalScreen=True,
-            topAir=True
+            Air_Cov=True,
+            topAir=False,
+            SC=self.thScreen.SC,
+            phi=0.43633231299858
         )
+        
+        self.Q_cnv_TopCov = Convection_Condensation(
+            A=self.surface,
+            floor=False,
+            thermalScreen=True,
+            Air_Cov=True,
+            topAir=True,
+            SC=self.thScreen.SC,
+            phi=0.43633231299858
+        )
+        
+        self.Q_cnv_ScrTop = Convection_Evaporation(
+            A=self.surface,
+            SC=self.thScreen.SC
+        )
+
+        # Connect ports for convection components
+        # Q_cnv_AirScr
+        self.Q_cnv_AirScr.port_a.T = self.air.heatPort.T
+        self.Q_cnv_AirScr.port_b.T = self.thScreen.heatPort.T
+        self.Q_cnv_AirScr.MassPort_a.VP = self.air.massPort.VP
+        self.Q_cnv_AirScr.MassPort_b.VP = self.thScreen.massPort.VP
+        self.Q_cnv_AirScr.MassPort_a.P = self.air.massPort.P
+        self.Q_cnv_AirScr.MassPort_b.P = self.thScreen.massPort.P
+        
+        # Q_cnv_AirCov
+        self.Q_cnv_AirCov.port_a.T = self.air.heatPort.T
+        self.Q_cnv_AirCov.port_b.T = self.cover.heatPort.T
+        self.Q_cnv_AirCov.MassPort_a.VP = self.air.massPort.VP
+        self.Q_cnv_AirCov.MassPort_b.VP = self.cover.massPort.VP
+        self.Q_cnv_AirCov.MassPort_a.P = self.air.massPort.P
+        self.Q_cnv_AirCov.MassPort_b.P = self.cover.massPort.P
+        
+        # Q_cnv_TopCov
+        self.Q_cnv_TopCov.port_a.T = self.air_top.heatPort.T
+        self.Q_cnv_TopCov.port_b.T = self.cover.heatPort.T
+        self.Q_cnv_TopCov.MassPort_a.VP = self.air_top.massPort.VP
+        self.Q_cnv_TopCov.MassPort_b.VP = self.cover.massPort.VP
+        self.Q_cnv_TopCov.MassPort_a.P = self.air_top.massPort.P
+        self.Q_cnv_TopCov.MassPort_b.P = self.cover.massPort.P
+        
+        # Q_cnv_ScrTop
+        self.Q_cnv_ScrTop.port_a.T = self.thScreen.heatPort.T
+        self.Q_cnv_ScrTop.port_b.T = self.air_top.heatPort.T
+        self.Q_cnv_ScrTop.massPort_a.VP = self.thScreen.massPort.VP
+        self.Q_cnv_ScrTop.massPort_b.VP = self.air_top.massPort.VP
+        self.Q_cnv_ScrTop.massPort_a.P = self.thScreen.massPort.P
+        self.Q_cnv_ScrTop.massPort_b.P = self.air_top.massPort.P
 
         # Initialize control systems
         self.PID_Mdot = PID(
@@ -176,29 +406,46 @@ class Greenhouse_1:
 
         self.U_vents = Uvents_RH_T_Mdot()  # Initialize without parameters
         
-        # State variables
-        self.q_low = 0.0  # Heat flux from lower pipe [W/m²]
-        self.q_up = 0.0   # Heat flux from upper pipe [W/m²]
-        self.q_tot = 0.0  # Total heat flux [W/m²]
-        
-        self.E_th_tot_kWhm2 = 0.0  # Total thermal energy per m² [kW·h/m²]
-        self.E_th_tot = 0.0        # Total thermal energy [kW·h]
-        
-        self.DM_Har = 0.0  # Accumulated harvested tomato dry matter [mg/m²]
-        
-        self.W_el_illu = 0.0       # Electrical energy for illumination per m² [kW·h/m²]
-        self.E_el_tot_kWhm2 = 0.0  # Total electrical energy per m² [kW·h/m²]
-        self.E_el_tot = 0.0        # Total electrical energy [kW·h]
-        
         # Load weather and setpoint data
-        self.weather_df = pd.read_csv("./10Dec-22Nov.txt", 
+        try:
+            self.weather_df = pd.read_csv("./10Dec-22Nov.txt", 
+                                        delimiter="\t", skiprows=2, header=None)
+            self.weather_df.columns = ["time", "T_out", "RH_out", "P_out", "I_glob", 
+                                     "u_wind", "T_sky", "T_air_sp", "CO2_air_sp", "ilu_sp"]
+            
+            self.sp_df = pd.read_csv("./SP_10Dec-22Nov.txt",
                                     delimiter="\t", skiprows=2, header=None)
-        self.weather_df.columns = ["time", "T_out", "RH_out", "P_out", "I_glob", 
-                                 "u_wind", "T_sky", "T_air_sp", "CO2_air_sp", "ilu_sp"]
+            self.sp_df.columns = ["time", "T_sp", "CO2_sp"]
+            
+            # Debug information for data loading
+            print("\n=== Data Loading Check ===")
+            print("\nWeather data sample:")
+            print(self.weather_df.head())
+            print("\nSetpoint data sample:")
+            print(self.sp_df.head())
+            print("\nWeather data size:", self.weather_df.shape)
+            print("Setpoint data size:", self.sp_df.shape)
+            
+        except Exception as e:
+            print(f"Error during data loading: {e}")
+            raise
         
-        self.sp_df = pd.read_csv("./SP_10Dec-22Nov.txt",
-                                delimiter="\t", skiprows=2, header=None)
-        self.sp_df.columns = ["time", "T_sp", "CO2_sp"]
+        # Initialize TomatoYieldModel
+        self.TYM = TomatoYieldModel(
+            n_dev=50,
+            LAI_MAX=3.5,
+            LAI_0=1.06,  # Initial LAI value
+            T_canSumC_0=0,
+            C_Leaf_0=40e3,  # Initial leaf carbon content
+            C_Stem_0=30e3  # Initial stem carbon content
+        )
+        
+        # Set initial environmental conditions
+        self.TYM.set_environmental_conditions(
+            R_PAR_can=self.solar_model.R_PAR_Can_umol + self.illu.R_PAR_Can_umol if hasattr(self.illu, 'R_PAR_Can_umol') else 0,
+            CO2_air=self.CO2_air.CO2_ppm if hasattr(self, 'CO2_air') else 0,
+            T_canK=self.canopy.T if hasattr(self.canopy, 'T') else 293.15
+        )
     
     def step(self, dt, time_idx):
         """
@@ -217,31 +464,41 @@ class Greenhouse_1:
             Dictionary containing current state variables
         """
         # Get current weather and setpoint data
-        weather = self.weather_df.iloc[time_idx]
-        setpoint = self.sp_df.iloc[time_idx]
-        
-        # Update component states with weather and setpoint
-        self._update_components(dt, weather, setpoint)
-        
-        # Update control systems
-        self._update_control_systems(weather, setpoint)
-        
-        # Calculate energy flows
-        self._calculate_energy_flows()
-        
-        # Print key variables for debugging
-        print(f"Step {time_idx}: T_out={weather['T_out']:.2f}°C, RH_out={weather['RH_out']:.2f}%, "
-              f"I_glob={weather['I_glob']}, Illu_switch={weather['ilu_sp']}, "
-              f"T_set={setpoint['T_sp']:.2f}°C")
-        
-        # Return current state
-        return self._get_state()
+        try:
+            weather = self.weather_df.iloc[time_idx]
+            setpoint = self.sp_df.iloc[time_idx]
+            
+            # 데이터 인덱스 확인
+            if time_idx >= len(self.weather_df) or time_idx >= len(self.sp_df):
+                raise IndexError(f"time_idx {time_idx}가 데이터 범위를 벗어났습니다.")
+            
+            # Update component states with weather and setpoint
+            self._update_components(dt, weather, setpoint)
+            
+            # Update control systems
+            self._update_control_systems(weather, setpoint)
+            
+            # Calculate energy flows
+            self._calculate_energy_flows()
+            
+            # Print key variables for debugging
+            print(f"\nStep {time_idx}:")
+            print(f"날씨 데이터: T_out={weather['T_out']:.2f}°C, RH_out={weather['RH_out']:.2f}%, "
+                  f"I_glob={weather['I_glob']:.2f}, Illu_switch={weather['ilu_sp']:.1f}")
+            print(f"설정점: T_set={setpoint['T_sp']:.2f}°C, CO2_set={setpoint['CO2_sp']:.2f}")
+            
+            # Return current state
+            return self._get_state()
+            
+        except Exception as e:
+            print(f"Step {time_idx} 실행 중 오류 발생: {e}")
+            raise
         
     def _update_components(self, dt, weather, setpoint):
         """
         Update all component states with weather and setpoint data
         """
-        # 1. 외부 환경 및 제어 입력 반영
+        # 1. Update external environment and control inputs
         h_Air = 3.8 + (1 - self.thScreen.SC) * 0.4
         self.air.h_Air = h_Air
         self.CO2_air.cap_CO2 = h_Air
@@ -250,7 +507,7 @@ class Greenhouse_1:
         self.air.RH_out = weather['RH_out'] / 100.0
         self.solar_model.I_glob = weather['I_glob']
         self.illu.switch = weather['ilu_sp']
-        self.illu.compute()
+        self.illu.step()
 
         self.Q_ven_AirOut.u = weather['u_wind']
         self.Q_ven_TopOut.u = weather['u_wind']
@@ -258,56 +515,126 @@ class Greenhouse_1:
         self.air.T_set = setpoint['T_sp'] + 273.15
         self.air.CO2_set = setpoint['CO2_sp']
 
-        # 2. SolarModel → Cover, Canopy, Floor 등으로 복사 전달
+        # 2. Update pipe components
+        self.pipe_low.step(dt)
+        self.pipe_up.step(dt)
+
+        # 3. Update solar model and transfer to components
         self.solar_model.LAI = self.canopy.LAI
         self.solar_model.SC = self.thScreen.SC
         self.solar_model.step(dt)
 
-        # 3. Cover 입력 연결
+        # 4. Update CO2 exchange components
+        # Update ventilation flow rates
+        self.MC_AirTop.f_vent = self.Q_ven_AirTop.f_AirTop
+        self.MC_AirOut.f_vent = self.Q_ven_AirOut.f_vent_total
+        self.MC_TopOut.f_vent = self.Q_ven_TopOut.f_vent_total
+        
+        # Update CO2 exchange between air and canopy
+        self.MC_AirCan.update(MC_AirCan=self.TYM.MC_AirCan_mgCO2m2s)
+        
+        # Step all CO2 components
+        self.MC_AirCan.step(dt)
+        self.MC_AirTop.step(dt)
+        self.MC_AirOut.step(dt)
+        self.MC_TopOut.step(dt)
+        
+        # Update CO2 concentrations with external injection
+        self.CO2_air.CO2_flow = self.phi_ExtCO2  # Direct CO2 injection
+        self.CO2_air.step(dt)
+        self.CO2_top.step(dt)
+
+        # 5. Update cover inputs
         self.cover.set_inputs(
-            Q_flow=0.0,  # 예시: 실제로는 열전달 모델에서 계산된 값 사용
+            Q_flow=0.0,  # Example: actual value should be calculated from heat transfer model
             R_SunCov_Glob=self.solar_model.R_SunCov_Glob,
-            MV_flow=0.0  # 예시: 실제로는 응축 등에서 계산된 값 사용
+            MV_flow=0.0  # Example: actual value should be calculated from condensation
         )
         self.cover.step(dt)
 
-        # 4. Canopy 입력 연결
+        # 6. Update canopy inputs
         self.canopy.set_inputs(
-            Q_flow=0.0,  # 예시: 실제로는 열전달 모델에서 계산된 값 사용
-            R_Can_Glob=[self.solar_model.R_PAR_Can_umol, 0.0],  # 예시
+            Q_flow=0.0,  # Example: actual value should be calculated from heat transfer model
+            R_Can_Glob=[self.solar_model.R_PAR_Can_umol, 0.0],  # Example
             MV_flow=0.0
         )
         self.canopy.step(dt)
 
-        # 5. Floor 입력 연결
+        # 7. Update floor inputs
         self.floor.set_inputs(
-            Q_flow=0.0,  # 예시
-            R_Flr_Glob=[self.solar_model.R_SunFlr_Glob, self.illu.P_el]  # 예시
+            Q_flow=0.0,  # Example
+            R_Flr_Glob=[self.solar_model.R_SunFlr_Glob, self.illu.P_el]  # Example
         )
         self.floor.step(dt)
 
-        # 6. Air 입력 연결 (Cover, Canopy, Floor 등에서 온 에너지 합산)
+        # 8. Update air inputs (sum of energy from Cover, Canopy, Floor)
         Q_flow_air = (
             self.cover.Q_flow +
             self.canopy.Q_flow +
             self.floor.Q_flow
-            # + 기타 열전달(환기, 파이프 등) 필요시 추가
+            # + Other heat transfers (ventilation, pipes) if needed
         )
-        R_Air_Glob = [self.solar_model.R_SunAir_Glob, self.illu.P_el]  # 예시
+        R_Air_Glob = [self.solar_model.R_SunAir_Glob, self.illu.P_el]  # Example
         self.air.set_inputs(
             Q_flow=Q_flow_air,
             R_Air_Glob=R_Air_Glob,
-            massPort_VP=0.0  # 예시: 실제로는 수증기 흐름 등 계산
+            massPort_VP=0.0  # Example: actual value should be calculated from vapor flow
         )
         self.air.step(dt)
 
-        # 7. HeatingPipe, ThermalScreen, CO2 등도 필요시 연결
+        # 9. Update HeatingPipe, ThermalScreen, CO2 components
         self.pipe_low.step(dt)
         self.pipe_up.step(dt)
         self.thScreen.step(dt)
         self.CO2_air.step(dt)
         self.CO2_top.step(dt)
         self.air_top.step(dt)
+
+        # Update heat transfer components
+        self.Q_rad_FlrCan.step(dt)
+        self.Q_rad_FlrCov.step(dt)
+        self.Q_rad_CanScr.step(dt)
+        self.Q_rad_FlrScr.step(dt)
+        self.Q_rad_ScrCov.step(dt)
+        
+        # Update convection and evaporation components
+        self.Q_cnv_AirScr.step(dt)
+        self.Q_cnv_AirCov.step(dt)
+        self.Q_cnv_TopCov.step(dt)
+        self.Q_cnv_ScrTop.step(dt)
+        
+        # Update port connections for convection components
+        # Q_cnv_AirScr
+        self.Q_cnv_AirScr.port_a.T = self.air.heatPort.T
+        self.Q_cnv_AirScr.port_b.T = self.thScreen.heatPort.T
+        self.Q_cnv_AirScr.MassPort_a.VP = self.air.massPort.VP
+        self.Q_cnv_AirScr.MassPort_b.VP = self.thScreen.massPort.VP
+        self.Q_cnv_AirScr.MassPort_a.P = self.air.massPort.P
+        self.Q_cnv_AirScr.MassPort_b.P = self.thScreen.massPort.P
+        
+        # Q_cnv_AirCov
+        self.Q_cnv_AirCov.port_a.T = self.air.heatPort.T
+        self.Q_cnv_AirCov.port_b.T = self.cover.heatPort.T
+        self.Q_cnv_AirCov.MassPort_a.VP = self.air.massPort.VP
+        self.Q_cnv_AirCov.MassPort_b.VP = self.cover.massPort.VP
+        self.Q_cnv_AirCov.MassPort_a.P = self.air.massPort.P
+        self.Q_cnv_AirCov.MassPort_b.P = self.cover.massPort.P
+        
+        # Q_cnv_TopCov
+        self.Q_cnv_TopCov.port_a.T = self.air_top.heatPort.T
+        self.Q_cnv_TopCov.port_b.T = self.cover.heatPort.T
+        self.Q_cnv_TopCov.MassPort_a.VP = self.air_top.massPort.VP
+        self.Q_cnv_TopCov.MassPort_b.VP = self.cover.massPort.VP
+        self.Q_cnv_TopCov.MassPort_a.P = self.air_top.massPort.P
+        self.Q_cnv_TopCov.MassPort_b.P = self.cover.massPort.P
+        
+        # Q_cnv_ScrTop
+        self.Q_cnv_ScrTop.port_a.T = self.thScreen.heatPort.T
+        self.Q_cnv_ScrTop.port_b.T = self.air_top.heatPort.T
+        self.Q_cnv_ScrTop.massPort_a.VP = self.thScreen.massPort.VP
+        self.Q_cnv_ScrTop.massPort_b.VP = self.air_top.massPort.VP
+        self.Q_cnv_ScrTop.massPort_a.P = self.thScreen.massPort.P
+        self.Q_cnv_ScrTop.massPort_b.P = self.air_top.massPort.P
     
     def _update_control_systems(self, weather, setpoint):
         """

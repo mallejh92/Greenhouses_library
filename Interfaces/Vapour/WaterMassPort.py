@@ -2,13 +2,16 @@ class WaterMassPort:
     """
     Base connector for 1-dimensional water vapour mass transfer.
     Equivalent to Modelica's partial connector WaterMassPort.
+    
     Attributes:
         VP (float): Port vapour pressure [Pa]
         MV_flow (float): Mass flow rate [kg/s] (positive if flowing into the component)
+        P (float): Atmospheric pressure [Pa]
     """
-    def __init__(self, VP_start=0.04e5):
+    def __init__(self, VP_start=0.04e5, P_start=101325):
         self.VP = VP_start
         self.MV_flow = 0.0
+        self.P = P_start
         self._connected_ports = []
 
     def connect(self, other_port):
@@ -20,6 +23,7 @@ class WaterMassPort:
             other_port._connected_ports.append(self)
             # Potential variable: equalize pressure
             other_port.VP = self.VP
+            other_port.P = self.P
             # Flow variable: sum to zero
             total_flow = self.MV_flow + other_port.MV_flow
             self.MV_flow = total_flow / 2

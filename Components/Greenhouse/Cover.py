@@ -1,4 +1,7 @@
 import numpy as np
+from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
+from Interfaces.Vapour.WaterMassPort_a import WaterMassPort_a
+from Components.Greenhouse.BasicComponents.SurfaceVP import SurfaceVP
 
 class Cover:
     """
@@ -33,6 +36,14 @@ class Cover:
         self.P_SunCov = 0.0
         self.L_cov = 0.0
 
+        # Ports
+        self.heatPort = HeatPort_a(T_start=T_start)  # Heat port with initial temperature
+        self.massPort = WaterMassPort_a()
+        self.surfaceVP = SurfaceVP(T=T_start)  # Surface vapor pressure component
+        
+        # Connect ports
+        self.surfaceVP.port = self.massPort
+
     def compute_power_input(self):
         self.P_SunCov = self.R_SunCov_Glob * self.A
 
@@ -49,9 +60,12 @@ class Cover:
     def step(self, dt):
         dTdt = self.compute_derivatives()
         self.T += dTdt * dt
+        self.heatPort.T = self.T  # Update heat port temperature
+        self.surfaceVP.T = self.T  # Update surfaceVP temperature
         return self.T
 
     def set_inputs(self, Q_flow, R_SunCov_Glob, MV_flow):
         self.Q_flow = Q_flow
         self.R_SunCov_Glob = R_SunCov_Glob
         self.massPort_MV_flow = MV_flow
+        self.heatPort.Q_flow = Q_flow  # Update heat port heat flow

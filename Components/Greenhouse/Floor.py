@@ -1,4 +1,5 @@
 import numpy as np
+from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
 
 class Floor:
     """
@@ -27,6 +28,9 @@ class Floor:
         # Outputs
         self.P_Flr = 0.0            # Total absorbed shortwave radiation [W]
 
+        # Ports
+        self.heatPort = HeatPort_a(T_start=T_start)  # Heat port with initial temperature
+
     def compute_radiation_input(self):
         self.P_Flr = np.sum(self.R_Flr_Glob) * self.A
 
@@ -39,8 +43,10 @@ class Floor:
     def step(self, dt):
         dTdt = self.compute_derivatives()
         self.T += dTdt * dt
+        self.heatPort.T = self.T  # Update heat port temperature
         return self.T
 
     def set_inputs(self, Q_flow, R_Flr_Glob):
         self.Q_flow = Q_flow
         self.R_Flr_Glob = np.array(R_Flr_Glob)
+        self.heatPort.Q_flow = Q_flow  # Update heat port heat flow

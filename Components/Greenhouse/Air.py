@@ -1,8 +1,12 @@
 import numpy as np
 from BasicComponents.AirVP import AirVP
+from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
+from Interfaces.Vapour.WaterMassPort_a import WaterMassPort_a
+from Interfaces.Heat.HeatFluxVectorInput import HeatFluxVectorInput
 
 class Air:
     def __init__(self, A, h_Air=4.0, rho=1.2, c_p=1000.0, T_start=298.0, N_rad=2, steadystate=False, steadystateVP=False):
+        # Parameters
         self.A = A
         self.h_Air = h_Air
         self.rho = rho
@@ -13,53 +17,83 @@ class Air:
         self.R_s = 461.5
         self.T = T_start
         self.V = self.A * self.h_Air
+        
+        # Variables
         self.Q_flow = 0.0
-        self.R_Air_Glob = np.zeros(N_rad)
-        self.massPort_VP = 0.0
-        self.w_air = 0.0
+        self.P_Air = 0.0
         self.RH = 0.0
+        self.w_air = 0.0
+        self.VP = 0.0  # Vapor pressure [Pa]
+        
+        # State flags
         self.steadystate = steadystate
         self.steadystateVP = steadystateVP
+        
+        # Ports
+        self.heatPort = HeatPort_a(T_start=T_start)
+        self.massPort = WaterMassPort_a()
+        self.R_Air_Glob = HeatFluxVectorInput(N_rad)
+        
+        # Components
         self.airVP = AirVP(V_air=self.V, steadystate=steadystateVP)
-
+        
+        # Connect ports
+        self.airVP.port = self.massPort
+    
     def compute_power_input(self):
-        return np.sum(self.R_Air_Glob) * self.A
-
+        """Calculate power input from radiation"""
+        if len(self.R_Air_Glob.flux) == 0:
+            return 0.0
+        return np.sum(self.R_Air_Glob.flux) * self.A
+    
     def compute_derivatives(self):
+        """Calculate temperature derivative"""
         if self.steadystate:
-            dTdt = 0.0
-        else:
-            P_Air = self.compute_power_input()
-            dTdt = (self.Q_flow + P_Air) / (self.rho * self.c_p * self.V)
-        return dTdt
-
+            return 0.0
+        
+        self.P_Air = self.compute_power_input()
+        return (self.Q_flow + self.P_Air) / (self.rho * self.c_p * self.V)
+    
     def update_humidity(self):
+        """Update humidity calculations"""
         if self.steadystateVP:
             return
-        VP = self.airVP.VP
-        self.w_air = VP * self.R_a / ((self.P_atm - VP) * self.R_s)
+            
+        # Update VP from massPort
+        self.VP = self.massPort.VP
+            
+        # Calculate humidity ratio
+        self.w_air = self.VP * self.R_a / ((self.P_atm - self.VP) * self.R_s)
+        
+        # Calculate relative humidity using Modelica's MoistAir model approximation
         T_C = self.T - 273.15
         Psat = 610.78 * np.exp(T_C / (T_C + 238.3) * 17.2694)
-        self.RH = VP / Psat
+        self.RH = self.VP / Psat
         self.RH = np.clip(self.RH, 0, 1)
-        print(f"Debug - VP: {VP}, Psat: {Psat}, RH: {self.RH}")
-
-    def set_outside_conditions(self, T_out=None, RH_out=None):
-        self.T_out = T_out
-        self.RH_out = RH_out
-
+    
     def step(self, dt):
+        """Advance simulation by one time step"""
+        # Update temperature
         dTdt = self.compute_derivatives()
         self.T += dTdt * dt
+        
+        # Update humidity
         self.update_humidity()
+        
+        # Update heat port temperature
+        self.heatPort.T = self.T
+        
         return self.T, self.RH
-
+    
     def set_inputs(self, Q_flow, R_Air_Glob, massPort_VP):
+        """Set input values"""
         self.Q_flow = Q_flow
+        
         if R_Air_Glob is None or len(R_Air_Glob) == 0:
-            self.R_Air_Glob = np.zeros(self.N_rad)
+            self.R_Air_Glob.flux = np.zeros(self.N_rad)
         else:
-            self.R_Air_Glob = np.array(R_Air_Glob)
-        self.massPort_VP = massPort_VP
+            self.R_Air_Glob.flux = np.array(R_Air_Glob)
+            
         if massPort_VP is not None:
-            self.airVP.VP = massPort_VP  # 여기서만 VP를 세팅
+            self.massPort.VP = massPort_VP
+            self.VP = massPort_VP  # Update VP directly

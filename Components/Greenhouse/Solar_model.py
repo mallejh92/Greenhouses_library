@@ -1,6 +1,6 @@
 import math
 
-class SolarModel:
+class Solar_model:
     def __init__(self,
                  A,
                  I_glob,

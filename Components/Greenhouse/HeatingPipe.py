@@ -1,5 +1,6 @@
 import numpy as np
 from Flows.FluidFlow.Flow1DimInc import Flow1DimInc
+from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
 
 class HeatingPipe:
     """
@@ -66,7 +67,11 @@ class HeatingPipe:
         )
         
         # Heat ports
-        self.heatPorts = np.zeros(self.N)  # Heat ports for each cell
+        self.heatPorts = [HeatPort_a() for _ in range(self.N)]  # Heat ports for each cell
+        
+        # Connect heat ports to Flow1DimInc
+        for i in range(self.N):
+            self.heatPorts[i] = self.flow1DimInc.heatPorts_a[i]
         
         # State variables
         self.Q_tot = 0.0  # Total heat flow [W]

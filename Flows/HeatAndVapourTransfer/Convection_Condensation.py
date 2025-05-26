@@ -1,6 +1,7 @@
 import numpy as np
+from Modelica.Thermal.HeatTransfer.Interfaces.Element1D import Element1D
 
-class Convection_Condensation:
+class Convection_Condensation(Element1D):
     """
     Upward or downward heat exchange by free convection from an horizontal or inclined surface.
     Mass transfer by condensation from the air (filled port) to the cover/screen (empty port).
@@ -8,7 +9,8 @@ class Convection_Condensation:
     """
     
     def __init__(self, phi: float, A: float, floor: bool = False, 
-                 thermalScreen: bool = False, Air_Cov: bool = True, topAir: bool = False):
+                 thermalScreen: bool = False, Air_Cov: bool = True, topAir: bool = False,
+                 SC: float = 0.0):
         """
         Initialize convection and condensation model
         
@@ -19,7 +21,11 @@ class Convection_Condensation:
             thermalScreen (bool): Presence of a thermal screen in the greenhouse
             Air_Cov (bool): True if heat exchange air-cover, False if heat exchange air-screen
             topAir (bool): False if MainAir-Cov; True for: TopAir-Cov
+            SC (float): Screen closure (1:closed, 0:open), default is 0.0
         """
+        # Initialize parent class
+        super().__init__()
+        
         # Parameters
         self.phi = phi
         self.A = A
@@ -32,15 +38,33 @@ class Convection_Condensation:
         self.s = 11.0  # Slope of the differentiable switch function for vapour pressure differences
         
         # Input variables
-        self.SC = 0.0  # Screen closure 1:closed, 0:open
+        self.SC = SC  # Screen closure 1:closed, 0:open
         
         # State variables
         self.HEC_ab = 0.0  # Heat exchange coefficient [W/(m2.K)]
         self.VEC_ab = 0.0  # Mass transfer coefficient [kg/(s.Pa.m2)]
         self.HEC_up_flr = 0.0  # Upward heat exchange coefficient [W/(m2.K)]
         self.HEC_down_flr = 0.0  # Downward heat exchange coefficient [W/(m2.K)]
-        self.Q_flow = 0.0  # Heat flow rate [W]
-        self.MV_flow = 0.0  # Mass flow rate [kg/s]
+        
+        # Mass transfer ports
+        self.MassPort_a = type('MassPort', (), {'VP': 0.0, 'P': 0.0})()
+        self.MassPort_b = type('MassPort', (), {'VP': 0.0, 'P': 0.0})()
+        
+    def step(self, dt: float) -> None:
+        """
+        Update heat and mass flux exchange for one time step
+        
+        Parameters:
+            dt (float): Time step [s]
+        """
+        # Update heat and mass flux exchange
+        self.update(
+            SC=self.SC,
+            T_a=self.port_a.T,
+            T_b=self.port_b.T,
+            VP_a=self.MassPort_a.VP,
+            VP_b=self.MassPort_b.VP
+        )
         
     def update(self, SC: float, T_a: float, T_b: float, VP_a: float, VP_b: float) -> tuple:
         """
@@ -59,8 +83,9 @@ class Convection_Condensation:
         # Update input variable
         self.SC = SC
         
-        # Calculate temperature difference
+        # Calculate temperature and pressure differences
         dT = T_a - T_b
+        dP = VP_a - VP_b
         
         # Calculate heat exchange coefficient based on conditions
         if not self.floor:
@@ -91,6 +116,9 @@ class Convection_Condensation:
         
         # Calculate mass transfer coefficient and mass flow
         self.VEC_ab = max(0, 6.4e-9 * self.HEC_ab)
-        self.MV_flow = max(0, self.A * self.VEC_ab * (VP_a - VP_b))  # Condensation fluxes are prohibited from being negative
+        self.MV_flow = max(0, self.A * self.VEC_ab * dP)  # Condensation fluxes are prohibited from being negative
+        
+        # Update parent class variables
+        super().update()
         
         return self.Q_flow, self.MV_flow

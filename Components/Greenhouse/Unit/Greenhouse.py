@@ -107,20 +107,31 @@ class Greenhouse:
             dt (float): Time step in seconds
         """
         # Get current weather and setpoint data
-        current_weather = self.weather_df.iloc[self.current_step]
-        current_sp = self.sp_df.iloc[self.current_step]
+        current_weather = self.weather_df.iloc[self.current_step % len(self.weather_df)]
+        current_sp = self.sp_df.iloc[self.current_step % len(self.sp_df)]
         
         # Update solar model with current global radiation
         self.solar_model.I_glob = current_weather["I_glob"]
         
-        # Update PID controllers with setpoints
-        self.PID_Mdot.PV = current_sp["T_sp"]
-        self.PID_CO2.PV = current_sp["CO2_sp"]
+        # Update PID controllers with current values and setpoints
+        self.PID_Mdot.PV = self.air.T  # Current greenhouse temperature
+        self.PID_Mdot.SP = current_sp["T_sp"]  # Temperature setpoint
+        self.PID_CO2.PV = self.CO2_air.CO2_ppm  # Current CO2 concentration
+        self.PID_CO2.SP = current_sp["CO2_sp"]  # CO2 setpoint
         
-        # Update heat fluxes
-        self.q_low = -self.pipe_low.flow1DimInc.Q_tot / 14000
-        self.q_up = -self.pipe_up.flow1DimInc.Q_tot / 14000
-        self.q_tot = -(self.pipe_low.flow1DimInc.Q_tot + self.pipe_up.flow1DimInc.Q_tot) / 14000
+        # Compute PID controller outputs
+        self.PID_Mdot.compute()
+        self.PID_CO2.compute()
+        
+        # Update heat fluxes based on PID controller outputs
+        # Convert PID output to heat flux (W/m²)
+        self.q_low = self.PID_Mdot.CS * 1000  # Lower pipe heat flux
+        self.q_up = 0  # Upper pipe not used in this simulation
+        self.q_tot = self.q_low + self.q_up
+        
+        # Update pipe temperatures based on heat fluxes
+        self.pipe_low.flow1DimInc.Q_tot = -self.q_low * 14000  # Convert back to total heat
+        self.pipe_up.flow1DimInc.Q_tot = -self.q_up * 14000
         
         # Update energy calculations
         self.E_th_tot_kWhm2 += max(self.q_tot, 0) * dt / (1e3 * 3600)
@@ -130,9 +141,6 @@ class Greenhouse:
         self.W_el_illu += self.illu.W_el / 14000 * dt / (1000 * 3600)
         self.E_el_tot_kWhm2 = self.W_el_illu
         self.E_el_tot = self.E_el_tot_kWhm2 * 14000
-        
-        # Update crop yield
-        self.DM_Har = self.TYM.DM_Har
         
         # Update components
         self.cover.step(dt)
@@ -153,10 +161,8 @@ class Greenhouse:
             CO2_air=self.CO2_air.CO2_ppm,
             T_canK=self.canopy.T
         )
-        
-        # Update control systems
-        self.PID_Mdot.compute()
-        self.PID_CO2.compute()
+        self.TYM.step(dt)
+        self.DM_Har = self.TYM.DM_Har
         
         # Increment step counter
         self.current_step += 1

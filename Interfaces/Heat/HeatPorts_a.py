@@ -1,26 +1,32 @@
 from typing import List, Optional
-from .HeatPort import HeatPort
+from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort import HeatPort
 
-class HeatPorts_a:
+class HeatPorts_a(HeatPort):
     """
     HeatPort connector with filled, large icon to be used for vectors of HeatPorts
     
     This class implements the Modelica HeatPorts_a connector in Python.
-    It represents a vector of heat ports, each with temperature and heat flow rate.
+    It extends the basic HeatPort with a filled icon representation.
     
-    Attributes:
-        ports (List[HeatPort]): List of heat ports
+    Note:
+        In Modelica, this connector is used for vectors of HeatPorts,
+        but in Python we implement it as a single port for simplicity.
     """
     
-    def __init__(self, size: int = 1):
+    def __init__(self, T_start=293.15):
         """
         Initialize HeatPorts_a
         
         Args:
-            size (int): Number of heat ports in the vector (default: 1)
+            T_start (float): Initial temperature [K]
         """
-        self.ports = [HeatPort() for _ in range(size)]
+        super().__init__(T_start)
+        self.ports = [HeatPort(T_start)]  # 기본적으로 하나의 포트로 초기화
     
+    def __str__(self):
+        """String representation of the heat port"""
+        return f"HeatPorts_a(T={self.T:.2f}K, Q_flow={self.Q_flow:.2f}W)"
+
     def __getitem__(self, index: int) -> HeatPort:
         """
         Get heat port at specified index
@@ -77,4 +83,23 @@ class HeatPorts_a:
     def __str__(self) -> str:
         """String representation of the heat ports vector"""
         return (f"HeatPorts_a (size: {len(self)})\n" +
-                "\n".join(f"Port {i}: {port}" for i, port in enumerate(self.ports))) 
+                "\n".join(f"Port {i}: {port}" for i, port in enumerate(self.ports)))
+
+    def add_port(self, T_start=293.15) -> None:
+        """
+        Add a new heat port to the vector
+        
+        Args:
+            T_start (float): Initial temperature [K] for the new port
+        """
+        self.ports.append(HeatPort(T_start))
+    
+    def set_size(self, size: int, T_start=293.15) -> None:
+        """
+        Set the number of ports in the vector
+        
+        Args:
+            size (int): Number of ports
+            T_start (float): Initial temperature [K] for new ports
+        """
+        self.ports = [HeatPort(T_start) for _ in range(size)] 

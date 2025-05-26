@@ -1,8 +1,9 @@
 import numpy as np
 from .VentilationRates.NaturalVentilationRate_2 import NaturalVentilationRate_2
 from .VentilationRates.ForcedVentilationRate import ForcedVentilationRate
+from Interfaces.HeatAndVapour.Element1D import Element1D
 
-class Ventilation:
+class Ventilation(Element1D):
     """
     Heat and vapour mass flows exchanged from the greenhouse air to the outside air by ventilation
     """
@@ -19,6 +20,8 @@ class Ventilation:
             forcedVentilation (bool): Presence of a mechanical ventilation system
             phi_VentForced (float): Air flow capacity of the forced ventilation system [m3/s]
         """
+        super().__init__()
+        
         # Parameters
         self.A = A
         self.thermalScreen = thermalScreen
@@ -80,6 +83,12 @@ class Ventilation:
         if U_VentForced is not None:
             self.U_VentForced = U_VentForced
             
+        # Update port temperatures and vapor pressures
+        self.HeatPort_a.T = T_a
+        self.HeatPort_b.T = T_b
+        self.MassPort_a.VP = VP_a
+        self.MassPort_b.VP = VP_b
+        
         # Calculate temperature difference
         dT = T_a - T_b
         
@@ -116,5 +125,11 @@ class Ventilation:
         # Calculate moisture transfer
         self.MV_flow = (self.A * self.M_H * self.f_vent_total / self.R * 
                        (VP_a/T_a - VP_b/T_b))
+        
+        # Update port flows
+        self.HeatPort_a.Q_flow = self.Q_flow
+        self.HeatPort_b.Q_flow = -self.Q_flow
+        self.MassPort_a.MV_flow = self.MV_flow
+        self.MassPort_b.MV_flow = -self.MV_flow
         
         return self.Q_flow, self.MV_flow

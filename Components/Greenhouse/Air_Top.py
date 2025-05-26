@@ -1,4 +1,7 @@
 import numpy as np
+from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
+from Interfaces.Vapour.WaterMassPort_a import WaterMassPort_a
+from Components.Greenhouse.BasicComponents.AirVP import AirVP
 
 class Air_Top:
     """
@@ -33,6 +36,14 @@ class Air_Top:
         self.w_air = 0.0            # Humidity ratio
         self.RH = 0.0               # Relative humidity
 
+        # Ports
+        self.heatPort = HeatPort_a(T_start=T_start)  # Heat port with initial temperature
+        self.massPort = WaterMassPort_a()
+        self.air = AirVP(V_air=self.V, steadystate=self.steadystateVP)  # Air vapor pressure component
+        
+        # Connect ports
+        self.air.port = self.massPort
+
     def _compute_density(self, T):
         # Placeholder: assume constant pressure, ideal gas law for dry air
         return self.P_atm / (self.R_a * T)
@@ -57,9 +68,11 @@ class Air_Top:
     def step(self, dt):
         dTdt = self.compute_derivatives()
         self.T += dTdt * dt
+        self.heatPort.T = self.T  # Update heat port temperature
         self.update_humidity()
         return self.T, self.RH
 
     def set_inputs(self, Q_flow, massPort_VP):
         self.Q_flow = Q_flow
         self.massPort_VP = massPort_VP
+        self.heatPort.Q_flow = Q_flow  # Update heat port heat flow

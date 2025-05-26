@@ -1,4 +1,4 @@
-from Interfaces.Heat.HeatPort_a import HeatPort_a
+from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
 from Interfaces.Heat.ThermalPortL import ThermalPortL
 
 class HeatPortConverter:

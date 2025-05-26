@@ -1,4 +1,5 @@
 import numpy as np
+from Interfaces.Heat.HeatFluxOutput import HeatFluxOutput
 
 class Illumination:
     """
@@ -38,6 +39,11 @@ class Illumination:
         
         # Outputs
         self.W_el = 0.0    # Electrical power [W]
+
+        # Ports
+        self.R_IluAir_Glob = HeatFluxOutput(name="R_IluAir_Glob")  # Radiation absorbed by air
+        self.R_IluCan_Glob = HeatFluxOutput(name="R_IluCan_Glob")  # Radiation absorbed by canopy
+        self.R_IluFlr_Glob = HeatFluxOutput(name="R_IluFlr_Glob")  # Radiation absorbed by floor
 
     def multilayer_tau_rho(self, tau_Can, tau_Flr, rho_Can, rho_Flr):
         tau = tau_Can * tau_Flr / (1 - rho_Can * rho_Flr)
@@ -83,6 +89,11 @@ class Illumination:
         R_IluFlr_NIR = R_NIR * alpha_FlrNIR
         R_IluFlr_PAR = R_PAR * np.exp(-self.K1_PAR * self.LAI) * (1 - self.rho_FlrPAR)
         R_IluFlr_Glob = R_IluFlr_PAR + R_IluFlr_NIR
+
+        # Update port values
+        self.R_IluAir_Glob.value = R_IluAir_Glob
+        self.R_IluCan_Glob.value = R_IluCan_Glob
+        self.R_IluFlr_Glob.value = R_IluFlr_Glob
 
         return {
             "R_IluAir_Glob": R_IluAir_Glob,

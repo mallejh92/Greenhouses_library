@@ -1,12 +1,19 @@
-from Interfaces.Heat.HeatPorts_a import HeatPort_a
-from Interfaces.Heat.HeatPorts_b import HeatPort_b
-from Interfaces.Vapour.WaterMassPort_a import WaterMassPort_a
-from Interfaces.Vapour.WaterMassPort_b import WaterMassPort_b
+from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
+from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_b import HeatPort_b
+from Modelica.Fluid.Interfaces.WaterMassPort_a import WaterMassPort_a
+from Modelica.Fluid.Interfaces.WaterMassPort_b import WaterMassPort_b
 
 class Element1D:
     """
-    Partial water mass and heat transfer element with two ports for each.
-    Does not store energy.
+    Partial heat transfer element with two HeatPort connectors that does not store energy
+    
+    This partial model contains the basic connectors and variables to allow heat transfer
+    models to be created that do not store energy. This model defines and includes
+    equations for the temperature drop across the element, dT, and the heat flow rate
+    through the element from port_a to port_b, Q_flow.
+    
+    By extending this model, it is possible to write simple constitutive equations
+    for many types of heat transfer components.
     
     Attributes:
         Q_flow (float): Heat flow rate from port_a -> port_b [W]
