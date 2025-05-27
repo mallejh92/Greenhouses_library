@@ -49,6 +49,13 @@ class Convection_Condensation(Element1D):
         # Mass transfer ports
         self.MassPort_a = type('MassPort', (), {'VP': 0.0, 'P': 0.0})()
         self.MassPort_b = type('MassPort', (), {'VP': 0.0, 'P': 0.0})()
+        self.massPort_a = self.MassPort_a
+        self.massPort_b = self.MassPort_b
+        # Heat transfer ports (상위 클래스에 정의되어 있다고 가정)
+        if not hasattr(self, 'heatPort_a'):
+            self.heatPort_a = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
+        if not hasattr(self, 'heatPort_b'):
+            self.heatPort_b = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
         
     def step(self, dt: float) -> None:
         """
@@ -62,8 +69,8 @@ class Convection_Condensation(Element1D):
             SC=self.SC,
             T_a=self.heatPort_a.T,
             T_b=self.heatPort_b.T,
-            VP_a=self.MassPort_a.VP,
-            VP_b=self.MassPort_b.VP
+            VP_a=self.massPort_a.VP,
+            VP_b=self.massPort_b.VP
         )
         
     def update(self, SC: float, T_a: float, T_b: float, VP_a: float, VP_b: float) -> tuple:

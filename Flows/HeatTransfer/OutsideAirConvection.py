@@ -30,8 +30,10 @@ class OutsideAirConvection(Element1D):
         self.du = 0.0
         
         # Modelica-style port names
-        self.port_a = self.heatPort_a
-        self.port_b = self.heatPort_b
+        if not hasattr(self, 'heatPort_a'):
+            self.heatPort_a = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
+        if not hasattr(self, 'heatPort_b'):
+            self.heatPort_b = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
         
     def step(self, dt):
         """

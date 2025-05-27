@@ -21,6 +21,12 @@ class MV_cnv_condensation:
         self.MV_flow = 0.0  # Mass flow rate [kg/s]
         self.dP = 0.0      # Pressure difference [Pa]
         
+        # Modelica-style mass port names
+        if not hasattr(self, 'massPort_a'):
+            self.massPort_a = type('MassPort', (), {'VP': 0.0, 'P': 1e5})()
+        if not hasattr(self, 'massPort_b'):
+            self.massPort_b = type('MassPort', (), {'VP': 0.0, 'P': 1e5})()
+        
     def step(self, dP):
         """
         Calculate the mass transfer rate

@@ -64,6 +64,12 @@ class MV_AirThroughScreen(Element1D):
         self.VEC_AirTop = 0.0  # Mass transfer coefficient in kg/(s.Pa.m2)
         self.dP = 0.0  # Pressure difference between ports
         
+        # Modelica-style mass port names
+        if not hasattr(self, 'massPort_a'):
+            self.massPort_a = type('MassPort', (), {'VP': 0.0, 'P': 1e5})()
+        if not hasattr(self, 'massPort_b'):
+            self.massPort_b = type('MassPort', (), {'VP': 0.0, 'P': 1e5})()
+        
     def connect_ports(self, HeatPort_a, HeatPort_b) -> None:
         """
         Connect two ports and calculate the pressure difference.

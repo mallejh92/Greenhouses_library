@@ -64,6 +64,12 @@ class MV_ventilation(Element1D):
             thermalScreen=thermalScreen
         )
         
+        # Modelica-style mass port names
+        if not hasattr(self, 'massPort_a'):
+            self.massPort_a = type('MassPort', (), {'VP': 0.0, 'P': 1e5})()
+        if not hasattr(self, 'massPort_b'):
+            self.massPort_b = type('MassPort', (), {'VP': 0.0, 'P': 1e5})()
+        
     def step(self):
         """
         Calculate the mass exchange rate

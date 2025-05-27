@@ -59,6 +59,12 @@ class MV_CanopyTranspiration(Element1D):
         self.T_m = 0.0        # Temperature for minimum resistance [K]
         self.S_rs = 0.0       # Switch for day/night conditions
         
+        # Modelica-style mass port names
+        if not hasattr(self, 'massPort_a'):
+            self.massPort_a = type('MassPort', (), {'VP': 0.0, 'P': 1e5})()
+        if not hasattr(self, 'massPort_b'):
+            self.massPort_b = type('MassPort', (), {'VP': 0.0, 'P': 1e5})()
+        
     def step(self):
         """
         Calculate the transpiration rate
@@ -69,8 +75,8 @@ class MV_CanopyTranspiration(Element1D):
             Mass flow rate [kg/s]
         """
         # Get vapour pressures from ports
-        self.VP_can = self.HeatPort_a.VP
-        self.VP_air = self.HeatPort_b.VP
+        self.VP_can = self.massPort_a.VP
+        self.VP_air = self.massPort_b.VP
         
         # Calculate day/night switch
         self.S_rs = 1 / (1 + np.exp(-(self.R_can - 5)))

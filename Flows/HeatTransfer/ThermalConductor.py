@@ -45,8 +45,24 @@ class ThermalConductor(Element1D):
             Constant thermal conductance of material [W/K], default is 1.0
         """
         super().__init__()  # Initialize Element1D
-        
         self.G = G  # Thermal conductance of material
+        self._Q_flow = 0.0  # Heat flow rate [W]
+        
+        # Initialize ports from Element1D
+        self.port_a = type('HeatPort', (), {'T': 293.15})()  # Default 20°C
+        self.port_b = type('HeatPort', (), {'T': 293.15})()  # Default 20°C
+        
+    @property
+    def dT(self):
+        """
+        Temperature difference between ports
+        
+        Returns:
+        --------
+        dT : float
+            Temperature difference [K]
+        """
+        return self.port_a.T - self.port_b.T
         
     def calculate(self):
         """
@@ -58,6 +74,16 @@ class ThermalConductor(Element1D):
             Heat flow rate [W]
         """
         # Calculate heat flow using Q_flow = G * dT
-        self.Q_flow = self.G * self.dT
+        self._Q_flow = self.G * self.dT
+        return self._Q_flow
         
-        return self.Q_flow
+    def get_Q_flow(self):
+        """
+        Get the current heat flow rate
+        
+        Returns:
+        --------
+        Q_flow : float
+            Heat flow rate [W]
+        """
+        return self._Q_flow

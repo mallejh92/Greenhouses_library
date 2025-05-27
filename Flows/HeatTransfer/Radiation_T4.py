@@ -25,6 +25,11 @@ class Radiation_T4(Element1D):
         self.FFab2 = FFab2
         self.FFab3 = FFab3
         self.FFab4 = FFab4
+        # Modelica-style port names (상위 클래스에 정의되어 있지 않으면 직접 정의)
+        if not hasattr(self, 'heatPort_a'):
+            self.heatPort_a = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
+        if not hasattr(self, 'heatPort_b'):
+            self.heatPort_b = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
     def step(self, dt=None):
         """
         Calculate heat transfer by radiation

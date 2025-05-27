@@ -26,6 +26,11 @@ class CanopyFreeConvection(Element1D):
         self.U = U
         self.LAI = LAI
         self.HEC_ab = 0.0  # Heat exchange coefficient
+        # Modelica-style port names
+        if not hasattr(self, 'heatPort_a'):
+            self.heatPort_a = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
+        if not hasattr(self, 'heatPort_b'):
+            self.heatPort_b = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
         
     def step(self, dt):
         """

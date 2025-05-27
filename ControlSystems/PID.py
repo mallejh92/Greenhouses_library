@@ -71,6 +71,8 @@ class PID:
         self.PV = PVstart
         self.SP = PVstart
         
+        self.CS = self.CSstart  # 실제 제어 신호 (초기값)
+        
     def compute(self):
         """
         Compute PID control signal

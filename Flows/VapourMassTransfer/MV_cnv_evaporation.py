@@ -30,6 +30,12 @@ class MV_cnv_evaporation(Element1D):
         # Variables
         self.VEC_ab = 0.0     # Mass transfer coefficient [kg/(s·Pa·m²)]
         
+        # Modelica-style mass port names
+        if not hasattr(self, 'massPort_a'):
+            self.massPort_a = type('MassPort', (), {'VP': 0.0, 'P': 1e5})()
+        if not hasattr(self, 'massPort_b'):
+            self.massPort_b = type('MassPort', (), {'VP': 0.0, 'P': 1e5})()
+        
     def step(self):
         """
         Calculate the mass transfer rate

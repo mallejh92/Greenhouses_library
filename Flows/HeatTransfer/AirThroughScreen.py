@@ -46,13 +46,15 @@ class AirThroughScreen(Element1D):
         self.MV_flow2 = 0.0  # Secondary mass flow rate [kg/s]
         self.VEC_AirTop = 0.0  # Mass transfer coefficient [kg/(s·Pa·m²)]
         
-        # Port variables
-        self.HeatPort_a_T = 293.15  # Temperature at port a [K]
-        self.HeatPort_b_T = 293.15  # Temperature at port b [K]
-        self.MassPort_a_VP = 0.0  # Vapor pressure at port a [Pa]
-        self.MassPort_b_VP = 0.0  # Vapor pressure at port b [Pa]
-        self.MassPort_a_P = 1e5  # Pressure at port a [Pa]
-        self.MassPort_b_P = 1e5  # Pressure at port b [Pa]
+        # Modelica-style port names
+        if not hasattr(self, 'heatPort_a'):
+            self.heatPort_a = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
+        if not hasattr(self, 'heatPort_b'):
+            self.heatPort_b = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
+        if not hasattr(self, 'massPort_a'):
+            self.massPort_a = type('MassPort', (), {'VP': 0.0, 'P': 1e5})()
+        if not hasattr(self, 'massPort_b'):
+            self.massPort_b = type('MassPort', (), {'VP': 0.0, 'P': 1e5})()
         
     def step(self, dt: float):
         """
@@ -68,12 +70,12 @@ class AirThroughScreen(Element1D):
             self.SC = self.thScreen.SC
             
         # Calculate temperature difference
-        dT = self.HeatPort_b_T - self.HeatPort_a_T
-        dP = self.MassPort_b_P - self.MassPort_a_P
+        dT = self.heatPort_b.T - self.heatPort_a.T
+        dP = self.massPort_b.P - self.massPort_a.P
         
         # Calculate air densities
-        rho_air = self._calculate_air_density(self.HeatPort_a_T)
-        rho_top = self._calculate_air_density(self.HeatPort_b_T)
+        rho_air = self._calculate_air_density(self.heatPort_a.T)
+        rho_top = self._calculate_air_density(self.heatPort_b.T)
         rho_mean = (rho_air + rho_top) / 2
         
         # Calculate air exchange rate
@@ -88,8 +90,8 @@ class AirThroughScreen(Element1D):
         # Calculate mass exchange coefficient and mass flows
         self.VEC_AirTop = self.M_H * self.f_AirTop / (self.R * 287)
         self.MV_flow2 = self.A * self.M_H / self.R * self.f_AirTop * (
-            self.MassPort_a_VP / self.HeatPort_a_T - 
-            self.MassPort_b_VP / self.HeatPort_b_T
+            self.massPort_a.VP / self.heatPort_a.T - 
+            self.massPort_b.VP / self.heatPort_b.T
         )
         self.MV_flow = self.A * self.VEC_AirTop * dP
         

@@ -17,28 +17,30 @@ class FluidPort:
     포트는 압력(p), 질량유량(m_flow), 엔탈피(h_outflow) 등을 포함합니다.
     
     속성:
-        Medium (class): 매체 모델
+        medium (class): 매체 모델
         m_flow (float): 질량유량 (양수는 포트로 들어가는 방향) [kg/s]
         p (float): 포트 압력 [Pa]
         h_outflow (float): m_flow < 0일 때 연결점 근처의 비엔탈피 [J/kg]
         Xi_outflow (np.ndarray): m_flow < 0일 때 연결점 근처의 독립적인 혼합물 질량 분율 [kg/kg]
         C_outflow (np.ndarray): m_flow < 0일 때 연결점 근처의 추가 속성
     """
-    def __init__(self, Medium=Medium(), p_start=1e5, h_start=0.0):
+    def __init__(self, medium=None, p_start=1e5, h_start=0.0):
         """
         유체 포트 초기화
         
         매개변수:
-            Medium (class): 매체 모델
+            medium (class): 매체 모델
             p_start (float): 초기 압력 [Pa]
             h_start (float): 초기 비엔탈피 [J/kg]
         """
-        self.Medium = Medium
+        if medium is None:
+            medium = Medium()  # 기본 Medium 인스턴스 생성
+        self.medium = medium
         self.m_flow = 0.0  # 질량유량 [kg/s]
         self.p = p_start   # 포트 압력 [Pa]
         self.h_outflow = h_start  # 비엔탈피 [J/kg]
-        self.Xi_outflow = np.zeros(Medium.nXi)  # 혼합물 질량 분율
-        self.C_outflow = np.zeros(Medium.nC)    # 추가 속성
+        self.Xi_outflow = np.zeros(self.medium.nXi)  # 혼합물 질량 분율
+        self.C_outflow = np.zeros(self.medium.nC)    # 추가 속성
     
     def connect(self, other):
         """
