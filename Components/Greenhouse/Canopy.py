@@ -67,7 +67,19 @@ class Canopy:
         self.surfaceVP.T = self.T  # Update surfaceVP temperature
         return self.T
 
-    def set_inputs(self, Q_flow, R_Can_Glob, MV_flow):
+    def set_inputs(self, Q_flow, R_Can_Glob, MV_flow=0.0):
+        """
+        Set input values for the canopy
+        
+        Parameters:
+        -----------
+        Q_flow : float
+            Total heat flow to the canopy [W]
+        R_Can_Glob : array-like
+            Global radiation on the canopy [W/m²]
+        MV_flow : float, optional
+            Mass vapor flow rate [kg/s], defaults to 0.0
+        """
         self.Q_flow = Q_flow
         self.R_Can_Glob = np.array(R_Can_Glob)
         self.massPort_MV_flow = MV_flow

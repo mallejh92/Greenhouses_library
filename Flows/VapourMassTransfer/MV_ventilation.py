@@ -85,7 +85,7 @@ class MV_ventilation(Element1D):
         if not self.topAir:
             self.f_vent = self.airExchangeRate.f_vent_air
             self.MV_flow = self.A * self.M_H * self.f_vent / self.R * (
-                self.port_a.VP / self.T_a - self.port_b.VP / self.T_b
+                self.HeatPort_a.VP / self.T_a - self.HeatPort_b.VP / self.T_b
             )
         else:
             self.f_vent = self.airExchangeRate.f_vent_top

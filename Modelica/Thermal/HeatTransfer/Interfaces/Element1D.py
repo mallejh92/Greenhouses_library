@@ -40,6 +40,6 @@ class Element1D:
         # 온도차 계산
         self.dT = self.port_a.T - self.port_b.T
         
-        # 열유량 설정 (Modelica의 flow 변수 특성)
+        # 포트 열유량 설정
         self.port_a.Q_flow = self.Q_flow
         self.port_b.Q_flow = -self.Q_flow 

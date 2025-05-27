@@ -69,8 +69,8 @@ class MV_CanopyTranspiration(Element1D):
             Mass flow rate [kg/s]
         """
         # Get vapour pressures from ports
-        self.VP_can = self.port_a.VP
-        self.VP_air = self.port_b.VP
+        self.VP_can = self.HeatPort_a.VP
+        self.VP_air = self.HeatPort_b.VP
         
         # Calculate day/night switch
         self.S_rs = 1 / (1 + np.exp(-(self.R_can - 5)))

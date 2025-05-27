@@ -40,4 +40,7 @@ class CanopyFreeConvection(Element1D):
         self.HEC_ab = 2 * self.LAI * self.U
         
         # Calculate heat flow
+        self.dT = self.heatPort_a.T - self.heatPort_b.T
         self.Q_flow = self.A * self.HEC_ab * self.dT
+        self.heatPort_a.Q_flow = self.Q_flow
+        self.heatPort_b.Q_flow = -self.Q_flow

@@ -25,6 +25,7 @@ from Flows.HeatTransfer.PipeFreeConvection_N import PipeFreeConvection_N
 from Flows.CO2MassTransfer.MC_ventilation2 import MC_ventilation2
 from Flows.HeatAndVapourTransfer.Convection_Condensation import Convection_Condensation
 from Flows.HeatAndVapourTransfer.Convection_Evaporation import Convection_Evaporation
+from Flows.VapourMassTransfer.MV_CanopyTranspiration import MV_CanopyTranspiration
 
 class Greenhouse_1:
     """
@@ -348,34 +349,18 @@ class Greenhouse_1:
         # Q_cnv_AirScr
         self.Q_cnv_AirScr.port_a.T = self.air.heatPort.T
         self.Q_cnv_AirScr.port_b.T = self.thScreen.heatPort.T
-        self.Q_cnv_AirScr.MassPort_a.VP = self.air.massPort.VP
-        self.Q_cnv_AirScr.MassPort_b.VP = self.thScreen.massPort.VP
-        self.Q_cnv_AirScr.MassPort_a.P = self.air.massPort.P
-        self.Q_cnv_AirScr.MassPort_b.P = self.thScreen.massPort.P
         
         # Q_cnv_AirCov
         self.Q_cnv_AirCov.port_a.T = self.air.heatPort.T
         self.Q_cnv_AirCov.port_b.T = self.cover.heatPort.T
-        self.Q_cnv_AirCov.MassPort_a.VP = self.air.massPort.VP
-        self.Q_cnv_AirCov.MassPort_b.VP = self.cover.massPort.VP
-        self.Q_cnv_AirCov.MassPort_a.P = self.air.massPort.P
-        self.Q_cnv_AirCov.MassPort_b.P = self.cover.massPort.P
         
         # Q_cnv_TopCov
         self.Q_cnv_TopCov.port_a.T = self.air_top.heatPort.T
         self.Q_cnv_TopCov.port_b.T = self.cover.heatPort.T
-        self.Q_cnv_TopCov.MassPort_a.VP = self.air_top.massPort.VP
-        self.Q_cnv_TopCov.MassPort_b.VP = self.cover.massPort.VP
-        self.Q_cnv_TopCov.MassPort_a.P = self.air_top.massPort.P
-        self.Q_cnv_TopCov.MassPort_b.P = self.cover.massPort.P
         
         # Q_cnv_ScrTop
         self.Q_cnv_ScrTop.port_a.T = self.thScreen.heatPort.T
         self.Q_cnv_ScrTop.port_b.T = self.air_top.heatPort.T
-        self.Q_cnv_ScrTop.massPort_a.VP = self.thScreen.massPort.VP
-        self.Q_cnv_ScrTop.massPort_b.VP = self.air_top.massPort.VP
-        self.Q_cnv_ScrTop.massPort_a.P = self.thScreen.massPort.P
-        self.Q_cnv_ScrTop.massPort_b.P = self.air_top.massPort.P
 
         # Initialize control systems
         self.PID_Mdot = PID(
@@ -440,6 +425,9 @@ class Greenhouse_1:
             C_Leaf_0=40e3,  # Initial leaf carbon content
             C_Stem_0=30e3  # Initial stem carbon content
         )
+        
+        # Initialize mass vapor transfer component (canopy transpiration)
+        self.MV_CanAir = MV_CanopyTranspiration(A=self.surface)
         
         # Connect all heat ports
         self._connect_heat_ports()
@@ -595,7 +583,10 @@ class Greenhouse_1:
         self.solar_model.SC = self.thScreen.SC
         self.solar_model.step(dt)
 
-        # 4. Update CO2 exchange components
+        # 4. Update all port connections first
+        self._update_port_connections()
+
+        # 5. Update CO2 exchange components
         # Update ventilation flow rates
         self.MC_AirTop.f_vent = self.Q_ven_AirTop.f_AirTop
         self.MC_AirOut.f_vent = self.Q_ven_AirOut.f_vent_total
@@ -615,98 +606,139 @@ class Greenhouse_1:
         self.CO2_air.step(dt)
         self.CO2_top.step(dt)
 
-        # 5. Update cover inputs
+        # 6. Update heat transfer components
+        # Update radiation components
+        self.Q_rad_CanCov.step(dt)
+        self.Q_rad_FlrCan.step(dt)
+        self.Q_rad_FlrCov.step(dt)
+        self.Q_rad_CanScr.step(dt)
+        self.Q_rad_FlrScr.step(dt)
+        self.Q_rad_ScrCov.step(dt)
+        self.Q_rad_CovSky.step(dt)
+        
+        # Update convection components
+        self.Q_cnv_CanAir.step(dt)
+        self.Q_cnv_FlrAir.step(dt)
+        self.Q_cnv_CovOut.step(dt)
+        self.Q_cnv_AirScr.step(dt)
+        self.Q_cnv_AirCov.step(dt)
+        self.Q_cnv_TopCov.step(dt)
+        self.Q_cnv_ScrTop.step(dt)
+
+        # 7. Update mass vapor transfer components
+        self.MV_CanAir.step(dt)
+        
+        # Update Q_cnv_ScrTop with MV_AirScr
+        self.Q_cnv_ScrTop.MV_AirScr = self.Q_cnv_AirScr.MV_flow
+        self.Q_cnv_ScrTop.step(dt)
+
+        # 8. Update cover inputs with actual heat flows
         self.cover.set_inputs(
-            Q_flow=0.0,  # Example: actual value should be calculated from heat transfer model
-            R_SunCov_Glob=self.solar_model.R_SunCov_Glob,
-            MV_flow=0.0  # Example: actual value should be calculated from condensation
+            Q_flow=self.Q_rad_CanCov.Q_flow + self.Q_rad_FlrCov.Q_flow + 
+                   self.Q_rad_ScrCov.Q_flow + self.Q_cnv_AirCov.Q_flow + 
+                   self.Q_cnv_TopCov.Q_flow + self.Q_cnv_CovOut.Q_flow,
+            R_SunCov_Glob=self.solar_model.R_SunCov_Glob
         )
         self.cover.step(dt)
 
-        # 6. Update canopy inputs
+        # 9. Update canopy inputs with actual heat flows
         self.canopy.set_inputs(
-            Q_flow=0.0,  # Example: actual value should be calculated from heat transfer model
-            R_Can_Glob=[self.solar_model.R_PAR_Can_umol, 0.0],  # Example
-            MV_flow=0.0
+            Q_flow=self.Q_rad_CanCov.Q_flow + self.Q_rad_FlrCan.Q_flow + 
+                   self.Q_rad_CanScr.Q_flow + self.Q_cnv_CanAir.Q_flow,
+            R_Can_Glob=[self.solar_model.R_PAR_Can_umol, self.illu.R_PAR_Can_umol]
         )
         self.canopy.step(dt)
 
-        # 7. Update floor inputs
+        # 10. Update floor inputs with actual heat flows
         self.floor.set_inputs(
-            Q_flow=0.0,  # Example
-            R_Flr_Glob=[self.solar_model.R_SunFlr_Glob, self.illu.P_el]  # Example
+            Q_flow=self.Q_rad_FlrCan.Q_flow + self.Q_rad_FlrCov.Q_flow + 
+                   self.Q_rad_FlrScr.Q_flow + self.Q_cnv_FlrAir.Q_flow,
+            R_Flr_Glob=[self.solar_model.R_SunFlr_Glob, self.illu.P_el]
         )
         self.floor.step(dt)
 
-        # 8. Update air inputs (sum of energy from Cover, Canopy, Floor)
+        # 11. Update air inputs with actual heat flows
         Q_flow_air = (
-            self.cover.Q_flow +
-            self.canopy.Q_flow +
-            self.floor.Q_flow
-            # + Other heat transfers (ventilation, pipes) if needed
+            self.Q_cnv_CanAir.Q_flow +
+            self.Q_cnv_FlrAir.Q_flow +
+            self.Q_cnv_AirScr.Q_flow +
+            self.Q_cnv_AirCov.Q_flow +
+            self.Q_ven_AirOut.Q_flow +
+            self.Q_ven_AirTop.Q_flow
         )
-        R_Air_Glob = [self.solar_model.R_SunAir_Glob, self.illu.P_el]  # Example
+        R_Air_Glob = [self.solar_model.R_SunAir_Glob, self.illu.P_el]
+        
+        # Update air inputs with all vapor flows
         self.air.set_inputs(
             Q_flow=Q_flow_air,
             R_Air_Glob=R_Air_Glob,
-            massPort_VP=0.0  # Example: actual value should be calculated from vapor flow
+            massPort_VP=(
+                self.MV_CanAir.MV_flow + 
+                self.Q_ven_AirOut.MV_flow + 
+                self.Q_ven_AirTop.MV_flow + 
+                self.Q_cnv_AirScr.MV_flow
+            )
         )
         self.air.step(dt)
 
-        # 9. Update HeatingPipe, ThermalScreen, CO2 components
+        # 12. Update remaining components
         self.pipe_low.step(dt)
         self.pipe_up.step(dt)
         self.thScreen.step(dt)
         self.CO2_air.step(dt)
         self.CO2_top.step(dt)
         self.air_top.step(dt)
+    
+    def _update_port_connections(self):
+        """
+        Update all port connections between components (1:1 mapping with Modelica connect statements)
+        """
+        # Radiation connections
+        self.Q_rad_CanCov.port_a.T = self.canopy.heatPort.T
+        self.Q_rad_CanCov.port_b.T = self.cover.heatPort.T
+        self.Q_rad_FlrCan.port_a.T = self.floor.heatPort.T
+        self.Q_rad_FlrCan.port_b.T = self.canopy.heatPort.T
+        self.Q_rad_FlrCov.port_a.T = self.floor.heatPort.T
+        self.Q_rad_FlrCov.port_b.T = self.cover.heatPort.T
+        self.Q_rad_CanScr.port_a.T = self.canopy.heatPort.T
+        self.Q_rad_CanScr.port_b.T = self.thScreen.heatPort.T
+        self.Q_rad_FlrScr.port_a.T = self.floor.heatPort.T
+        self.Q_rad_FlrScr.port_b.T = self.thScreen.heatPort.T
+        self.Q_rad_ScrCov.port_a.T = self.thScreen.heatPort.T
+        self.Q_rad_ScrCov.port_b.T = self.cover.heatPort.T
+        self.Q_rad_CovSky.port_a.T = self.cover.heatPort.T
+        self.Q_rad_CovSky.port_b.T = self.air.T_out
 
-        # Update heat transfer components
-        self.Q_rad_FlrCan.step(dt)
-        self.Q_rad_FlrCov.step(dt)
-        self.Q_rad_CanScr.step(dt)
-        self.Q_rad_FlrScr.step(dt)
-        self.Q_rad_ScrCov.step(dt)
-        
-        # Update convection and evaporation components
-        self.Q_cnv_AirScr.step(dt)
-        self.Q_cnv_AirCov.step(dt)
-        self.Q_cnv_TopCov.step(dt)
-        self.Q_cnv_ScrTop.step(dt)
-        
-        # Update HeatPort connections
-        # Update port connections for convection components
-        # Q_cnv_AirScr
+        # Convection connections
+        self.Q_cnv_CanAir.port_a.T = self.canopy.heatPort.T
+        self.Q_cnv_CanAir.port_b.T = self.air.heatPort.T
+        self.Q_cnv_FlrAir.port_a.T = self.floor.heatPort.T
+        self.Q_cnv_FlrAir.port_b.T = self.air.heatPort.T
+        self.Q_cnv_CovOut.port_a.T = self.cover.heatPort.T
+        self.Q_cnv_CovOut.port_b.T = self.air.T_out
         self.Q_cnv_AirScr.port_a.T = self.air.heatPort.T
         self.Q_cnv_AirScr.port_b.T = self.thScreen.heatPort.T
-        self.Q_cnv_AirScr.MassPort_a.VP = self.air.massPort.VP
-        self.Q_cnv_AirScr.MassPort_b.VP = self.thScreen.massPort.VP
-        self.Q_cnv_AirScr.MassPort_a.P = self.air.massPort.P
-        self.Q_cnv_AirScr.MassPort_b.P = self.thScreen.massPort.P
-        
-        # Q_cnv_AirCov
         self.Q_cnv_AirCov.port_a.T = self.air.heatPort.T
         self.Q_cnv_AirCov.port_b.T = self.cover.heatPort.T
-        self.Q_cnv_AirCov.MassPort_a.VP = self.air.massPort.VP
-        self.Q_cnv_AirCov.MassPort_b.VP = self.cover.massPort.VP
-        self.Q_cnv_AirCov.MassPort_a.P = self.air.massPort.P
-        self.Q_cnv_AirCov.MassPort_b.P = self.cover.massPort.P
-        
-        # Q_cnv_TopCov
         self.Q_cnv_TopCov.port_a.T = self.air_top.heatPort.T
         self.Q_cnv_TopCov.port_b.T = self.cover.heatPort.T
-        self.Q_cnv_TopCov.MassPort_a.VP = self.air_top.massPort.VP
-        self.Q_cnv_TopCov.MassPort_b.VP = self.cover.massPort.VP
-        self.Q_cnv_TopCov.MassPort_a.P = self.air_top.massPort.P
-        self.Q_cnv_TopCov.MassPort_b.P = self.cover.massPort.P
-        
-        # Q_cnv_ScrTop
         self.Q_cnv_ScrTop.port_a.T = self.thScreen.heatPort.T
         self.Q_cnv_ScrTop.port_b.T = self.air_top.heatPort.T
-        self.Q_cnv_ScrTop.massPort_a.VP = self.thScreen.massPort.VP
-        self.Q_cnv_ScrTop.massPort_b.VP = self.air_top.massPort.VP
-        self.Q_cnv_ScrTop.massPort_a.P = self.thScreen.massPort.P
-        self.Q_cnv_ScrTop.massPort_b.P = self.air_top.massPort.P
+
+        # MassPort connections (vapor/gas)
+        self.MV_CanAir.port_a.VP = self.canopy.massPort.VP
+        self.MV_CanAir.port_b.VP = self.air.massPort.VP
+        self.Q_cnv_AirScr.MassPort_a.VP = self.air.massPort.VP
+        self.Q_cnv_AirScr.MassPort_b.VP = self.thScreen.massPort.VP
+        self.Q_cnv_AirCov.MassPort_a.VP = self.air.massPort.VP
+        self.Q_cnv_AirCov.MassPort_b.VP = self.cover.massPort.VP
+        self.Q_cnv_TopCov.MassPort_a.VP = self.air_top.massPort.VP
+        self.Q_cnv_TopCov.MassPort_b.VP = self.cover.massPort.VP
+        self.Q_cnv_ScrTop.MassPort_a.VP = self.thScreen.massPort.VP
+        self.Q_cnv_ScrTop.MassPort_b.VP = self.air_top.massPort.VP
+        # (Add more massPort connections if needed)
+        # CO2, Pipe, etc. if needed
+        # ...
     
     def _update_control_systems(self, weather, setpoint):
         """

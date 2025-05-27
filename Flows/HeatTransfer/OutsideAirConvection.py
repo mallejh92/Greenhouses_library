@@ -3,22 +3,14 @@ from Modelica.Thermal.HeatTransfer.Interfaces.Element1D import Element1D
 
 class OutsideAirConvection(Element1D):
     """
-    Cover heat exchange by convection with outside air function of wind speed
-    
-    This class implements the heat transfer model for convection between the cover
-    and outside air in a greenhouse system.
+    Cover heat exchange by convection with outside air as a function of wind speed.
     """
-    
     def __init__(self, A, phi):
         """
         Initialize the OutsideAirConvection model
-        
         Parameters:
-        -----------
-        A : float
-            Floor surface area [m²]
-        phi : float
-            Inclination of the surface [rad] (0 if horizontal, 25 for typical cover)
+            A (float): Floor surface area [m²]
+            phi (float): Inclination of the surface [rad]
         """
         super().__init__()
         self.A = A
@@ -37,17 +29,18 @@ class OutsideAirConvection(Element1D):
         self.alpha_b = 0.0
         self.du = 0.0
         
+        # Modelica-style port names
+        self.port_a = self.heatPort_a
+        self.port_b = self.heatPort_b
+        
     def step(self, dt):
         """
         Calculate heat transfer by outside air convection
-        
         Parameters:
-        -----------
-        dt : float
-            Time step [s]
+            dt (float): Time step [s]
         """
         # Calculate temperature difference
-        self.dT = self.port_b.T - self.port_a.T
+        self.dT = self.heatPort_b.T - self.heatPort_a.T
         
         # Calculate wind speed difference from threshold
         self.du = 4 - self.u
@@ -62,3 +55,7 @@ class OutsideAirConvection(Element1D):
         
         # Calculate heat flow
         self.Q_flow = self.A * self.HEC_ab * self.dT
+        
+        # Update port flows
+        self.heatPort_a.Q_flow = self.Q_flow
+        self.heatPort_b.Q_flow = -self.Q_flow

@@ -29,7 +29,7 @@ class Cover:
         self.T = T_start                # Temperature [K]
         self.Q_flow = 0.0               # Net heat flow [W]
         self.R_SunCov_Glob = 0.0        # Solar radiation [W/m²]
-        self.massPort_MV_flow = 0.0     # Moisture flow [kg/s]
+        self.MV_flow = 0.0              # Moisture flow [kg/s]
 
         # Derived
         self.V = self.h_cov * self.A / np.cos(self.phi)  # Volume of the cover material
@@ -48,7 +48,7 @@ class Cover:
         self.P_SunCov = self.R_SunCov_Glob * self.A
 
     def compute_latent_heat(self):
-        self.L_cov = self.massPort_MV_flow * self.latent_heat_vap
+        self.L_cov = self.MV_flow * self.latent_heat_vap
 
     def compute_derivatives(self):
         if self.steadystate:
@@ -64,8 +64,20 @@ class Cover:
         self.surfaceVP.T = self.T  # Update surfaceVP temperature
         return self.T
 
-    def set_inputs(self, Q_flow, R_SunCov_Glob, MV_flow):
+    def set_inputs(self, Q_flow, R_SunCov_Glob, MV_flow=0.0):
+        """
+        Set input values for the cover
+        
+        Parameters:
+        -----------
+        Q_flow : float
+            Total heat flow to the cover [W]
+        R_SunCov_Glob : float
+            Global solar radiation on the cover [W/m²]
+        MV_flow : float, optional
+            Mass vapor flow rate [kg/s], defaults to 0.0
+        """
         self.Q_flow = Q_flow
         self.R_SunCov_Glob = R_SunCov_Glob
-        self.massPort_MV_flow = MV_flow
+        self.MV_flow = MV_flow
         self.heatPort.Q_flow = Q_flow  # Update heat port heat flow

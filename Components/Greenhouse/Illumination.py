@@ -39,6 +39,7 @@ class Illumination:
         
         # Outputs
         self.W_el = 0.0    # Electrical power [W]
+        self.R_PAR_Can_umol = 0.0  # PAR absorbed in canopy (umol/m²/s)
 
         # Ports
         self.R_IluAir_Glob = HeatFluxOutput(name="R_IluAir_Glob")  # Radiation absorbed by air
@@ -83,7 +84,7 @@ class Illumination:
 
         # PAR absorbed in canopy (converted to umol/m²/s)
         R_PAR_Can = R_IluCan_PAR + R_FlrCan_PAR
-        R_PAR_Can_umol = R_PAR_Can / 0.25 * self.eta_GlobPAR
+        self.R_PAR_Can_umol = R_PAR_Can / 0.25 * self.eta_GlobPAR  # Store as instance variable
 
         # Floor absorbed
         R_IluFlr_NIR = R_NIR * alpha_FlrNIR
@@ -99,6 +100,6 @@ class Illumination:
             "R_IluAir_Glob": R_IluAir_Glob,
             "R_IluCan_Glob": R_IluCan_Glob,
             "R_IluFlr_Glob": R_IluFlr_Glob,
-            "R_PAR_Can_umol": R_PAR_Can_umol,
+            "R_PAR_Can_umol": self.R_PAR_Can_umol,
             "W_el": self.W_el
         }

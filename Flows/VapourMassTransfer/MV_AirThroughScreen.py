@@ -64,23 +64,23 @@ class MV_AirThroughScreen(Element1D):
         self.VEC_AirTop = 0.0  # Mass transfer coefficient in kg/(s.Pa.m2)
         self.dP = 0.0  # Pressure difference between ports
         
-    def connect_ports(self, port_a, port_b) -> None:
+    def connect_ports(self, HeatPort_a, HeatPort_b) -> None:
         """
         Connect two ports and calculate the pressure difference.
         
         Args:
-            port_a: First port (filled square)
-            port_b: Second port (empty square)
+            HeatPort_a: First port (filled square)
+            HeatPort_b: Second port (empty square)
         """
-        super().connect_ports(port_a, port_b)
+        super().connect_ports(HeatPort_a, HeatPort_b)
         self.calculate_pressure_difference()
         
     def calculate_pressure_difference(self) -> None:
         """
         Calculate the pressure difference between the connected ports.
         """
-        if self.port_a is not None and self.port_b is not None:
-            self.dP = self.port_a.VP - self.port_b.VP
+        if self.HeatPort_a is not None and self.HeatPort_b is not None:
+            self.dP = self.HeatPort_a.VP - self.HeatPort_b.VP
         
     def calculate(self) -> None:
         """

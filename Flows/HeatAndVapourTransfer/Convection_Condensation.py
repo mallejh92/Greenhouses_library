@@ -60,8 +60,8 @@ class Convection_Condensation(Element1D):
         # Update heat and mass flux exchange
         self.update(
             SC=self.SC,
-            T_a=self.port_a.T,
-            T_b=self.port_b.T,
+            T_a=self.heatPort_a.T,
+            T_b=self.heatPort_b.T,
             VP_a=self.MassPort_a.VP,
             VP_b=self.MassPort_b.VP
         )

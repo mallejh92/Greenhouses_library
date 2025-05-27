@@ -41,6 +41,10 @@ class AirThroughScreen(Element1D):
         self.MV_flow2 = 0.0  # Alternative mass flow rate [kg/s]
         self.Q_flow = 0.0  # Heat flow rate [W]
         
+        # Modelica-style ports
+        # (Assume Element1D already provides HeatPort_a, HeatPort_b, MassPort_a, MassPort_b)
+        # If not, define them here as needed
+        
     def update(self, T_a: float, T_b: float, VP_a: float, VP_b: float, dP: float) -> tuple:
         """
         Update heat and mass flux exchange
@@ -76,7 +80,7 @@ class AirThroughScreen(Element1D):
         self.MV_flow2 = self.A * self.M_H / self.R * self.f_AirTop * (VP_a/T_a - VP_b/T_b)
         self.MV_flow = self.A * self.VEC_AirTop * dP
         
-        # Update ports
+        # Update ports (Modelica naming)
         self.HeatPort_a.T = T_a
         self.HeatPort_b.T = T_b
         self.MassPort_a.VP = VP_a

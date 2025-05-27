@@ -20,7 +20,7 @@ class Convection_Evaporation:
         # Input variables
         self.SC = SC  # Screen closure 1:closed, 0:open
         
-        # Port variables
+        # Port variables (Modelica naming)
         class HeatPort:
             def __init__(self):
                 self.T = 293.15  # Temperature [K]
@@ -32,10 +32,10 @@ class Convection_Evaporation:
                 self.P = 101325.0  # Total pressure [Pa]
                 self.MV_flow = 0.0  # Mass flow rate [kg/s]
         
-        self.port_a = HeatPort()  # Changed from HeatPort_a
-        self.port_b = HeatPort()  # Changed from HeatPort_b
-        self.massPort_a = MassPort()  # Changed from MassPort_a
-        self.massPort_b = MassPort()  # Changed from MassPort_b
+        self.HeatPort_a = HeatPort()
+        self.HeatPort_b = HeatPort()
+        self.MassPort_a = MassPort()
+        self.MassPort_b = MassPort()
         
         # State variables
         self.HEC_ab = 0.0  # Heat exchange coefficient [W/(m2.K)]
@@ -53,10 +53,10 @@ class Convection_Evaporation:
         # Update heat and mass flux exchange
         self.update(
             SC=self.SC,
-            T_a=self.port_a.T,
-            T_b=self.port_b.T,
-            VP_a=self.massPort_a.VP,
-            VP_b=self.massPort_b.VP
+            T_a=self.HeatPort_a.T,
+            T_b=self.HeatPort_b.T,
+            VP_a=self.MassPort_a.VP,
+            VP_b=self.MassPort_b.VP
         )
         
     def update(self, SC: float, T_a: float, T_b: float, VP_a: float, VP_b: float) -> tuple:
@@ -90,9 +90,9 @@ class Convection_Evaporation:
         self.MV_flow = max(0, self.A * self.VEC_ab * (VP_a - VP_b))  # Evaporation fluxes are prohibited from being negative
         
         # Update port values
-        self.port_a.Q_flow = self.Q_flow
-        self.port_b.Q_flow = -self.Q_flow
-        self.massPort_a.MV_flow = self.MV_flow
-        self.massPort_b.MV_flow = -self.MV_flow
+        self.HeatPort_a.Q_flow = self.Q_flow
+        self.HeatPort_b.Q_flow = -self.Q_flow
+        self.MassPort_a.MV_flow = self.MV_flow
+        self.MassPort_b.MV_flow = -self.MV_flow
         
         return self.Q_flow, self.MV_flow

@@ -46,7 +46,7 @@ class MV_cnv_evaporation(Element1D):
             # 2. Based on screen mass transfer coefficient
             self.VEC_ab = min(
                 6.4e-9 * self.HEC_ab,
-                self.VEC_AirScr * (self.VP_air - self.port_a.VP) / self.dP
+                self.VEC_AirScr * (self.VP_air - self.HeatPort_a.VP) / self.dP
             )
             # Calculate mass flow
             self.MV_flow = self.A * self.VEC_ab * self.dP
