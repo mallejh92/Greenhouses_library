@@ -8,7 +8,7 @@ def simulate_greenhouse():
     
     # Simulation parameters
     dt = 60                    # Time step [s] (60초)
-    sim_time = 1 * 60 * 60    # 1시간 시뮬레이션
+    sim_time = 0.2 * 60 * 60    # 1시간 시뮬레이션
     n_steps = int(sim_time / dt)
     
     # Storage for results
