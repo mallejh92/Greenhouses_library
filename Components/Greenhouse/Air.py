@@ -5,7 +5,7 @@ from Interfaces.Vapour.WaterMassPort_a import WaterMassPort_a
 from Interfaces.Heat.HeatFluxVectorInput import HeatFluxVectorInput
 
 class Air:
-    def __init__(self, A, h_Air=4.0, rho=1.2, c_p=1000.0, T_start=298.0, N_rad=2, steadystate=False, steadystateVP=False):
+    def __init__(self, A, h_Air=4.0, rho=1.2, c_p=1000.0, T_start=298.0, N_rad=2, steadystate=False, steadystateVP=True):
         # Parameters
         self.A = A
         self.h_Air = h_Air
@@ -48,17 +48,11 @@ class Air:
     
     def compute_derivatives(self):
         """Calculate temperature derivative"""
-        if self.steadystate:
-            return 0.0
-        
         self.P_Air = self.compute_power_input()
         return (self.Q_flow + self.P_Air) / (self.rho * self.c_p * self.V)
     
     def update_humidity(self):
         """Update humidity calculations"""
-        if self.steadystateVP:
-            return
-            
         # Update VP from massPort
         self.VP = self.massPort.VP
             
@@ -73,9 +67,16 @@ class Air:
     
     def step(self, dt):
         """Advance simulation by one time step"""
-        # Update temperature
+        # Update temperature with stability check
         dTdt = self.compute_derivatives()
-        self.T += dTdt * dt
+        
+        # Limit temperature change per step to prevent instability
+        max_dT = 1.0  # Maximum temperature change per step [K]
+        dT = dTdt * dt
+        if abs(dT) > max_dT:
+            dT = np.sign(dT) * max_dT
+            
+        self.T += dT
         
         # Update humidity
         self.update_humidity()

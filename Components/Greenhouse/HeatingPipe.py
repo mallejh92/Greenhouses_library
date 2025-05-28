@@ -63,7 +63,7 @@ class HeatingPipe:
             pstart=200000,
             Tstart_inlet=353.15,
             Tstart_outlet=323.15,
-            steadystate=True
+            steadystate=False
         )
         
         # Heat ports

@@ -40,24 +40,34 @@ class FreeConvection(Element1D):
         Parameters:
             dt (float): Time step [s]
         """
-        self.dT = self.heatPort_a.T - self.heatPort_b.T
+        # 온도 차이 제한 (-100K ~ 100K)
+        self.dT = np.clip(self.heatPort_a.T - self.heatPort_b.T, -100, 100)
+        
         if not self.floor:
             if self.thermalScreen:
                 if self.Air_Cov:
                     if not self.topAir:
+                        # Exchange main air-cover (with screen)
                         self.HEC_ab = 0
                     else:
+                        # Exchange top air-cover
                         self.HEC_ab = 1.7 * max(1e-9, abs(self.dT))**0.33 * (np.cos(self.phi))**(-0.66)
                 else:
+                    # Exchange air-screen
                     self.HEC_ab = self.SC * 1.7 * max(1e-9, abs(self.dT))**0.33
             else:
+                # Exchange main air-cover (no screen)
                 self.HEC_ab = 1.7 * max(1e-9, abs(self.dT))**0.33 * (np.cos(self.phi))**(-0.66)
             self.HEC_up_flr = 0
             self.HEC_down_flr = 0
         else:
-            self.HEC_up_flr = 1/(1 + np.exp(-self.s * self.dT)) * 1.7 * abs(self.dT)**0.33
-            self.HEC_down_flr = 1/(1 + np.exp(self.s * self.dT)) * 1.3 * abs(self.dT)**0.25
+            # 지면 열전달의 경우 differentiable switch function 사용
+            # s 값을 줄여서 전환을 더 부드럽게 함
+            s = 5.0  # 원래 11에서 5로 감소
+            self.HEC_up_flr = 1/(1 + np.exp(-s * self.dT)) * 1.7 * max(1e-9, abs(self.dT))**0.33  # dT>0일 때 사용
+            self.HEC_down_flr = 1/(1 + np.exp(s * self.dT)) * 1.3 * max(1e-9, abs(self.dT))**0.25  # dT<0일 때 사용
             self.HEC_ab = self.HEC_up_flr + self.HEC_down_flr
+            
         self.Q_flow = self.A * self.HEC_ab * self.dT
         self.heatPort_a.Q_flow = self.Q_flow
         self.heatPort_b.Q_flow = -self.Q_flow

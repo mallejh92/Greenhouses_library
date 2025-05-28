@@ -145,27 +145,36 @@ class Greenhouse_1:
             fileName="./SC_usable_10Dec-22Nov.txt"
         )
 
-        # Initialize components
+        # # Load initial setpoint values
+        # initial_setpoint = self.SP_new.get_value(0, interpolate=False)
+        # T_sp = initial_setpoint['T_sp'] if initial_setpoint else 20.0
+        # CO2_sp = initial_setpoint['CO2_sp'] if initial_setpoint else 400.0
+        
+        # Initialize components with stable initial conditions
         self.cover = Cover(
             rho=2600,
             c_p=840,
             A=self.surface,
-            steadystate=True,
+            steadystate=True,  # 빠르게 평형을 이루는 체계
             h_cov=1e-3,
             phi=0.43633231299858
         )
         
+        # # Get initial weather data
+        # initial_weather = self.TMY_and_control.get_value(0, interpolate=False)
+        # T_out = initial_weather['T_out'] if initial_weather else 5.0
+        
         self.air = Air(
             A=self.surface,
-            steadystate=True,
-            steadystateVP=True,
-            h_Air=3.8  # Will be updated dynamically
+            steadystate=True,  # 빠르게 평형을 이루는 체계
+            steadystateVP=True,  # 수증기도 빠르게 평형을 이룸
+            h_Air=3.8  # 초기값 설정
         )
         
         self.canopy = Canopy(
             A=self.surface,
-            steadystate=True,
-            LAI=1.06  # Will be updated from weather if available
+            steadystate=True,  # 빠르게 평형을 이루는 체계
+            LAI=1.06
         )
         
         self.floor = Floor(
@@ -173,20 +182,20 @@ class Greenhouse_1:
             c_p=2e6,
             A=self.surface,
             V=0.01*self.surface,
-            steadystate=True
+            steadystate=True  # 빠르게 평형을 이루는 체계
         )
         
         self.air_top = Air_Top(
             A=self.surface,
-            steadystate=True,
-            steadystateVP=True,
+            steadystate=True,  # 빠르게 평형을 이루는 체계
+            steadystateVP=True,  # 수증기도 빠르게 평형을 이룸
             h_Top=0.4
         )
         
         self.solar_model = Solar_model(
             A=self.surface,
-            LAI=1.06,  # Will be updated from weather if available
-            I_glob=0.0  # Initial value, will be updated from weather data
+            LAI=1.06,
+            I_glob=0.0
         )
         
         self.pipe_low = HeatingPipe(
@@ -195,7 +204,8 @@ class Greenhouse_1:
             freePipe=False,
             N=5,
             N_p=625,
-            l=50
+            l=50,
+            Mdotnom=0.528
         )
         
         self.pipe_up = HeatingPipe(
@@ -204,7 +214,8 @@ class Greenhouse_1:
             d=0.025,
             l=44,
             N=5,
-            N_p=292
+            N_p=292,
+            Mdotnom=0.528
         )
         
         self.illu = Illumination(
@@ -216,8 +227,8 @@ class Greenhouse_1:
         
         self.thScreen = ThermalScreen(
             A=self.surface,
-            SC=0,  # Will be updated from control
-            steadystate=False
+            SC=0,
+            steadystate=False  # 스크린 전개/접힘이 동적 상태 전이에 의존
         )
 
         # Initialize ventilation components
@@ -266,11 +277,11 @@ class Greenhouse_1:
         self.Q_ven_AirTop.MassPort_b.P = self.air_top.massPort.P
 
         # Initialize CO2 components
-        self.CO2_air = CO2_Air(cap_CO2=3.8)  # Will be updated dynamically
+        self.CO2_air = CO2_Air(cap_CO2=3.8)
         self.CO2_top = CO2_Air(cap_CO2=0.4)
         
         # Initialize MC_AirCan for CO2 exchange between air and canopy
-        self.MC_AirCan = MC_AirCan(MC_AirCan=0.0)  # Initial value, will be updated from TYM
+        self.MC_AirCan = MC_AirCan(MC_AirCan=0.0)
         
         # Initialize CO2 exchange components
         self.MC_AirTop = MC_ventilation2(f_vent=self.Q_ven_AirTop.f_AirTop)
@@ -286,7 +297,7 @@ class Greenhouse_1:
             FFb=1
         )
         
-        self.Q_cnv_CanAir = CanopyFreeConvection(A=self.surface)
+        self.Q_cnv_CanAir = CanopyFreeConvection(A=self.surface, LAI=self.canopy.LAI)
         self.Q_cnv_FlrAir = FreeConvection(phi=0, A=self.surface, floor=True)
         
         self.Q_rad_CovSky = Radiation_T4(
@@ -477,11 +488,11 @@ class Greenhouse_1:
         )
 
         self.SC = Control_ThScreen(
-            R_Glob_can=0.0,  # Will be updated from solar model
+            R_Glob_can=0.0,
             R_Glob_can_min=35
         )
 
-        self.U_vents = Uvents_RH_T_Mdot()  # Initialize without parameters
+        self.U_vents = Uvents_RH_T_Mdot()
         
         # Load weather and setpoint data
         try:
@@ -494,14 +505,14 @@ class Greenhouse_1:
                                     delimiter="\t", skiprows=2, header=None)
             self.sp_df.columns = ["time", "T_sp", "CO2_sp"]
             
-            # Debug information for data loading
-            print("\n=== Data Loading Check ===")
-            print("\nWeather data sample:")
-            print(self.weather_df.head())
-            print("\nSetpoint data sample:")
-            print(self.sp_df.head())
-            print("\nWeather data size:", self.weather_df.shape)
-            print("Setpoint data size:", self.sp_df.shape)
+            # # Debug information for data loading
+            # print("\n=== Data Loading Check ===")
+            # print("\nWeather data sample:")
+            # print(self.weather_df.head())
+            # print("\nSetpoint data sample:")
+            # print(self.sp_df.head())
+            # print("\nWeather data size:", self.weather_df.shape)
+            # print("Setpoint data size:", self.sp_df.shape)
             
         except Exception as e:
             print(f"Error during data loading: {e}")
@@ -511,10 +522,10 @@ class Greenhouse_1:
         self.TYM = TomatoYieldModel(
             n_dev=50,
             LAI_MAX=3.5,
-            LAI_0=1.06,  # Initial LAI value
+            LAI_0=1.06,
             T_canSumC_0=0,
-            C_Leaf_0=40e3,  # Initial leaf carbon content
-            C_Stem_0=30e3  # Initial stem carbon content
+            C_Leaf_0=40e3,
+            C_Stem_0=30e3
         )
         
         # Initialize mass vapor transfer component (canopy transpiration)
@@ -527,7 +538,7 @@ class Greenhouse_1:
             N_s=5,
             lambda_c=1.7,
             lambda_s=0.85,
-            steadystate=True
+            steadystate=False  # 토양은 열용량이 크고 수시간에 걸쳐 온도가 변하는 축열체
         )
         # floor와 soil conduction 포트 연결
         self.Q_cd_Soil.port_a = self.floor.heatPort
@@ -625,25 +636,41 @@ class Greenhouse_1:
         """
         try:
             # CombiTimeTable의 time 컬럼 단위에 맞춰 시간 변환
-            current_time = time_idx * dt / self.time_unit_scaling
+            current_time = time_idx * dt
+            
+            # 디버깅: 초기 상태 출력
+            print(f"\n=== Step {time_idx} 시작 (t={current_time/3600:.2f}h) ===")
+            print(f"초기 상태:")
+            print(f"Air: T={self.air.T-273.15:.2f}°C, RH={self.air.RH*100:.1f}%, VP={self.air.massPort.VP:.1f} Pa")
+            print(f"Cover: T={self.cover.T-273.15:.2f}°C")
+            print(f"Canopy: T={self.canopy.T-273.15:.2f}°C")
+            print(f"Floor: T={self.floor.T-273.15:.2f}°C")
+            print(f"Air_Top: T={self.air_top.T-273.15:.2f}°C, VP={self.air_top.massPort.VP:.1f} Pa")
+            
             # 보간된 weather_data 사용
-            weather_data = self.TMY_and_control.get_value(current_time, interpolate=True)
-            if weather_data is None:
-                # graceful exit: 마지막 값 유지
-                weather_data = self.TMY_and_control.get_value(len(self.TMY_and_control.data)-1)
-            setpoint_data = self.SP_new.get_value(current_time, interpolate=True)
-            if setpoint_data is None:
-                setpoint_data = self.SP_new.get_value(len(self.SP_new.data)-1)
-            sc_usable_data = self.SC_usable.get_value(current_time, interpolate=True)
-            if sc_usable_data is None:
-                sc_usable_data = self.SC_usable.get_value(len(self.SC_usable.data)-1)
+            weather = self.TMY_and_control.get_value(current_time, interpolate=True)
+            if weather is None:
+                weather = self.TMY_and_control.get_value(len(self.TMY_and_control.data)-1)
+
+            setpoint = self.SP_new.get_value(current_time, interpolate=True)
+            if setpoint is None:
+                setpoint = self.SP_new.get_value(len(self.SP_new.data)-1)
+
+            sc_usable = self.SC_usable.get_value(current_time, interpolate=True)
+            if sc_usable is None:
+                sc_usable = self.SC_usable.get_value(len(self.SC_usable.data)-1)
 
             # PrescribedTemperature/Pressure 역할 값 할당
-            self.T_sky = weather_data['T_sky'] + 273.15
-            T_out_K = weather_data['T_out'] + 273.15
-            RH_out = weather_data['RH_out'] / 100.0
-            VP_sat = 610.78 * np.exp((17.269 * (weather_data['T_out'])) / (weather_data['T_out'] + 237.3))
+            self.T_sky = weather['T_sky'] + 273.15
+            T_out_K = weather['T_out'] + 273.15
+            RH_out = weather['RH_out'] / 100.0
+            VP_sat = 610.78 * np.exp((17.269 * (weather['T_out'])) / (weather['T_out'] + 237.3))
             self.VP_out = RH_out * VP_sat
+
+            # 디버깅: 외부 조건 출력
+            print(f"\n외부 조건:")
+            print(f"T_out={weather['T_out']:.2f}°C, RH_out={weather['RH_out']:.1f}%, VP_out={self.VP_out:.1f} Pa")
+            print(f"T_sky={self.T_sky-273.15:.2f}°C")
 
             # 외기 RH 센서 입력 연결
             self.RH_out_sensor.massPort.VP = self.VP_out
@@ -656,21 +683,36 @@ class Greenhouse_1:
             self.RH_air_sensor.calculate()
 
             # 보간된 조명 제어 신호 사용
-            self.illu.switch = weather_data['ilu_sp']
+            self.illu.switch = weather['ilu_sp']
 
             # 기존 컴포넌트 업데이트 및 제어
-            self._update_components(dt, weather_data, setpoint_data)
-            self._update_control_systems(weather_data, setpoint_data, sc_usable_data)
-            self._calculate_energy_flows()
+            self._update_components(dt, weather, setpoint)
+            
+            # 디버깅: 컴포넌트 업데이트 후 상태 출력
+            print(f"\n컴포넌트 업데이트 후:")
+            print(f"Air: T={self.air.T-273.15:.2f}°C, RH={self.air.RH*100:.1f}%, VP={self.air.massPort.VP:.1f} Pa")
+            print(f"Cover: T={self.cover.T-273.15:.2f}°C")
+            print(f"Canopy: T={self.canopy.T-273.15:.2f}°C")
+            print(f"Floor: T={self.floor.T-273.15:.2f}°C")
+            print(f"Air_Top: T={self.air_top.T-273.15:.2f}°C, VP={self.air_top.massPort.VP:.1f} Pa")
+            
+            self._update_control_systems(weather, setpoint, sc_usable)
+            
+            # 디버깅: 제어 시스템 상태 출력
+            print(f"\n제어 시스템 상태:")
+            print(f"PID_Mdot: PV={self.PID_Mdot.PV-273.15:.2f}°C, SP={self.PID_Mdot.SP-273.15:.2f}°C, CS={self.PID_Mdot.CS:.3f}")
+            print(f"PID_CO2: PV={self.PID_CO2.PV:.1f} ppm, SP={self.PID_CO2.SP:.1f} ppm, CS={self.PID_CO2.CS:.3f}")
+            print(f"SC: {self.SC.SC:.2f}, U_vents: {self.U_vents.U_vents:.2f}")
+            
+            self._calculate_energy_flows(dt)
             self.DM_Har = self.TYM.DM_Har  # 누적 수확 건물질 업데이트
 
-            # 디버깅 출력에 센서값 추가
-            print(f"\nStep {time_idx} (t={current_time:.2f}h):")
-            print(f"날씨 데이터: T_out={weather_data['T_out']:.2f}°C, RH_out={weather_data['RH_out']:.2f}%, "
-                  f"I_glob={weather_data['I_glob']:.2f}, Illu_switch={weather_data['ilu_sp']:.1f}")
-            print(f"설정점: T_set={setpoint_data['T_sp']:.2f}°C, CO2_set={setpoint_data['CO2_sp']:.2f}")
-            print(f"센서: Tair={self.Tair_sensor.T - 273.15:.2f}°C, RH_air={self.RH_air_sensor.RH:.2f}%, "
-                  f"T_sky={self.T_sky - 273.15:.2f}°C, VP_out={self.VP_out:.2f} Pa, RH_out(sensor)={self.RH_out_sensor.RH:.2f}%")
+            # 디버깅: 에너지 흐름 출력
+            print(f"\n에너지 흐름:")
+            print(f"q_tot={self.q_tot:.1f} W/m², E_th={self.E_th_tot_kWhm2:.2f} kWh/m²")
+            print(f"Q_rad_CanCov={self.Q_rad_CanCov.Q_flow:.1f} W")
+            print(f"Q_cnv_CanAir={self.Q_cnv_CanAir.Q_flow:.1f} W")
+            print(f"Q_cnv_FlrAir={self.Q_cnv_FlrAir.Q_flow:.1f} W")
 
             return self._get_state()
         except Exception as e:
@@ -689,9 +731,8 @@ class Greenhouse_1:
         self.sinkP_2ry.step()
 
         # 1. Update external environment and control inputs
-        h_Air = 3.8 + (1 - self.thScreen.SC) * 0.4
-        self.air.h_Air = h_Air
-        self.CO2_air.cap_CO2 = h_Air
+        self.air.h_Air = 3.8 + (1 - self.thScreen.SC) * 0.4
+        self.CO2_air.cap_CO2 = self.air.h_Air
 
         self.air.T_out = weather['T_out'] + 273.15
         self.air.RH_out = weather['RH_out'] / 100.0
@@ -724,6 +765,9 @@ class Greenhouse_1:
         self.solar_model.LAI = self.canopy.LAI
         self.solar_model.SC = self.thScreen.SC
         self.solar_model.step(dt)
+        
+        # Update CanopyFreeConvection LAI
+        self.Q_cnv_CanAir.LAI = self.canopy.LAI
 
         # 4. Update all port connections first
         self._update_port_connections()
@@ -862,7 +906,7 @@ class Greenhouse_1:
         self.Q_rad_ScrCov.heatPort_a.T = self.thScreen.heatPort.T
         self.Q_rad_ScrCov.heatPort_b.T = self.cover.heatPort.T
         self.Q_rad_CovSky.heatPort_a.T = self.cover.heatPort.T
-        self.Q_rad_CovSky.heatPort_b.T = self.air.T_out
+        self.Q_rad_CovSky.heatPort_b.T = self.air.T
 
         # Convection connections
         self.Q_cnv_CanAir.heatPort_a.T = self.canopy.heatPort.T
@@ -870,7 +914,7 @@ class Greenhouse_1:
         self.Q_cnv_FlrAir.heatPort_a.T = self.floor.heatPort.T
         self.Q_cnv_FlrAir.heatPort_b.T = self.air.heatPort.T
         self.Q_cnv_CovOut.heatPort_a.T = self.cover.heatPort.T
-        self.Q_cnv_CovOut.heatPort_b.T = self.air.T_out
+        self.Q_cnv_CovOut.heatPort_b.T = self.air.T
         self.Q_cnv_AirScr.heatPort_a.T = self.air.heatPort.T
         self.Q_cnv_AirScr.heatPort_b.T = self.thScreen.heatPort.T
         self.Q_cnv_AirCov.heatPort_a.T = self.air.heatPort.T
@@ -926,25 +970,35 @@ class Greenhouse_1:
         # Update screen state
         self.thScreen.SC = self.SC.SC
     
-    def _calculate_energy_flows(self):
+    def _calculate_energy_flows(self, dt):
         """
         Calculate all energy flows between components
-        - DM_Har(누적 수확 건물질)도 업데이트
+        dt: 시뮬레이션 시간 간격(초)
         """
         # Calculate heat fluxes from pipe components
-        self.q_low = -self.pipe_low.flow1DimInc.Q_tot / self.surface if hasattr(self.pipe_low, 'flow1DimInc') else 0.0
-        self.q_up = -self.pipe_up.flow1DimInc.Q_tot / self.surface if hasattr(self.pipe_up, 'flow1DimInc') else 0.0
-        self.q_tot = -(getattr(self.pipe_low.flow1DimInc, 'Q_tot', 0.0) + 
-                      getattr(self.pipe_up.flow1DimInc, 'Q_tot', 0.0)) / self.surface
+        self.q_low = -self.pipe_low.flow1DimInc.Q_tot / self.surface
+        self.q_up = -self.pipe_up.flow1DimInc.Q_tot / self.surface
+        self.q_tot = -(self.pipe_low.flow1DimInc.Q_tot + self.pipe_up.flow1DimInc.Q_tot) / self.surface
         
-        # Update accumulated energies
+        # Update accumulated energies (Modelica 방정식 반영)
         if self.q_tot > 0:
-            self.E_th_tot_kWhm2 += self.q_tot * 1e-3 * 3600  # Convert to kW·h/m²
+            # max(q_tot,0) = der(E_th_tot_kWhm2*1e3*3600)
+            # E_th_tot_kWhm2의 변화량 계산 (W·s → kWh/m²)
+            dE_th = (self.q_tot * dt) / (1000 * 3600)  # W·s → kWh/m²
+            self.E_th_tot_kWhm2 += dE_th
+            
+        # E_th_tot = E_th_tot_kWhm2*surface.k
         self.E_th_tot = self.E_th_tot_kWhm2 * self.surface
         
-        # Update electrical energy
-        self.W_el_illu += self.illu.W_el / self.surface
+        # Update electrical energy (Modelica 방정식 반영)
+        # der(W_el_illu*1000*3600)=illu.W_el/surface.k
+        dW_el = (self.illu.W_el * dt) / (self.surface * 1000 * 3600)  # W·s → kWh/m²
+        self.W_el_illu = self.W_el_illu + dW_el  # 누적값 업데이트
+        
+        # E_el_tot_kWhm2 = W_el_illu
         self.E_el_tot_kWhm2 = self.W_el_illu
+        
+        # E_el_tot = E_el_tot_kWhm2*surface.k
         self.E_el_tot = self.E_el_tot_kWhm2 * self.surface
 
         self.DM_Har = self.TYM.DM_Har

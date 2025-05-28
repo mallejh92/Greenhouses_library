@@ -3,12 +3,12 @@ import matplotlib.pyplot as plt
 from Greenhouse_1 import Greenhouse_1
 
 def simulate_greenhouse():
-    # Create greenhouse model (time 컬럼이 '시간(ℎ)' 단위이므로 3600을 넘겨줍니다)
-    greenhouse = Greenhouse_1(time_unit_scaling=3600)
+    # Create greenhouse model (시간 단위가 초이므로 time_unit_scaling=1)
+    greenhouse = Greenhouse_1(time_unit_scaling=1)
     
     # Simulation parameters
-    dt = 60                    # Time step [s]
-    sim_time = 24 * 60 * 60     # 24 hours simulation → 86400 s
+    dt = 60                    # Time step [s] (60초)
+    sim_time = 1 * 60 * 60    # 1시간 시뮬레이션
     n_steps = int(sim_time / dt)
     
     # Storage for results
@@ -30,7 +30,7 @@ def simulate_greenhouse():
     
     # Simulation loop
     for i in range(n_steps):
-        state = greenhouse.step(dt, i)
+        state = greenhouse.step(dt, i)  # 스텝 인덱스 사용
         
         # Store
         for key, arr in results.items():
