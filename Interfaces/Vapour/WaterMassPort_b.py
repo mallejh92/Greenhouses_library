@@ -12,5 +12,15 @@ class WaterMassPort_b(WaterMassPort):
     Note that WaterMassPort_a and WaterMassPort_b are identical with the only
     exception of the different icon layout.
     """
-    def __init__(self, VP_start=0.04e5, P_start=101325):
-        super().__init__(VP_start=VP_start, P_start=P_start)
+    def __init__(self, VP=None, MV_flow=None):
+        """
+        Initialize WaterMassPort_b
+        
+        Parameters:
+        -----------
+        VP : float, optional
+            Initial vapor pressure [Pa]
+        MV_flow : float, optional
+            Initial mass flow rate [kg/s]
+        """
+        super().__init__(VP=VP, MV_flow=MV_flow)

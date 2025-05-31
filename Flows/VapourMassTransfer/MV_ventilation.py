@@ -70,10 +70,15 @@ class MV_ventilation(Element1D):
         if not hasattr(self, 'massPort_b'):
             self.massPort_b = type('MassPort', (), {'VP': 0.0, 'P': 1e5})()
         
-    def step(self):
+    def step(self, dt=None):
         """
         Calculate the mass exchange rate
         
+        Parameters:
+        -----------
+        dt : float, optional
+            Time step [s]. Not used in calculations but included for compatibility.
+            
         Returns:
         --------
         MV_flow : float
@@ -87,14 +92,18 @@ class MV_ventilation(Element1D):
             dT=self.T_a - self.T_b
         )
         
-        # Calculate mass exchange
+        # Calculate mass exchange (Modelica equations)
         if not self.topAir:
             self.f_vent = self.airExchangeRate.f_vent_air
+            # Modelica: MV_flow = A*M_H*f_vent/R*(port_a.VP/T_a - port_b.VP/T_b)
             self.MV_flow = self.A * self.M_H * self.f_vent / self.R * (
-                self.HeatPort_a.VP / self.T_a - self.HeatPort_b.VP / self.T_b
+                self.massPort_a.VP / self.T_a - self.massPort_b.VP / self.T_b
             )
         else:
             self.f_vent = self.airExchangeRate.f_vent_top
+            # Calculate pressure difference (Modelica: dP = port_a.VP - port_b.VP)
+            self.dP = self.massPort_a.VP - self.massPort_b.VP
+            # Modelica: MV_flow = A*M_H*f_vent/R/283*dP
             self.MV_flow = self.A * self.M_H * self.f_vent / self.R / 283 * self.dP
             
         # Update parent class

@@ -94,14 +94,20 @@ class SoilConduction:
             if self.N_c == 1:
                 self.G_cc = self.lambda_c / 0.005 * self.A
             else:
-                self.G_cc = self.lambda_c / (self.th_c[self.N_c-2]/2) * self.A
-                self.th_c[0] = 0.02
+                # N_c >= 2인 경우 th_c 배열 초기화
+                self.th_c = np.zeros(self.N_c-1)  # 배열 크기를 N_c-1로 수정
+                self.th_c[0] = 0.02  # 첫 번째 콘크리트 층 두께
+                self.G_c = np.zeros(self.N_c-1)  # G_c 배열도 같은 크기로 초기화
                 self.G_c[0] = self.lambda_c / (self.th_c[0]/4*3) * self.A
                 
+                # N_c > 2인 경우 추가 층 계산
                 if self.N_c > 2:
                     for j in range(1, self.N_c-1):
                         self.th_c[j] = self.th_c[0] * 2**j
                         self.G_c[j] = self.lambda_c / (self.th_c[j]/4*3) * self.A
+                
+                # G_cc 계산 (N_c >= 2인 경우)
+                self.G_cc = self.lambda_c / (self.th_c[-1]/2) * self.A
         
         # Calculate soil layer parameters
         if self.N_s > 1:

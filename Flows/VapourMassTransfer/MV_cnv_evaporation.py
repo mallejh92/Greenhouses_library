@@ -36,28 +36,37 @@ class MV_cnv_evaporation(Element1D):
         if not hasattr(self, 'massPort_b'):
             self.massPort_b = type('MassPort', (), {'VP': 0.0, 'P': 1e5})()
         
-    def step(self):
+    def step(self, dt=None):
         """
         Calculate the mass transfer rate
         
+        Parameters:
+        -----------
+        dt : float, optional
+            Time step [s]. Not used in calculations but included for compatibility.
+            
         Returns:
         --------
         MV_flow : float
             Mass flow rate [kg/s]
         """
+        # Calculate pressure difference (Modelica: dP = VP_scr - VP_topAir)
+        self.dP = self.massPort_a.VP - self.massPort_b.VP
+        
         # Calculate mass transfer coefficient and mass flow
         if self.dP > 0:
-            # Calculate VEC_ab as the minimum of two values:
+            # Calculate VEC_ab as the minimum of two values (Modelica equation):
             # 1. Based on heat transfer coefficient
             # 2. Based on screen mass transfer coefficient
             self.VEC_ab = min(
                 6.4e-9 * self.HEC_ab,
-                self.VEC_AirScr * (self.VP_air - self.HeatPort_a.VP) / self.dP
+                self.VEC_AirScr * (self.VP_air - self.massPort_a.VP) / self.dP
             )
-            # Calculate mass flow
+            # Calculate mass flow (Modelica: MV_flow = A*VEC_ab*dP)
             self.MV_flow = self.A * self.VEC_ab * self.dP
         else:
             # No evaporation when pressure difference is negative
+            # Modelica: VEC_ab = 0; MV_flow = 0
             self.VEC_ab = 0
             self.MV_flow = 0
             

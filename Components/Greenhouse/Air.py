@@ -1,45 +1,111 @@
 import numpy as np
-from BasicComponents.AirVP import AirVP
+from Components.Greenhouse.BasicComponents.AirVP import AirVP
 from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
 from Interfaces.Vapour.WaterMassPort_a import WaterMassPort_a
 from Interfaces.Heat.HeatFluxVectorInput import HeatFluxVectorInput
+from Modelica.Thermal.HeatTransfer.Sources.PrescribedTemperature import PrescribedTemperature
 
 class Air:
     def __init__(self, A, h_Air=4.0, rho=1.2, c_p=1000.0, T_start=298.0, N_rad=2, steadystate=False, steadystateVP=True):
+        """
+        Initialize Air component
+        
+        Parameters:
+        -----------
+        A : float
+            Floor area [m²]
+        h_Air : float
+            Air layer height [m]
+        rho : float
+            Air density [kg/m³]
+        c_p : float
+            Specific heat capacity [J/(kg·K)]
+        T_start : float
+            Initial temperature [K]
+        N_rad : int
+            Number of radiation inputs
+        steadystate : bool
+            Whether to use steady state initialization
+        steadystateVP : bool
+            Whether to use steady state initialization for vapor pressure
+        """
         # Parameters
         self.A = A
         self.h_Air = h_Air
         self.rho = rho
         self.c_p = c_p
+        self.V = A * h_Air  # Volume [m³]
         self.N_rad = N_rad
-        self.P_atm = 101325.0
-        self.R_a = 287.0
-        self.R_s = 461.5
-        self.T = T_start
-        self.V = self.A * self.h_Air
-        
-        # Variables
-        self.Q_flow = 0.0
-        self.P_Air = 0.0
-        self.RH = 0.0
-        self.w_air = 0.0
-        self.VP = 0.0  # Vapor pressure [Pa]
-        
-        # State flags
         self.steadystate = steadystate
         self.steadystateVP = steadystateVP
         
-        # Ports
+        # Constants
+        self.R_a = 287.0  # Gas constant for dry air [J/(kg·K)]
+        self.R_s = 461.5  # Gas constant for water vapor [J/(kg·K)]
+        self.P_atm = 101325.0  # Atmospheric pressure [Pa]
+        
+        # Components - 먼저 모든 컴포넌트를 초기화
         self.heatPort = HeatPort_a(T_start=T_start)
-        self.massPort = WaterMassPort_a()
+        self.massPort = WaterMassPort_a()  # VP는 나중에 설정
         self.R_Air_Glob = HeatFluxVectorInput(N_rad)
-        
-        # Components
         self.airVP = AirVP(V_air=self.V, steadystate=steadystateVP)
+        self.preTem = PrescribedTemperature(T_start=T_start)
         
-        # Connect ports
-        self.airVP.port = self.massPort
+        # Connect components
+        self.airVP.connect(self.massPort)
+        self.preTem.connect_port(self.heatPort)
+        
+        # State variables - 컴포넌트 초기화 후 상태 변수 설정
+        self.T = T_start  # Temperature [K]
+        self._VP = None  # VP는 setter를 통해 설정
+        self.RH = 0.5    # Relative humidity [-]
+        self.w_air = 0.0 # Humidity ratio [kg/kg]
+        
+        # Calculate initial vapor pressure based on T_start and RH_out
+        T_C = T_start - 273.15
+        Psat = 610.78 * np.exp(17.269 * T_C / (T_C + 237.3))
+        self.VP = 0.5 * Psat  # 초기 RH를 50%로 설정
+        
+        # Input variables
+        self.Q_flow = 0.0  # Heat flow rate [W]
+        self.T_out = T_start  # Outside temperature [K]
+        self.RH_out = 0.5  # Outside relative humidity [-]
+        self.T_set = T_start  # Temperature setpoint [K]
+        self.CO2_set = 0.0  # CO2 setpoint [ppm]
+        
+        # Initialize radiation port
+        self.R_Air_Glob.flux = np.zeros(N_rad)
+        
+        # 초기 습도 계산
+        self.update_humidity()
     
+    @property
+    def VP(self):
+        """Get vapor pressure"""
+        return self._VP
+
+    @VP.setter
+    def VP(self, value):
+        """Set vapor pressure and update components"""
+        self._VP = value
+        if hasattr(self, 'massPort'):
+            self.massPort.VP = value
+            self.airVP.set_prescribed_pressure(value)
+            self.update_humidity()
+
+    @property
+    def massPort_VP(self):
+        """Get massPort vapor pressure"""
+        return self.massPort.VP if hasattr(self, 'massPort') else None
+
+    @massPort_VP.setter
+    def massPort_VP(self, value):
+        """Set massPort vapor pressure"""
+        if hasattr(self, 'massPort'):
+            self.massPort.VP = value
+            self.airVP.set_prescribed_pressure(value)
+            self.update_humidity()
+
     def compute_power_input(self):
         """Calculate power input from radiation"""
         if len(self.R_Air_Glob.flux) == 0:
@@ -47,26 +113,40 @@ class Air:
         return np.sum(self.R_Air_Glob.flux) * self.A
     
     def compute_derivatives(self):
-        """Calculate temperature derivative"""
-        self.P_Air = self.compute_power_input()
-        return (self.Q_flow + self.P_Air) / (self.rho * self.c_p * self.V)
+        """Compute temperature derivative"""
+        if self.steadystate:
+            return 0.0
+        
+        # Update density based on current temperature
+        self.rho = self.P_atm / (self.R_a * self.T)
+        
+        # Compute temperature derivative (Modelica equation)
+        return self.Q_flow / (self.rho * self.c_p * self.V)
     
     def update_humidity(self):
         """Update humidity calculations"""
-        # Update VP from massPort
-        self.VP = self.massPort.VP
+        # VP가 None이면 계산하지 않음
+        if self._VP is None:
+            return
             
-        # Calculate humidity ratio
-        self.w_air = self.VP * self.R_a / ((self.P_atm - self.VP) * self.R_s)
+        # Calculate humidity ratio (Modelica equation)
+        self.w_air = self._VP * self.R_a / ((self.P_atm - self._VP) * self.R_s)
         
-        # Calculate relative humidity using Modelica's MoistAir model approximation
+        # Calculate relative humidity using Modelica's MoistAir model
         T_C = self.T - 273.15
         Psat = 610.78 * np.exp(T_C / (T_C + 238.3) * 17.2694)
-        self.RH = self.VP / Psat
+        self.RH = self._VP / Psat if Psat > 0 else 0.0
         self.RH = np.clip(self.RH, 0, 1)
     
     def step(self, dt):
-        """Advance simulation by one time step"""
+        """
+        Advance simulation by one time step
+        
+        Parameters:
+        -----------
+        dt : float
+            Time step [s]
+        """
         # Update temperature with stability check
         dTdt = self.compute_derivatives()
         
@@ -78,23 +158,36 @@ class Air:
             
         self.T += dT
         
+        # Update prescribed temperature
+        self.preTem.connect_T(self.T)
+        self.preTem.calculate()
+        
         # Update humidity
         self.update_humidity()
         
-        # Update heat port temperature
-        self.heatPort.T = self.T
+        # Update air component
+        self.airVP.step(dt)
         
         return self.T, self.RH
     
-    def set_inputs(self, Q_flow, R_Air_Glob, massPort_VP):
-        """Set input values"""
-        self.Q_flow = Q_flow
+    def set_inputs(self, Q_flow, R_Air_Glob=None, massPort_VP=None):
+        """
+        Set input values
         
-        if R_Air_Glob is None or len(R_Air_Glob) == 0:
-            self.R_Air_Glob.flux = np.zeros(self.N_rad)
-        else:
+        Parameters:
+        -----------
+        Q_flow : float
+            Heat flow rate [W]
+        R_Air_Glob : list, optional
+            List of radiation inputs [W/m²]
+        massPort_VP : float, optional
+            Vapor pressure [Pa]
+        """
+        self.Q_flow = Q_flow
+        self.heatPort.Q_flow = Q_flow
+        
+        if R_Air_Glob is not None:
             self.R_Air_Glob.flux = np.array(R_Air_Glob)
             
-        if massPort_VP is not None:
-            self.massPort.VP = massPort_VP
-            self.VP = massPort_VP  # Update VP directly
+        if massPort_VP is not None and hasattr(self, 'massPort'):
+            self.massPort_VP = massPort_VP

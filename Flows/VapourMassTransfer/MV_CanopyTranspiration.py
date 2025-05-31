@@ -65,10 +65,15 @@ class MV_CanopyTranspiration(Element1D):
         if not hasattr(self, 'massPort_b'):
             self.massPort_b = type('MassPort', (), {'VP': 0.0, 'P': 1e5})()
         
-    def step(self):
+    def step(self, dt=None):
         """
         Calculate the transpiration rate
         
+        Parameters:
+        -----------
+        dt : float, optional
+            Time step [s]. Not used in calculations but included for compatibility.
+            
         Returns:
         --------
         MV_flow : float
@@ -78,31 +83,31 @@ class MV_CanopyTranspiration(Element1D):
         self.VP_can = self.massPort_a.VP
         self.VP_air = self.massPort_b.VP
         
-        # Calculate day/night switch
+        # Calculate day/night switch (Modelica: S_rs = 1/(1+exp(-(R_can-5))))
         self.S_rs = 1 / (1 + np.exp(-(self.R_can - 5)))
         
-        # Update model coefficients based on day/night conditions
+        # Update model coefficients based on day/night conditions (Modelica equations)
         self.C_3 = 0.5e-2 * (1 - self.S_rs) + 2.3e-2 * self.S_rs
         self.T_m = (33.6 + 273.15) * (1 - self.S_rs) + (24.5 + 273.15) * self.S_rs
         self.C_4 = 1.1e-11 * (1 - self.S_rs) + 6.1e-7 * self.S_rs
         self.C_5 = 5.2e-6 * (1 - self.S_rs) + 4.3e-6 * self.S_rs
         
-        # Calculate resistances
+        # Calculate resistances (Modelica equations)
         self.r_I = (self.R_can/(2*self.LAI) + self.C_1) / (self.R_can/(2*self.LAI) + self.C_2)
         self.r_CO2 = min(1.5, 1 + self.C_4 * (self.CO2_ppm - 200)**2)
         self.r_VP = min(3.8, 1 + self.C_5 * (self.VP_can - self.VP_air)**2)
         self.r_T = 1 + self.C_3 * (self.T_can - self.T_m)**2
         
-        # Calculate total stomatal resistance
+        # Calculate total stomatal resistance (Modelica: r_s = r_min * r_I * r_CO2 * r_VP * r_T)
         self.r_s = self.r_min * self.r_I * self.r_CO2 * self.r_VP * self.r_T
         
-        # Calculate mass transfer coefficient
+        # Calculate mass transfer coefficient (Modelica: VEC_canAir = 2*rho*C_p*LAI / (DELTAH*gamma*(r_bV + r_s)))
         self.VEC_canAir = 2 * self.rho * self.C_p * self.LAI / (self.DELTAH * self.gamma * (self.r_bV + self.r_s))
         
-        # Calculate mass flow
+        # Calculate mass flow (Modelica: MV_flow = A*VEC_canAir*(VP_can - VP_air))
         self.MV_flow = self.A * self.VEC_canAir * (self.VP_can - self.VP_air)
         
-        # Calculate transpiration rates
+        # Calculate transpiration rates (Modelica equations)
         self.E_kgsm2 = self.MV_flow / self.A
         self.E_Wm2 = self.E_kgsm2 * self.DELTAH
         

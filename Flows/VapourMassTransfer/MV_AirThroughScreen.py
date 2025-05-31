@@ -79,45 +79,52 @@ class MV_AirThroughScreen(Element1D):
             HeatPort_b: Second port (empty square)
         """
         super().connect_ports(HeatPort_a, HeatPort_b)
-        self.calculate_pressure_difference()
         
-    def calculate_pressure_difference(self) -> None:
-        """
-        Calculate the pressure difference between the connected ports.
-        """
-        if self.HeatPort_a is not None and self.HeatPort_b is not None:
-            self.dP = self.HeatPort_a.VP - self.HeatPort_b.VP
-        
-    def calculate(self) -> None:
+    def step(self, dt=None):
         """
         Calculate the vapour mass flow through the screen.
-        """
-        # Update pressure difference
-        self.calculate_pressure_difference()
         
-        # Calculate air exchange rate
+        Parameters:
+        -----------
+        dt : float, optional
+            Time step [s]. Not used in calculations but included for compatibility.
+            
+        Returns:
+        --------
+        MV_flow : float
+            Mass flow rate [kg/s]
+        """
+        # Update pressure difference (Modelica: dP = port_a.VP - port_b.VP)
+        self.dP = self.massPort_a.VP - self.massPort_b.VP
+        
+        # Calculate air exchange rate (Modelica equations)
         if self.input_f_AirTop:
             self.f_AirTopp = self.f_AirTop
-            self.rho_air = 999.0  # Dummy value
+            self.rho_air = 999.0  # Dummy value as in Modelica
             self.rho_top = 999.0
             self.rho_mean = 999.0
             self.dT = 999.0
         else:
-            # Calculate air densities using Air_pT model
+            # Calculate air densities using Air_pT model (Modelica: Air_pT.density_pT)
             self.rho_air = Air_pT.density_pT(1e5, self.T_a)
             self.rho_top = Air_pT.density_pT(1e5, self.T_b)
             self.rho_mean = (self.rho_air + self.rho_top) / 2
             self.dT = self.T_a - self.T_b
             
-            # Calculate air exchange rate
+            # Calculate air exchange rate (Modelica equation)
             self.f_AirTopp = (self.SC * self.K * abs(self.dT)**0.66 + 
                             (1 - self.SC) / self.rho_mean * 
                             (0.5 * self.rho_mean * self.W * (1 - self.SC) * 
                              self.g_n * abs(self.rho_air - self.rho_top))**0.5)
         
-        # Calculate mass exchange coefficient and mass flow
+        # Calculate mass exchange coefficient and mass flow (Modelica equations)
         self.VEC_AirTop = self.M_H * self.f_AirTopp / self.R / 287.0
         self.MV_flow = self.A * self.VEC_AirTop * self.dP
+        
+        # Update parent class
+        super().update()
+        
+        return self.MV_flow
         
     def __str__(self) -> str:
         """String representation of the MV_AirThroughScreen model"""
