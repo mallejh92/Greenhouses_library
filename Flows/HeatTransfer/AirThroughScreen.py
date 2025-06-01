@@ -1,6 +1,6 @@
 import numpy as np
 from scipy import constants
-from Interfaces.HeatAndVapour.Element1D import Element1D
+from Modelica.Thermal.HeatTransfer.Interfaces.Element1D import Element1D
 
 class AirThroughScreen(Element1D):
     """

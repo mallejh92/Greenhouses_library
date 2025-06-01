@@ -1,4 +1,4 @@
-from Interfaces.Heat.Element1D import Element1D
+from Modelica.Thermal.HeatTransfer.Interfaces.Element1D import Element1D
 
 class ThermalConductor(Element1D):
     """
@@ -75,6 +75,8 @@ class ThermalConductor(Element1D):
         """
         # Calculate heat flow using Q_flow = G * dT
         self._Q_flow = self.G * self.dT
+        self.port_a.Q_flow = self._Q_flow  # 포트 a의 열유량 설정
+        self.update()  # Element1D의 update() 호출하여 포트 b의 열유량 업데이트
         return self._Q_flow
         
     def get_Q_flow(self):

@@ -5,7 +5,7 @@ class OutsideAirConvection(Element1D):
     """
     Cover heat exchange by convection with outside air as a function of wind speed.
     """
-    def __init__(self, A, phi):
+    def __init__(self, A, phi, u):
         """
         Initialize the OutsideAirConvection model
         Parameters:
@@ -29,20 +29,14 @@ class OutsideAirConvection(Element1D):
         self.alpha_b = 0.0
         self.du = 0.0
         
-        # Modelica-style port names
-        if not hasattr(self, 'heatPort_a'):
-            self.heatPort_a = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
-        if not hasattr(self, 'heatPort_b'):
-            self.heatPort_b = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
-        
     def step(self, dt):
         """
         Calculate heat transfer by outside air convection
+        
         Parameters:
             dt (float): Time step [s]
         """
-        # Calculate temperature difference
-        self.dT = self.heatPort_b.T - self.heatPort_a.T
+        # 온도 차이는 property로 자동 계산됨 (self.dT)
         
         # Calculate wind speed difference from threshold
         self.du = 4 - self.u
@@ -58,6 +52,5 @@ class OutsideAirConvection(Element1D):
         # Calculate heat flow
         self.Q_flow = self.A * self.HEC_ab * self.dT
         
-        # Update port flows
-        self.heatPort_a.Q_flow = self.Q_flow
-        self.heatPort_b.Q_flow = -self.Q_flow
+        # Element1D의 update() 호출하여 포트 열유량 업데이트
+        self.update()

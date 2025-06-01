@@ -62,4 +62,7 @@ class Radiation_T4(Element1D):
         self.port_a.Q_flow = Q_flow
         self.port_b.Q_flow = -Q_flow
         
+        # 5) Element1D의 update() 호출하여 포트 열유량 업데이트
+        self.update()
+        
         return Q_flow

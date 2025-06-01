@@ -28,7 +28,16 @@ class Element1D:
         
         # 열전달 변수
         self.Q_flow = 0.0
-        self.dT = self.port_a.T - self.port_b.T
+
+    @property
+    def dT(self):
+        """
+        포트 간 온도차 계산
+        
+        Returns:
+            float: port_a.T - port_b.T [K]
+        """
+        return self.port_a.T - self.port_b.T
 
     def update(self):
         """
@@ -37,9 +46,6 @@ class Element1D:
         port_a.Q_flow = Q_flow
         port_b.Q_flow = -Q_flow
         """
-        # 온도차 계산
-        self.dT = self.port_a.T - self.port_b.T
-        
         # 포트 열유량 설정
         self.port_a.Q_flow = self.Q_flow
         self.port_b.Q_flow = -self.Q_flow 

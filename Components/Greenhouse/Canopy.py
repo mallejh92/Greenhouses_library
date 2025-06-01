@@ -2,6 +2,7 @@ import numpy as np
 from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
 from Interfaces.Vapour.WaterMassPort_a import WaterMassPort_a
 from Components.Greenhouse.BasicComponents.SurfaceVP import SurfaceVP
+from Interfaces.Heat.HeatFluxVectorInput import HeatFluxVectorInput
 
 class Canopy:
     """
@@ -10,77 +11,109 @@ class Canopy:
     - Long-wave radiation and convection (Q_flow)
     - Short-wave solar radiation (R_Can_Glob)
     - Latent heat from transpiration (L_can)
+    
+    Modelica 원본과 동일하게:
+    - FF는 매 스텝마다 equation 섹션에서 계산
+    - R_Can_Glob은 HeatFluxVectorInput으로 처리
+    - 포트 연결은 직접 연결 방식 사용
+    - massPort.MV_flow는 외부 입력과 동기화
+    - steadystate는 초기화 시점에만 적용
     """
 
     def __init__(self, A, LAI=1.0, Cap_leaf=1200, N_rad=2,
                  T_start=298.0, steadystate=False):
-        # Parameters
+        # Parameters (Modelica parameter와 동일)
         self.A = A                  # Greenhouse floor surface area [m²]
         self.LAI = LAI              # Leaf Area Index
         self.Cap_leaf = Cap_leaf    # Heat capacity per m² of leaf [J/K]
         self.N_rad = N_rad          # Number of radiation sources
         self.latent_heat_vap = 2.45e6  # Latent heat of vaporization [J/kg]
 
-        # Options
-        self.steadystate = steadystate
+        # Initialization parameters (Modelica parameter와 동일)
+        self.T_start = T_start      # Initial temperature [K]
+        self.steadystate = steadystate  # Steady state initialization option
+        self._is_initialized = False  # 초기화 완료 여부 추적
 
-        # State
+        # State variables (Modelica variable와 동일)
         self.T = T_start            # Temperature [K]
-
-        # Inputs
         self.Q_flow = 0.0           # Net sensible heat from surroundings [W]
-        self.R_Can_Glob = np.zeros(N_rad)  # Short-wave radiation inputs [W/m²]
-        self.massPort_MV_flow = 0.0 # Moisture mass flow rate [kg/s]
-
-        # Outputs
         self.P_Can = 0.0            # Radiation power absorbed [W]
         self.L_can = 0.0            # Latent heat transfer [W]
         self.FF = 0.0               # Foliage factor
 
-        # Ports
-        self.heatPort = HeatPort_a(T_start=T_start)  # Heat port with initial temperature
-        self.massPort = WaterMassPort_a()
-        self.surfaceVP = SurfaceVP(T=T_start)  # Surface vapor pressure component
+        # Input connectors (Modelica connector와 동일)
+        self.R_Can_Glob = HeatFluxVectorInput([0.0] * N_rad)  # Short-wave radiation inputs
+        self.massPort_MV_flow = 0.0  # Moisture mass flow rate [kg/s]
+
+        # Ports (Modelica connector와 동일)
+        self.heatPort = HeatPort_a(T_start=T_start)  # Heat port
+        self.massPort = WaterMassPort_a()            # Mass port
+        self.surfaceVP = SurfaceVP(T=T_start)        # Surface vapor pressure
         
-        # Connect ports
+        # Connect ports (Modelica connect 구문과 동일)
         self.surfaceVP.port = self.massPort
 
-    def compute_power_input(self):
-        self.P_Can = np.sum(self.R_Can_Glob) * self.A
-
-    def compute_latent_heat(self):
-        self.L_can = self.massPort_MV_flow * self.latent_heat_vap
-
     def compute_derivatives(self):
-        if self.steadystate:
+        """
+        Modelica equation 섹션과 동일하게 구현:
+        1. FF 계산
+        2. R_Can_Glob 처리
+        3. P_Can 계산
+        4. L_can 계산
+        5. 온도 변화율 계산
+        
+        Modelica의 initial equation 섹션과 동일하게:
+        - steadystate가 True이고 초기화 중일 때만 dT/dt = 0
+        """
+        # 초기화 중이고 steadystate 옵션이 켜져 있을 때만 dT/dt = 0
+        if self.steadystate and not self._is_initialized:
+            self._is_initialized = True  # 초기화 완료 표시
             return 0.0
-        self.compute_power_input()
-        self.compute_latent_heat()
-        # Foliage factor (affects absorption, optional)
+
+        # FF 계산을 먼저 수행 (Modelica equation 섹션과 동일)
         self.FF = 1 - np.exp(-0.94 * self.LAI)
+        
+        # R_Can_Glob 처리 (Modelica cardinality 체크와 동일)
+        if len(self.R_Can_Glob) == 0:
+            self.R_Can_Glob = HeatFluxVectorInput([0.0] * self.N_rad)
+        
+        # P_Can 계산 (Modelica equation 섹션과 동일)
+        self.P_Can = sum(v.value for v in self.R_Can_Glob.values) * self.A
+        
+        # L_can 계산 (Modelica equation 섹션과 동일)
+        # massPort.MV_flow를 직접 사용 (Modelica와 동일)
+        self.L_can = self.massPort.MV_flow * self.latent_heat_vap
+        
+        # 온도 변화율 계산 (Modelica equation 섹션과 동일)
         return (self.Q_flow + self.P_Can + self.L_can) / (self.Cap_leaf * self.LAI * self.A)
 
     def step(self, dt):
+        """
+        시간 적분 수행 (Modelica와 동일)
+        - 온도 적분
+        - 포트 업데이트
+        """
+        # 온도 적분
         dTdt = self.compute_derivatives()
         self.T += dTdt * dt
-        self.heatPort.T = self.T  # Update heat port temperature
-        self.surfaceVP.T = self.T  # Update surfaceVP temperature
+        
+        # 포트 업데이트 (Modelica connect 구문과 동일)
+        self.heatPort.T = self.T
+        self.heatPort.Q_flow = self.Q_flow  # 직접 연결
+        self.surfaceVP.T = self.T
+        
         return self.T
 
     def set_inputs(self, Q_flow, R_Can_Glob, MV_flow=0.0):
         """
-        Set input values for the canopy
-        
-        Parameters:
-        -----------
-        Q_flow : float
-            Total heat flow to the canopy [W]
-        R_Can_Glob : array-like
-            Global radiation on the canopy [W/m²]
-        MV_flow : float, optional
-            Mass vapor flow rate [kg/s], defaults to 0.0
+        외부 입력 설정 (Modelica와 동일)
+        - Q_flow: 열유량
+        - R_Can_Glob: 단파 복사 입력
+        - MV_flow: 수증기 질량 유량 (massPort.MV_flow와 동기화)
         """
         self.Q_flow = Q_flow
-        self.R_Can_Glob = np.array(R_Can_Glob)
-        self.massPort_MV_flow = MV_flow
-        self.heatPort.Q_flow = Q_flow  # Update heat port heat flow
+        if isinstance(R_Can_Glob, (list, tuple)):
+            self.R_Can_Glob = HeatFluxVectorInput(R_Can_Glob)
+        # massPort.MV_flow를 직접 업데이트 (Modelica와 동일)
+        self.massPort.MV_flow = MV_flow
+        self.massPort_MV_flow = MV_flow  # 내부 변수도 동기화

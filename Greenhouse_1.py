@@ -129,9 +129,6 @@ class Greenhouse_1:
         self.I_glob = initial_weather['I_glob']  # [W/m²]
         self.T_sky = initial_weather['T_sky'] + 273.15  # [K]
         
-        # Constants
-        self.surface = 1.4e4  # Floor surface area [m²]
-        
         # State variables
         self.q_low = 0.0  # Heat flux from lower pipe [W/m²]
         self.q_up = 0.0   # Heat flux from upper pipe [W/m²]
@@ -154,7 +151,7 @@ class Greenhouse_1:
             tableOnFile=True,
             tableName="tab",
             columns=["time", "T_out", "RH_out", "P_out", "I_glob", 
-                    "u_wind", "T_sky", "T_air_sp", "CO2_air_sp", "ilu_sp"],
+                     "u_wind", "T_sky", "T_air_sp", "CO2_air_sp", "ilu_sp"],
             fileName="./10Dec-22Nov.txt"
         )
         
@@ -310,7 +307,12 @@ class Greenhouse_1:
             FFb=1
         )
         
-        self.Q_cnv_CanAir = CanopyFreeConvection(A=self.surface, LAI=self.canopy.LAI)
+        self.Q_cnv_CanAir = CanopyFreeConvection(
+            A=self.surface,
+            LAI=self.canopy.LAI,
+            u=self.u_wind,
+            h_Air=self.air.h_Air
+        )
         self.Q_cnv_FlrAir = FreeConvection(phi=0, A=self.surface, floor=True)
         
         self.Q_rad_CovSky = Radiation_T4(
@@ -321,7 +323,8 @@ class Greenhouse_1:
         
         self.Q_cnv_CovOut = OutsideAirConvection(
             A=self.surface,
-            phi=0.43633231299858
+            phi=0.43633231299858,
+            u=self.u_wind  # 초기 풍속 설정
         )
 
         # Initialize pipe heat transfer components
@@ -334,7 +337,7 @@ class Greenhouse_1:
             N=self.pipe_low.N
         )
 
-        # Initialize radiation components for lower pipe
+        # Initialize radiation components for lower pipe (not used in heat-balance here)
         self.Q_rad_LowScr = Radiation_N(
             A=self.surface,
             epsilon_a=0.88,
@@ -376,7 +379,7 @@ class Greenhouse_1:
         self.Q_rad_LowCov.FFab2 = self.pipe_up.FF
         self.Q_rad_LowCov.FFab3 = self.thScreen.FF_ij
 
-        # Initialize radiation components for upper pipe
+        # Initialize radiation components for upper pipe (not used here)
         self.Q_rad_UpFlr = Radiation_N(
             A=self.surface,
             epsilon_a=0.88,
@@ -559,15 +562,6 @@ class Greenhouse_1:
                                     delimiter="\t", skiprows=2, header=None)
             self.sp_df.columns = ["time", "T_sp", "CO2_sp"]
             
-            # # Debug information for data loading
-            # print("\n=== Data Loading Check ===")
-            # print("\nWeather data sample:")
-            # print(self.weather_df.head())
-            # print("\nSetpoint data sample:")
-            # print(self.sp_df.head())
-            # print("\nWeather data size:", self.weather_df.shape)
-            # print("Setpoint data size:", self.sp_df.shape)
-            
         except Exception as e:
             print(f"Error during data loading: {e}")
             raise
@@ -625,55 +619,68 @@ class Greenhouse_1:
         self.Tcanopy_sensor = TemperatureSensor(self.canopy)
     
     def _connect_heat_ports(self):
-        """Connect heat ports between components"""
-        # Connect floor radiation
-        self.Q_rad_FlrCan.port_a.T = self.floor.heatPort.T
-        self.Q_rad_FlrCan.port_b.T = self.canopy.heatPort.T
+        """
+        열전달 포트 연결
+        Modelica 코드의 connect() 구문을 Python으로 구현
+        """
+        # 1. 복사열 연결
+        # 1-1. 바닥→캔오피 복사
+        self.Q_rad_FlrCan.port_a.T = self.floor.heatPort.T  # 바닥 온도
+        self.Q_rad_FlrCan.port_b.T = self.canopy.heatPort.T  # 캔오피 온도
         
-        self.Q_rad_FlrCov.port_a.T = self.floor.heatPort.T
-        self.Q_rad_FlrCov.port_b.T = self.cover.heatPort.T
+        # 1-2. 캔오피→덮개 복사
+        self.Q_rad_CanCov.port_a.T = self.canopy.heatPort.T  # 캔오피 온도
+        self.Q_rad_CanCov.port_b.T = self.cover.heatPort.T   # 덮개 온도
         
-        self.Q_rad_FlrScr.port_a.T = self.floor.heatPort.T
-        self.Q_rad_FlrScr.port_b.T = self.thScreen.heatPort.T
+        # 1-3. 바닥→덮개 복사
+        self.Q_rad_FlrCov.port_a.T = self.floor.heatPort.T   # 바닥 온도
+        self.Q_rad_FlrCov.port_b.T = self.cover.heatPort.T   # 덮개 온도
         
-        # Connect canopy radiation
-        self.Q_rad_CanCov.port_a.T = self.canopy.heatPort.T
-        self.Q_rad_CanCov.port_b.T = self.cover.heatPort.T
+        # 1-4. 캔오피→스크린 복사
+        self.Q_rad_CanScr.port_a.T = self.canopy.heatPort.T  # 캔오피 온도
+        self.Q_rad_CanScr.port_b.T = self.thScreen.heatPort.T  # 스크린 온도
         
-        self.Q_rad_CanScr.port_a.T = self.canopy.heatPort.T
-        self.Q_rad_CanScr.port_b.T = self.thScreen.heatPort.T
+        # 1-5. 바닥→스크린 복사
+        self.Q_rad_FlrScr.port_a.T = self.floor.heatPort.T   # 바닥 온도
+        self.Q_rad_FlrScr.port_b.T = self.thScreen.heatPort.T  # 스크린 온도
         
-        # Connect cover radiation
-        self.Q_rad_CovSky.port_a.T = self.cover.heatPort.T
-        self.Q_rad_CovSky.port_b.T = self.T_sky
+        # 1-6. 스크린→덮개 복사
+        self.Q_rad_ScrCov.port_a.T = self.thScreen.heatPort.T  # 스크린 온도
+        self.Q_rad_ScrCov.port_b.T = self.cover.heatPort.T    # 덮개 온도
         
-        self.Q_rad_ScrCov.port_a.T = self.thScreen.heatPort.T
-        self.Q_rad_ScrCov.port_b.T = self.cover.heatPort.T
+        # 1-7. 덮개→하늘 복사
+        self.Q_rad_CovSky.port_a.T = self.cover.heatPort.T   # 덮개 온도
+        self.Q_rad_CovSky.port_b.T = self.T_sky              # 하늘 온도
         
-        # Connect pipe radiation
-        self.Q_rad_LowFlr.set_heatPorts_a_temperature(self.pipe_low.heatPorts.T)
-        self.Q_rad_LowFlr.port_b.T = self.floor.heatPort.T
+        # 2. 대류열 연결 (Element1D를 상속받는 컴포넌트들)
+        # 2-1. 캔오피↔공기 대류
+        self.Q_cnv_CanAir.port_a.T = self.canopy.heatPort.T  # 캔오피 온도
+        self.Q_cnv_CanAir.port_b.T = self.air.heatPort.T    # 공기 온도
         
-        self.Q_rad_LowCan.set_heatPorts_a_temperature(self.pipe_low.heatPorts.T)
-        self.Q_rad_LowCan.port_b.T = self.canopy.heatPort.T
+        # 2-2. 바닥↔공기 대류
+        self.Q_cnv_FlrAir.port_b.T = self.floor.heatPort.T  # 바닥 온도 (port_b)
+        self.Q_cnv_FlrAir.port_a.T = self.air.heatPort.T    # 공기 온도 (port_a)
         
-        self.Q_rad_LowCov.set_heatPorts_a_temperature(self.pipe_low.heatPorts.T)
-        self.Q_rad_LowCov.port_b.T = self.cover.heatPort.T
+        # 2-3. 공기↔스크린 대류
+        self.Q_cnv_AirScr.port_a.T = self.air.heatPort.T     # 공기 온도
+        self.Q_cnv_AirScr.port_b.T = self.thScreen.heatPort.T  # 스크린 온도
         
-        self.Q_rad_LowScr.set_heatPorts_a_temperature(self.pipe_low.heatPorts.T)
-        self.Q_rad_LowScr.port_b.T = self.thScreen.heatPort.T
+        # 2-4. 공기↔덮개 대류
+        self.Q_cnv_AirCov.port_a.T = self.air.heatPort.T    # 공기 온도
+        self.Q_cnv_AirCov.port_b.T = self.cover.heatPort.T  # 덮개 온도
         
-        self.Q_rad_UpFlr.set_heatPorts_a_temperature(self.pipe_up.heatPorts.T)
-        self.Q_rad_UpFlr.port_b.T = self.floor.heatPort.T
+        # 2-5. 상부공기↔덮개 대류
+        self.Q_cnv_TopCov.port_a.T = self.air_top.heatPort.T  # 상부공기 온도
+        self.Q_cnv_TopCov.port_b.T = self.cover.heatPort.T    # 덮개 온도
         
-        self.Q_rad_UpCan.set_heatPorts_a_temperature(self.pipe_up.heatPorts.T)
-        self.Q_rad_UpCan.port_b.T = self.canopy.heatPort.T
+        # 2-6. 덮개↔외부 대류
+        self.Q_cnv_CovOut.port_b.T = self.cover.heatPort.T   # 덮개 온도 (port_b)
+        self.Q_cnv_CovOut.port_a.T = self.T_out              # 외부 온도 (port_a)
         
-        self.Q_rad_UpCov.set_heatPorts_a_temperature(self.pipe_up.heatPorts.T)
-        self.Q_rad_UpCov.port_b.T = self.cover.heatPort.T
-        
-        self.Q_rad_UpScr.set_heatPorts_a_temperature(self.pipe_up.heatPorts.T)
-        self.Q_rad_UpScr.port_b.T = self.thScreen.heatPort.T
+        # 3. 전도열 연결
+        # 3-1. 바닥→토양 전도
+        self.Q_cd_Soil.port_a.T = self.floor.heatPort.T      # 바닥 온도
+        self.Q_cd_Soil.port_b.T = self.T_out                 # 토양 온도
     
     def step(self, dt, time_idx):
         """
@@ -686,6 +693,17 @@ class Greenhouse_1:
         time_idx : int
             Time index for data lookup
         """
+        # 첫 스텝 이후에 steadystate를 False로 변경
+        if time_idx == 1:  # time_idx가 0일 때는 초기화, 1일 때부터 동적 모드로 전환
+            self.cover.steadystate = False
+            self.air.steadystate = False
+            self.air.steadystateVP = False
+            self.canopy.steadystate = False
+            self.floor.steadystate = False
+            self.air_top.steadystate = False
+            self.air_top.steadystateVP = False
+            print("\n=== 동적 모드로 전환됨 (steadystate=False) ===")
+        
         # 1) 현재 날씨 데이터 읽기 (CombiTimeTable은 시간(h) 단위)
         t_h = time_idx * dt / 3600.0
         weather = self.TMY_and_control.get_value(t_h, interpolate=True)
@@ -704,22 +722,84 @@ class Greenhouse_1:
         self.I_glob = weather['I_glob']
         self.T_sky = weather['T_sky'] + 273.15
         
-        # Update components
+        # 4) 컴포넌트 업데이트 (환기, 파이프, 태양, 작물 등)
         self._update_components(dt, weather, setpoint)
         
-        # Update port connections
-        self._update_port_connections()
-        
-        # Update control systems
+        # 5) 제어 시스템 업데이트 (PID, 화면, 환기 등)
         self._update_control_systems(weather, setpoint, sc_usable)
         
-        # Calculate energy flows
-        self._calculate_energy_flows(dt)
+        # 6) 방사, 대류, 열 수지 계산
+        self._update_heat_transfer(dt)
         
-        # Update air humidity before printing state
+        # 7) Cover, Canopy, Floor, Air step (입력된 Q_flow 활용)
         self.air.update_humidity()
         
-        # Print current state
+        # Cover update
+        self.cover.set_inputs(
+            Q_flow=self.cover.Q_flow,
+            R_SunCov_Glob=self.solar_model.R_SunCov_Glob
+        )
+        self.cover.step(dt)
+
+        # Canopy update
+        self.canopy.set_inputs(
+            Q_flow=self.canopy.Q_flow,
+            R_Can_Glob=[self.solar_model.R_PAR_Can_umol, self.illu.R_PAR_Can_umol]
+        )
+        self.canopy.step(dt)
+
+        # Floor update
+        self.floor.set_inputs(
+            Q_flow=self.floor.Q_flow,
+            R_Flr_Glob=[self.solar_model.R_SunFlr_Glob, self.illu.P_el]
+        )
+        self.floor.step(dt)
+
+        # Air update
+        Q_flow_air = (
+            -self.Q_cnv_CanAir_val
+            -self.Q_cnv_FlrAir_val
+            -self.Q_cnv_AirScr_val
+            -self.Q_cnv_AirCov_val
+            -self.Q_cnv_CovOut_val
+        )
+        R_Air_Glob = [self.solar_model.R_SunAir_Glob, self.illu.P_el]
+        self.air.set_inputs(
+            Q_flow=Q_flow_air,
+            R_Air_Glob=R_Air_Glob,
+            massPort_VP=(
+                self.MV_CanAir.MV_flow +
+                self.Q_ven_AirOut.MV_flow +
+                self.Q_ven_AirTop.MV_flow +
+                self.Q_cnv_AirScr_val +
+                self.Q_cnv_AirCov_val +
+                self.Q_cnv_TopCov_val +
+                self.Q_cnv_ScrTop_val
+            )
+        )
+        self.air.step(dt)
+
+        # Remaining updates
+        self.thScreen.step(dt)
+        self.CO2_air.step(dt)
+        self.CO2_top.step(dt)
+        self.air_top.step(dt)
+
+        # SoilConduction: 매 스텝마다 지면 온도(외기)를 반영
+        self.Q_cd_Soil.port_b.T = weather['T_out'] + 273.15 if 'T_out' in weather else 283.15
+        if hasattr(self.Q_cd_Soil, 'step'):
+            self.Q_cd_Soil.step(dt)
+            Q_flow_soil = getattr(self.Q_cd_Soil, 'Q_flow', 0.0)
+        else:
+            Q_flow_soil = self.Q_cd_Soil.calculate()
+        # SoilConduction에서 나오는 Q_flow_soil 은 '바닥→토양'을 (+)로 줌.
+        # 따라서 실제 floor 에너지 수지에는 부호를 반전(-Q_flow_soil)하여 더해줘야 함.
+        Q_floor_total = self.floor.Q_flow - Q_flow_soil
+
+        self.floor.set_inputs(Q_flow=Q_floor_total, R_Flr_Glob=self.floor.R_Flr_Glob)
+        self.floor.step(dt)
+        
+        # 8) Print current state
         print(f"\n=== Step {time_idx} 시작 (t={time_idx*dt/3600:.2f}h) ===")
         if time_idx == 0:
             print("초기 상태:")
@@ -728,14 +808,11 @@ class Greenhouse_1:
         print(f"Canopy: T={self.canopy.T-273.15:.2f}°C")
         print(f"Floor: T={self.floor.T-273.15:.2f}°C")
         print(f"Screen: T={self.thScreen.T-273.15:.2f}°C, SC={self.thScreen.SC:.2f}")
-        # print(f"Pipe_low: T={self.pipe_low.T-273.15:.2f}°C")
-        # print(f"Pipe_up: T={self.pipe_up.T-273.15:.2f}°C")
         print(f"Outside: T={self.T_out-273.15:.2f}°C, VP={self.VP_out:.1f} Pa")
         print(f"Wind: u={self.u_wind:.1f} m/s")
         print(f"Global: I={self.I_glob:.0f} W/m²")
         print(f"Screen: SC={self.thScreen.SC:.2f}, vent={self.Q_ven_AirOut.U_vents:.2f}, DM_Har={self.TYM.DM_Har:.2f} mg/m²")
         
-        # Get current state
         return self._get_state()
     
     def _update_components(self, dt, weather, setpoint):
@@ -809,8 +886,8 @@ class Greenhouse_1:
         # Update CanopyFreeConvection LAI
         self.Q_cnv_CanAir.LAI = self.canopy.LAI
 
-        # 4. Update all port connections first
-        self._update_port_connections()
+        # 4. Update all port connections first (heat ports, radiation view factors, etc.)
+        self._update_port_connections_ports_only(dt)
 
         # 5. Update CO2 exchange components
         # Update ventilation flow rates
@@ -832,232 +909,171 @@ class Greenhouse_1:
         self.CO2_air.step(dt)
         self.CO2_top.step(dt)
 
-        # 6. Update heat transfer components
-        # Update radiation components
-        self.Q_rad_CanCov.step(dt)
-        self.Q_rad_FlrCan.step(dt)
-        self.Q_rad_FlrCov.step(dt)
-        self.Q_rad_CanScr.step(dt)
-        self.Q_rad_FlrScr.step(dt)
-        self.Q_rad_ScrCov.step(dt)
-        self.Q_rad_CovSky.step(dt)
-        
-        # Update convection components
-        self.Q_cnv_CanAir.step(dt)
-        self.Q_cnv_FlrAir.step(dt)
-        self.Q_cnv_CovOut.step(dt)
-        self.Q_cnv_AirScr.step(dt)
-        self.Q_cnv_AirCov.step(dt)
-        self.Q_cnv_TopCov.step(dt)
-        self.Q_cnv_ScrTop.step(dt)
-
-        # 7. Update mass vapor transfer components
-        self.MV_CanAir.step()
-        
-        # Update Q_cnv_ScrTop with MV_AirScr
-        self.Q_cnv_ScrTop.MV_AirScr = self.Q_cnv_AirScr.MV_flow
-        self.Q_cnv_ScrTop.step(dt)
-
-        # 8. Update cover inputs with actual heat flows
-        self.cover.set_inputs(
-            Q_flow=self.Q_rad_CanCov.Q_flow + self.Q_rad_FlrCov.Q_flow + 
-                   self.Q_rad_ScrCov.Q_flow + self.Q_cnv_AirCov.Q_flow + 
-                   self.Q_cnv_TopCov.Q_flow + self.Q_cnv_CovOut.Q_flow,
-            R_SunCov_Glob=self.solar_model.R_SunCov_Glob
-        )
-        self.cover.step(dt)
-
-        # 9. Update canopy inputs with actual heat flows
-        self.canopy.set_inputs(
-            Q_flow=self.Q_rad_CanCov.Q_flow + self.Q_rad_FlrCan.Q_flow + 
-                   self.Q_rad_CanScr.Q_flow + self.Q_cnv_CanAir.Q_flow,
-            R_Can_Glob=[self.solar_model.R_PAR_Can_umol, self.illu.R_PAR_Can_umol]
-        )
-        self.canopy.step(dt)
-
-        # 10. Update floor inputs with actual heat flows
-        self.floor.set_inputs(
-            Q_flow=self.Q_rad_FlrCan.Q_flow + self.Q_rad_FlrCov.Q_flow + 
-                   self.Q_rad_FlrScr.Q_flow + self.Q_cnv_FlrAir.Q_flow,
-            R_Flr_Glob=[self.solar_model.R_SunFlr_Glob, self.illu.P_el]
-        )
-        self.floor.step(dt)
-
-        # 11. Update air inputs with actual heat flows
-        Q_flow_air = (
-            self.Q_cnv_CanAir.Q_flow +
-            self.Q_cnv_FlrAir.Q_flow +
-            self.Q_cnv_AirScr.Q_flow +
-            self.Q_cnv_AirCov.Q_flow +
-            self.Q_ven_AirOut.Q_flow +
-            self.Q_ven_AirTop.Q_flow
-        )
-        R_Air_Glob = [self.solar_model.R_SunAir_Glob, self.illu.P_el]
-        
-        # Update air inputs with all vapor flows (Modelica와 동일하게 모든 MV_flow 합산)
-        self.air.set_inputs(
-            Q_flow=Q_flow_air,
-            R_Air_Glob=R_Air_Glob,
-            massPort_VP=(
-                self.MV_CanAir.MV_flow +
-                self.Q_ven_AirOut.MV_flow +
-                self.Q_ven_AirTop.MV_flow +
-                self.Q_cnv_AirScr.MV_flow +
-                self.Q_cnv_AirCov.MV_flow +
-                self.Q_cnv_TopCov.MV_flow +
-                self.Q_cnv_ScrTop.MV_flow
-            )
-        )
-        self.air.step(dt)
-
-        # 12. Update remaining components
-        self.thScreen.step(dt)
-        self.CO2_air.step(dt)
-        self.CO2_top.step(dt)
-        self.air_top.step(dt)
-
-        # SoilConduction: 매 스텝마다 지면 온도(외기)를 반영
-        self.Q_cd_Soil.port_b.T = weather['T_out'] + 273.15 if 'T_out' in weather else 283.15
-        # 1) 상태 갱신
-        if hasattr(self.Q_cd_Soil, 'step'):
-            self.Q_cd_Soil.step(dt)
-            Q_flow_soil = getattr(self.Q_cd_Soil, 'Q_flow', 0.0)
-        else:
-            Q_flow_soil = self.Q_cd_Soil.calculate()
-        # 2) Floor에 열흐름 반영 및 상태 갱신
-        self.floor.set_inputs(Q_flow=Q_flow_soil, R_Flr_Glob=self.floor.R_Flr_Glob)
-        self.floor.step(dt)
+        # Note: Radiation & Convection steps have been moved to _update_heat_transfer()
     
-    def _update_port_connections(self):
+    def _update_port_connections_ports_only(self, dt):
         """
-        Update all port connections between components
-        - 매 스텝마다 시야계수 업데이트
-        - 열 수지를 한 번만 계산
-        - 스크린 개폐율 반영
+        Update only the port temperatures and view factors (no step calls here)
+        This function is called inside _update_components to refresh port assignments
+        before radiation/convection steps in _update_heat_transfer().
         """
-        # 1. 모든 컴포넌트의 열 수지 초기화
-        self.air.Q_flow = 0.0
-        self.air_top.Q_flow = 0.0
-        self.cover.Q_flow = 0.0
-        self.canopy.Q_flow = 0.0
-        self.floor.Q_flow = 0.0
-        self.thScreen.Q_flow = 0.0
+        # 1) 모든 컴포넌트의 열 포트(heatPort) 온도 갱신
+        self.air.heatPort.T       = self.air.T
+        self.air_top.heatPort.T   = self.air_top.T
+        self.cover.heatPort.T     = self.cover.T
+        self.canopy.heatPort.T    = self.canopy.T
+        self.floor.heatPort.T     = self.floor.T
+        self.thScreen.heatPort.T  = self.thScreen.T
 
-        # 2. Update heat port temperatures for all components
-        self.air.heatPort.T = self.air.T
-        self.air_top.heatPort.T = self.air_top.T
-        self.cover.heatPort.T = self.cover.T
-        self.canopy.heatPort.T = self.canopy.T
-        self.floor.heatPort.T = self.floor.T
-        self.thScreen.heatPort.T = self.thScreen.T
-        
-        # 3. Update mass port vapor pressures
-        self.air.massPort.VP = self.air.VP
-        self.air_top.massPort.VP = self.air.massPort.VP
-        self.cover.massPort.VP = self.cover.surfaceVP.VP
-        self.canopy.massPort.VP = self.canopy.surfaceVP.VP
-        self.thScreen.massPort.VP = self.thScreen.surfaceVP.VP
-
-        # 4. Update view factors for all radiation components
-        # 스크린 개폐율에 따른 시야계수 업데이트
+        # 2) 복사 시야계수 업데이트
         screen_open = 1.0 - self.thScreen.SC  # 스크린이 열린 비율
 
-        # 덮개→하늘 복사열 시야계수 업데이트
-        self.Q_rad_CovSky.FFa = screen_open  # 스크린이 열린 부분만 하늘과 복사열 교환
+        # 캔오피→스크린
+        self.Q_rad_CanScr.FFa = self.canopy.FF
+        self.Q_rad_CanScr.FFb = self.thScreen.FF_i * self.thScreen.SC
         
-        # 스크린 관련 시야계수 업데이트
-        self.Q_rad_CanScr.FFb = self.thScreen.FF_i * self.thScreen.SC  # 캔오피→스크린
-        self.Q_rad_FlrScr.FFb = self.thScreen.FF_i * self.thScreen.SC  # 바닥→스크린
-        self.Q_rad_ScrCov.FFa = self.thScreen.FF_i * self.thScreen.SC  # 스크린→덮개
+        # 바닥→스크린
+        self.Q_rad_FlrScr.FFa = 1.0
+        self.Q_rad_FlrScr.FFb = self.thScreen.FF_i * self.thScreen.SC
+        self.Q_rad_FlrScr.FFab1 = self.canopy.FF
+        self.Q_rad_FlrScr.FFab2 = self.pipe_up.FF
+        self.Q_rad_FlrScr.FFab3 = self.pipe_low.FF
+
+        # 스크린→덮개
+        self.Q_rad_ScrCov.FFa = self.thScreen.FF_i * self.thScreen.SC
+        self.Q_rad_ScrCov.FFb = 1.0
+
+        # 덮개→하늘
+        self.Q_rad_CovSky.FFa = screen_open
+        self.Q_rad_CovSky.FFb = 1.0
+
+        # 파이프 관련 시야계수
+        self.Q_rad_LowScr.FFb = self.thScreen.FF_i * self.thScreen.SC
+        self.Q_rad_UpScr.FFb  = self.thScreen.FF_i * self.thScreen.SC
+
+        # 대류 열 연결 (ports만 갱신, step은 _update_heat_transfer 에서)
+        self.Q_cnv_CanAir.port_a.T = self.canopy.heatPort.T
+        self.Q_cnv_CanAir.port_b.T = self.air.heatPort.T
         
-        # 파이프 관련 시야계수 업데이트
-        self.Q_rad_LowScr.FFb = self.thScreen.FF_i * self.thScreen.SC  # 하부파이프→스크린
-        self.Q_rad_UpScr.FFb = self.thScreen.FF_i * self.thScreen.SC   # 상부파이프→스크린
+        self.Q_cnv_FlrAir.port_b.T = self.floor.heatPort.T
+        self.Q_cnv_FlrAir.port_a.T = self.air.heatPort.T
+        
+        self.Q_cnv_AirScr.port_a.T = self.air.heatPort.T
+        self.Q_cnv_AirScr.port_b.T = self.thScreen.heatPort.T
+        self.Q_cnv_AirScr.SC     = self.thScreen.SC
+        
+        self.Q_cnv_AirCov.port_a.T = self.air.heatPort.T
+        self.Q_cnv_AirCov.port_b.T = self.cover.heatPort.T
+        self.Q_cnv_AirCov.SC     = self.thScreen.SC
+        
+        self.Q_cnv_TopCov.port_a.T = self.air_top.heatPort.T
+        self.Q_cnv_TopCov.port_b.T = self.cover.heatPort.T
+        self.Q_cnv_TopCov.SC      = self.thScreen.SC
+        
+        self.Q_cnv_ScrTop.heatPort_a.T = self.thScreen.heatPort.T
+        self.Q_cnv_ScrTop.heatPort_b.T = self.air_top.heatPort.T
+        self.Q_cnv_ScrTop.SC            = self.thScreen.SC
 
-        # 5. Calculate all heat flows
-        # 복사열 계산
-        Q_rad_CanCov = self.Q_rad_CanCov.step(0) or 0.0  # 캔오피→덮개
-        Q_rad_FlrCan = self.Q_rad_FlrCan.step(0) or 0.0  # 바닥→캔오피
-        Q_rad_FlrCov = self.Q_rad_FlrCov.step(0) or 0.0  # 바닥→덮개
-        Q_rad_CanScr = self.Q_rad_CanScr.step(0) or 0.0  # 캔오피→스크린
-        Q_rad_FlrScr = self.Q_rad_FlrScr.step(0) or 0.0  # 바닥→스크린
-        Q_rad_ScrCov = self.Q_rad_ScrCov.step(0) or 0.0  # 스크린→덮개
-        Q_rad_CovSky = self.Q_rad_CovSky.step(0) or 0.0  # 덮개→하늘 (스크린 개폐율 반영됨)
+        # MassPort.VP 갱신
+        self.Q_cnv_AirScr.MassPort_a.VP = self.air.massPort.VP
+        self.Q_cnv_AirScr.MassPort_b.VP = self.thScreen.massPort.VP
 
-        # 대류열 계산 (스크린 개폐율 반영)
-        Q_cnv_CanAir = self.Q_cnv_CanAir.step(0) or 0.0  # 캔오피↔공기
-        Q_cnv_FlrAir = self.Q_cnv_FlrAir.step(0) or 0.0  # 바닥↔공기
-        Q_cnv_AirScr = self.Q_cnv_AirScr.step(0) or 0.0  # 공기↔스크린
-        Q_cnv_AirCov = self.Q_cnv_AirCov.step(0) or 0.0  # 공기↔덮개
-        Q_cnv_TopCov = self.Q_cnv_TopCov.step(0) or 0.0  # 상부공기↔덮개
-        Q_cnv_ScrTop = self.Q_cnv_ScrTop.step(0) or 0.0  # 스크린↔상부공기
+        self.Q_cnv_AirCov.MassPort_a.VP = self.air.massPort.VP
+        self.Q_cnv_AirCov.MassPort_b.VP = self.cover.surfaceVP.VP
 
-        # 6. Update component heat flows (한 번만 계산)
-        # 캔오피 열 수지
+        self.Q_cnv_TopCov.MassPort_a.VP = self.air_top.massPort.VP
+        self.Q_cnv_TopCov.MassPort_b.VP = self.cover.surfaceVP.VP
+
+        self.Q_cnv_ScrTop.MassPort_a.VP = self.thScreen.surfaceVP.VP
+        self.Q_cnv_ScrTop.MassPort_b.VP = self.air_top.massPort.VP
+
+    def _update_heat_transfer(self, dt):
+        """
+        Perform Radiation.step(dt), Convection.step(dt), and compute heat balances.
+        현재 dt 간격으로 방사 및 대류 계산 후, 각 컴포넌트의 Q_flow를 업데이트.
+        """
+        # 1) Radiation 계산
+        self.Q_rad_CanCov_val = self.Q_rad_CanCov.step(dt) or 0.0
+        self.Q_rad_FlrCan_val = self.Q_rad_FlrCan.step(dt) or 0.0
+        self.Q_rad_FlrCov_val = self.Q_rad_FlrCov.step(dt) or 0.0
+        self.Q_rad_CanScr_val = self.Q_rad_CanScr.step(dt) or 0.0
+        self.Q_rad_FlrScr_val = self.Q_rad_FlrScr.step(dt) or 0.0
+        self.Q_rad_ScrCov_val = self.Q_rad_ScrCov.step(dt) or 0.0
+        self.Q_rad_CovSky_val = self.Q_rad_CovSky.step(dt) or 0.0
+
+        # 2) Convection 계산 (단, u, VP는 이미 포트 업데이트에서 할당됨)
+        self.Q_cnv_CanAir_val = self.Q_cnv_CanAir.step(dt) or 0.0
+        self.Q_cnv_FlrAir_val = self.Q_cnv_FlrAir.step(dt) or 0.0
+        self.Q_cnv_CovOut_val = self.Q_cnv_CovOut.step(dt) or 0.0
+        self.Q_cnv_AirScr_val = self.Q_cnv_AirScr.step(dt) or 0.0
+        self.Q_cnv_AirCov_val = self.Q_cnv_AirCov.step(dt) or 0.0
+        self.Q_cnv_TopCov_val = self.Q_cnv_TopCov.step(dt) or 0.0
+        self.Q_cnv_ScrTop_val = self.Q_cnv_ScrTop.step(dt) or 0.0
+
+        # 3) Heat balance 계산 (각 컴포넌트의 Q_flow 할당)
         self.canopy.Q_flow = (
-            -Q_rad_CanCov  # 캔오피→덮개
-            +Q_rad_FlrCan  # 바닥→캔오피
-            -Q_rad_CanScr  # 캔오피→스크린
-            +Q_cnv_CanAir  # 캔오피↔공기
+            -self.Q_rad_CanCov_val
+            +self.Q_rad_FlrCan_val
+            -self.Q_rad_CanScr_val
+            +self.Q_cnv_CanAir_val
         )
-
-        # 바닥 열 수지
         self.floor.Q_flow = (
-            -Q_rad_FlrCan  # 바닥→캔오피
-            -Q_rad_FlrCov  # 바닥→덮개
-            -Q_rad_FlrScr  # 바닥→스크린
-            +Q_cnv_FlrAir  # 바닥↔공기
+            -self.Q_rad_FlrCan_val
+            -self.Q_rad_FlrCov_val
+            -self.Q_rad_FlrScr_val
+            +self.Q_cnv_FlrAir_val
         )
-
-        # 스크린 열 수지
         self.thScreen.Q_flow = (
-            +Q_rad_CanScr  # 캔오피→스크린
-            +Q_rad_FlrScr  # 바닥→스크린
-            -Q_rad_ScrCov  # 스크린→덮개
-            +Q_cnv_AirScr  # 공기↔스크린
-            -Q_cnv_ScrTop  # 스크린↔상부공기
+            +self.Q_rad_CanScr_val
+            +self.Q_rad_FlrScr_val
+            -self.Q_rad_ScrCov_val
+            +self.Q_cnv_AirScr_val
+            -self.Q_cnv_ScrTop_val
         )
-
-        # 덮개 열 수지
         self.cover.Q_flow = (
-            +Q_rad_CanCov  # 캔오피→덮개
-            +Q_rad_FlrCov  # 바닥→덮개
-            +Q_rad_ScrCov  # 스크린→덮개
-            -Q_rad_CovSky  # 덮개→하늘 (스크린 개폐율 반영됨)
-            +Q_cnv_AirCov  # 공기↔덮개
-            +Q_cnv_TopCov  # 상부공기↔덮개
+            +self.Q_rad_CanCov_val
+            +self.Q_rad_FlrCov_val
+            +self.Q_rad_ScrCov_val
+            -self.Q_rad_CovSky_val
+            +self.Q_cnv_AirCov_val
+            +self.Q_cnv_TopCov_val
         )
-
-        # 공기 열 수지
         self.air.Q_flow = (
-            -Q_cnv_CanAir  # 캔오피↔공기
-            -Q_cnv_FlrAir  # 바닥↔공기
-            -Q_cnv_AirScr  # 공기↔스크린
-            -Q_cnv_AirCov  # 공기↔덮개
+            -self.Q_cnv_CanAir_val
+            -self.Q_cnv_FlrAir_val
+            -self.Q_cnv_AirScr_val
+            -self.Q_cnv_AirCov_val
+            -self.Q_cnv_CovOut_val
         )
-
-        # 상부공기 열 수지
         self.air_top.Q_flow = (
-            -Q_cnv_TopCov  # 상부공기↔덮개
-            +Q_cnv_ScrTop  # 스크린↔상부공기
+            -self.Q_cnv_TopCov_val
+            +self.Q_cnv_ScrTop_val
         )
 
         # 디버깅을 위한 열전달 값 출력
+        screen_open = 1.0 - self.thScreen.SC
         print("\n=== 열전달 값 디버깅 ===")
         print(f"Screen SC: {self.thScreen.SC:.2f}, Screen Open: {screen_open:.2f}")
-        print(f"Q_rad_CanCov: {Q_rad_CanCov:.2f} W")
-        print(f"Q_rad_FlrCan: {Q_rad_FlrCan:.2f} W")
-        print(f"Q_rad_FlrCov: {Q_rad_FlrCov:.2f} W")
-        print(f"Q_rad_CanScr: {Q_rad_CanScr:.2f} W")
-        print(f"Q_rad_FlrScr: {Q_rad_FlrScr:.2f} W")
-        print(f"Q_rad_ScrCov: {Q_rad_ScrCov:.2f} W")
-        print(f"Q_rad_CovSky: {Q_rad_CovSky:.2f} W")
-        print(f"Q_cnv_CanAir: {Q_cnv_CanAir:.2f} W")
-        print(f"Q_cnv_FlrAir: {Q_cnv_FlrAir:.2f} W")
-        print(f"Q_cnv_AirScr: {Q_cnv_AirScr:.2f} W")
-        print(f"Q_cnv_AirCov: {Q_cnv_AirCov:.2f} W")
-        print(f"Q_cnv_TopCov: {Q_cnv_TopCov:.2f} W")
-        print(f"Q_cnv_ScrTop: {Q_cnv_ScrTop:.2f} W")
+        print(f"View Factors:")
+        print(f"  CanScr: FFa={self.Q_rad_CanScr.FFa:.3f}, FFb={self.Q_rad_CanScr.FFb:.3f}")
+        print(f"  FlrScr: FFa={self.Q_rad_FlrScr.FFa:.3f}, FFb={self.Q_rad_FlrScr.FFb:.3f}")
+        print(f"  ScrCov: FFa={self.Q_rad_ScrCov.FFa:.3f}, FFb={self.Q_rad_ScrCov.FFb:.3f}")
+        print(f"Radiation:")
+        print(f"  Q_rad_CanCov: {self.Q_rad_CanCov_val:.2f} W (캔오피→덮개)")
+        print(f"  Q_rad_FlrCan: {self.Q_rad_FlrCan_val:.2f} W (바닥→캔오피)")
+        print(f"  Q_rad_FlrCov: {self.Q_rad_FlrCov_val:.2f} W (바닥→덮개)")
+        print(f"  Q_rad_CanScr: {self.Q_rad_CanScr_val:.2f} W (캔오피→스크린)")
+        print(f"  Q_rad_FlrScr: {self.Q_rad_FlrScr_val:.2f} W (바닥→스크린)")
+        print(f"  Q_rad_ScrCov: {self.Q_rad_ScrCov_val:.2f} W (스크린→덮개)")
+        print(f"  Q_rad_CovSky: {self.Q_rad_CovSky_val:.2f} W (덮개→하늘)")
+        print(f"Convection:")
+        print(f"  Q_cnv_CanAir: {self.Q_cnv_CanAir_val:.2f} W (캔오피↔공기)")
+        print(f"  Q_cnv_FlrAir: {self.Q_cnv_FlrAir_val:.2f} W (바닥↔공기)")
+        print(f"  Q_cnv_AirScr: {self.Q_cnv_AirScr_val:.2f} W (공기↔스크린)")
+        print(f"  Q_cnv_CovOut: {self.Q_cnv_CovOut_val:.2f} W (공기↔외부)")
+        print(f"  Q_cnv_AirCov: {self.Q_cnv_AirCov_val:.2f} W (공기↔덮개)")
+        print(f"  Q_cnv_TopCov: {self.Q_cnv_TopCov_val:.2f} W (상부공기↔덮개)")
+        print(f"  Q_cnv_ScrTop: {self.Q_cnv_ScrTop_val:.2f} W (스크린↔상부공기)")
 
         # 디버깅을 위한 열 수지 값 출력
         print("\n=== 열 수지 값 디버깅 ===")
@@ -1067,9 +1083,6 @@ class Greenhouse_1:
         print(f"Cover Q_flow: {self.cover.Q_flow:.2f} W")
         print(f"Air Q_flow: {self.air.Q_flow:.2f} W")
         print(f"Air Top Q_flow: {self.air_top.Q_flow:.2f} W")
-
-        # 7. Update mass transfer connections
-        # ... (기존 mass transfer 코드 유지) ...
     
     def _update_control_systems(self, weather, setpoint, sc_usable):
         """
@@ -1114,28 +1127,21 @@ class Greenhouse_1:
         
         # Update accumulated energies (Modelica 방정식 반영)
         if self.q_tot > 0:
-            # max(q_tot,0) = der(E_th_tot_kWhm2*1e3*3600)
-            # E_th_tot_kWhm2의 변화량 계산 (W·s → kWh/m²)
-            dE_th = (self.q_tot * dt) / (1000 * 3600)  # W·s → kWh/m²
+            # dE_th = (q_tot * dt) / (1000 * 3600)
+            dE_th = (self.q_tot * dt) / (1000 * 3600)
             self.E_th_tot_kWhm2 += dE_th
             
-        # E_th_tot = E_th_tot_kWhm2*surface.k
         self.E_th_tot = self.E_th_tot_kWhm2 * self.surface
         
-        # Update electrical energy (Modelica 방정식 반영)
-        # der(W_el_illu*1000*3600)=illu.W_el/surface.k
-        dW_el = (self.illu.W_el * dt) / (self.surface * 1000 * 3600)  # W·s → kWh/m²
-        self.W_el_illu = self.W_el_illu + dW_el  # 누적값 업데이트
+        # Update electrical energy
+        dW_el = (self.illu.W_el * dt) / (self.surface * 1000 * 3600)
+        self.W_el_illu += dW_el
         
-        # E_el_tot_kWhm2 = W_el_illu
         self.E_el_tot_kWhm2 = self.W_el_illu
-        
-        # E_el_tot = E_el_tot_kWhm2*surface.k
         self.E_el_tot = self.E_el_tot_kWhm2 * self.surface
 
         self.DM_Har = self.TYM.DM_Har
 
-    
     def _get_state(self):
         """
         Get current state variables
@@ -1159,3 +1165,75 @@ class Greenhouse_1:
             'SC': self.thScreen.SC,
             'vent_opening': self.U_vents.U_vents
         }
+
+def main():
+    # 1) 모델 초기화
+    model = Greenhouse_1()
+
+    # 2) 날씨 데이터 로드 확인
+    if model.weather_df is None or model.weather_df.empty:
+        print("날씨 데이터를 찾을 수 없습니다. 기본값으로 실행합니다.")
+        weather = {
+            'T_out': 20,
+            'u_wind': 2,
+            'RH_out': 50,
+            'I_glob': 1000,
+            'T_sky': 20,
+            'T_air': 20,
+            'RH_air': 50
+        }
+    else:
+        print("\n=== 날씨 데이터 로드 완료 ===")
+        print(f"데이터 크기: {model.weather_df.shape}")
+        print("\n날씨 데이터 샘플:")
+        print(model.weather_df.head())
+    
+    # 3) 시뮬레이션 실행 (1일, 1시간 단위)
+    dt = 3600  # 1시간 = 3600초
+    days = 1
+    hours_per_day = 24
+    total_steps = days * hours_per_day
+    
+    print(f"\n=== 시뮬레이션 시작 (총 {days}일, {total_steps}시간) ===")
+    
+    for time_idx in range(total_steps):
+        # 실제 날씨 데이터에서 현재 시간의 데이터 가져오기
+        if model.weather_df is not None and not model.weather_df.empty:
+            # time_idx를 시간으로 변환 (0~23)
+            hour = time_idx % 24
+            # 해당 시간의 날씨 데이터 가져오기
+            weather_data = model.weather_df.iloc[hour % len(model.weather_df)]
+            weather = {
+                'T_out': weather_data['T_out'],
+                'u_wind': weather_data['u_wind'],
+                'RH_out': weather_data['RH_out'],
+                'I_glob': weather_data['I_glob'],
+                'T_sky': weather_data['T_sky'],
+                'T_air': weather_data['T_air_sp'],
+                'RH_air': weather_data['RH_out']
+            }
+        
+        # 시뮬레이션 스텝 실행
+        model.step(dt=dt, time_idx=time_idx)
+        
+        # 매 시간마다 주요 상태 출력
+        hour = time_idx % 24
+        if hour % 6 == 0:  # 6시간마다 상세 정보 출력
+            print(f"\n=== {hour:02d}:00 상태 ===")
+            print(f"외기: T={weather['T_out']:.1f}°C, RH={weather['RH_out']:.1f}%, u={weather['u_wind']:.1f} m/s")
+            print(f"태양광: I={weather['I_glob']:.0f} W/m²")
+            print(f"온실: T_air={model.air.T-273.15:.1f}°C, RH_air={model.air.RH*100:.1f}%")
+            print(f"작물: T={model.canopy.T-273.15:.1f}°C, DM={model.DM_Har:.1f} mg/m²")
+            print(f"스크린: SC={model.thScreen.SC:.2f}, 환기: {model.Q_ven_AirOut.U_vents:.2f}")
+            print("=" * 30)
+    
+    # 4) 시뮬레이션 종료 요약
+    print("\n=== 시뮬레이션 종료 요약 ===")
+    print(f"누적 열에너지: {model.E_th_tot_kWhm2:.2f} kWh/m²")
+    print(f"누적 전기에너지: {model.E_el_tot_kWhm2:.2f} kWh/m²")
+    print(f"최종 작물 건물중: {model.DM_Har:.2f} mg/m²")
+    print("=" * 30)
+
+if __name__ == "__main__":
+    main()
+
