@@ -56,14 +56,9 @@ class AirThroughScreen(Element1D):
         if not hasattr(self, 'massPort_b'):
             self.massPort_b = type('MassPort', (), {'VP': 0.0, 'P': 1e5})()
         
-    def step(self, dt: float):
+    def step(self):
         """
-        Update the model state for one time step
-        
-        Parameters:
-        -----------
-        dt : float
-            Time step [s]
+        Update the model state
         """
         # Update SC value from thScreen
         if hasattr(self, 'thScreen'):

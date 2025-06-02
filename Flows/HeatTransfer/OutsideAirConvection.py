@@ -29,12 +29,9 @@ class OutsideAirConvection(Element1D):
         self.alpha_b = 0.0
         self.du = 0.0
         
-    def step(self, dt):
+    def step(self):
         """
         Calculate heat transfer by outside air convection
-        
-        Parameters:
-            dt (float): Time step [s]
         """
         # 온도 차이는 property로 자동 계산됨 (self.dT)
         

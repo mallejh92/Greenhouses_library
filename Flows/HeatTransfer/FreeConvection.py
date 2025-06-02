@@ -31,12 +31,9 @@ class FreeConvection(Element1D):
         self.HEC_down_flr = 0.0
         # Modelica-style port names are now inherited from Element1D (port_a/b)
 
-    def step(self, dt):
+    def step(self):
         """
         Calculate heat transfer by free convection
-        
-        Parameters:
-            dt (float): Time step [s]
         """
         # 온도 차이는 property로 자동 계산됨 (self.dT)
         dT_clipped = np.clip(self.dT, -100, 100)  # 온도 차이 제한 (-100K ~ 100K)

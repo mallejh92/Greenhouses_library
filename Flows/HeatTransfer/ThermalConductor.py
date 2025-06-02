@@ -44,13 +44,9 @@ class ThermalConductor(Element1D):
         G : float, optional
             Constant thermal conductance of material [W/K], default is 1.0
         """
-        super().__init__()  # Initialize Element1D
+        super().__init__()  # Initialize Element1D (port_a, port_b 자동 생성)
         self.G = G  # Thermal conductance of material
         self._Q_flow = 0.0  # Heat flow rate [W]
-        
-        # Initialize ports from Element1D
-        self.port_a = type('HeatPort', (), {'T': 293.15})()  # Default 20°C
-        self.port_b = type('HeatPort', (), {'T': 293.15})()  # Default 20°C
         
     @property
     def dT(self):
@@ -76,7 +72,7 @@ class ThermalConductor(Element1D):
         # Calculate heat flow using Q_flow = G * dT
         self._Q_flow = self.G * self.dT
         self.port_a.Q_flow = self._Q_flow  # 포트 a의 열유량 설정
-        self.update()  # Element1D의 update() 호출하여 포트 b의 열유량 업데이트
+        self.port_b.Q_flow = -self._Q_flow  # 포트 b의 열유량 설정 (반대 방향)
         return self._Q_flow
         
     def get_Q_flow(self):

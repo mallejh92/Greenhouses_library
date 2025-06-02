@@ -57,12 +57,9 @@ class Convection_Condensation(Element1D):
         if not hasattr(self, 'heatPort_b'):
             self.heatPort_b = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
         
-    def step(self, dt: float) -> None:
+    def step(self) -> None:
         """
         Update heat and mass flux exchange for one time step
-        
-        Parameters:
-            dt (float): Time step [s]
         """
         # Update heat and mass flux exchange
         self.update(

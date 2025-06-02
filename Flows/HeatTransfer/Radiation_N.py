@@ -87,14 +87,9 @@ class Radiation_N:
             for port, t in zip(self.heatPorts_a, T):
                 port.T = t
     
-    def step(self, dt):
+    def step(self):
         """
         Advance simulation by one time step
-        
-        Parameters:
-        -----------
-        dt : float
-            Time step [s]
         """
         # Calculate temperature differences to the 4th power
         for i in range(self.N):

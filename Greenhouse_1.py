@@ -518,8 +518,10 @@ class Greenhouse_1:
         self.Q_cnv_TopCov.heatPort_b.T = self.cover.heatPort.T
         
         # Q_cnv_ScrTop
-        self.Q_cnv_ScrTop.heatPort_a.T = self.thScreen.heatPort.T
-        self.Q_cnv_ScrTop.heatPort_b.T = self.air_top.heatPort.T
+        self.Q_cnv_ScrTop.HeatPort_a.T = self.thScreen.heatPort.T
+        self.Q_cnv_ScrTop.HeatPort_b.T = self.air_top.heatPort.T
+        self.Q_cnv_ScrTop.MassPort_a.VP = self.thScreen.massPort.VP
+        self.Q_cnv_ScrTop.MassPort_b.VP = self.air_top.massPort.VP
 
         # Initialize control systems
         self.PID_Mdot = PID(
@@ -970,8 +972,8 @@ class Greenhouse_1:
         self.Q_cnv_TopCov.port_b.T = self.cover.heatPort.T
         self.Q_cnv_TopCov.SC      = self.thScreen.SC
         
-        self.Q_cnv_ScrTop.heatPort_a.T = self.thScreen.heatPort.T
-        self.Q_cnv_ScrTop.heatPort_b.T = self.air_top.heatPort.T
+        self.Q_cnv_ScrTop.HeatPort_a.T = self.thScreen.heatPort.T
+        self.Q_cnv_ScrTop.HeatPort_b.T = self.air_top.heatPort.T
         self.Q_cnv_ScrTop.SC            = self.thScreen.SC
 
         # MassPort.VP 갱신
@@ -989,26 +991,26 @@ class Greenhouse_1:
 
     def _update_heat_transfer(self, dt):
         """
-        Perform Radiation.step(dt), Convection.step(dt), and compute heat balances.
-        현재 dt 간격으로 방사 및 대류 계산 후, 각 컴포넌트의 Q_flow를 업데이트.
+        Perform Radiation.step(), Convection.step(), and compute heat balances.
+        현재 방사 및 대류 계산 후, 각 컴포넌트의 Q_flow를 업데이트.
         """
         # 1) Radiation 계산
-        self.Q_rad_CanCov_val = self.Q_rad_CanCov.step(dt) or 0.0
-        self.Q_rad_FlrCan_val = self.Q_rad_FlrCan.step(dt) or 0.0
-        self.Q_rad_FlrCov_val = self.Q_rad_FlrCov.step(dt) or 0.0
-        self.Q_rad_CanScr_val = self.Q_rad_CanScr.step(dt) or 0.0
-        self.Q_rad_FlrScr_val = self.Q_rad_FlrScr.step(dt) or 0.0
-        self.Q_rad_ScrCov_val = self.Q_rad_ScrCov.step(dt) or 0.0
-        self.Q_rad_CovSky_val = self.Q_rad_CovSky.step(dt) or 0.0
+        self.Q_rad_CanCov_val = self.Q_rad_CanCov.step() or 0.0
+        self.Q_rad_FlrCan_val = self.Q_rad_FlrCan.step() or 0.0
+        self.Q_rad_FlrCov_val = self.Q_rad_FlrCov.step() or 0.0
+        self.Q_rad_CanScr_val = self.Q_rad_CanScr.step() or 0.0
+        self.Q_rad_FlrScr_val = self.Q_rad_FlrScr.step() or 0.0
+        self.Q_rad_ScrCov_val = self.Q_rad_ScrCov.step() or 0.0
+        self.Q_rad_CovSky_val = self.Q_rad_CovSky.step() or 0.0
 
         # 2) Convection 계산 (단, u, VP는 이미 포트 업데이트에서 할당됨)
-        self.Q_cnv_CanAir_val = self.Q_cnv_CanAir.step(dt) or 0.0
-        self.Q_cnv_FlrAir_val = self.Q_cnv_FlrAir.step(dt) or 0.0
-        self.Q_cnv_CovOut_val = self.Q_cnv_CovOut.step(dt) or 0.0
-        self.Q_cnv_AirScr_val = self.Q_cnv_AirScr.step(dt) or 0.0
-        self.Q_cnv_AirCov_val = self.Q_cnv_AirCov.step(dt) or 0.0
-        self.Q_cnv_TopCov_val = self.Q_cnv_TopCov.step(dt) or 0.0
-        self.Q_cnv_ScrTop_val = self.Q_cnv_ScrTop.step(dt) or 0.0
+        self.Q_cnv_CanAir_val = self.Q_cnv_CanAir.step() or 0.0
+        self.Q_cnv_FlrAir_val = self.Q_cnv_FlrAir.step() or 0.0
+        self.Q_cnv_CovOut_val = self.Q_cnv_CovOut.step() or 0.0
+        self.Q_cnv_AirScr_val = self.Q_cnv_AirScr.step() or 0.0
+        self.Q_cnv_AirCov_val = self.Q_cnv_AirCov.step() or 0.0
+        self.Q_cnv_TopCov_val = self.Q_cnv_TopCov.step() or 0.0
+        self.Q_cnv_ScrTop_val = self.Q_cnv_ScrTop.step() or 0.0
 
         # 3) Heat balance 계산 (각 컴포넌트의 Q_flow 할당)
         self.canopy.Q_flow = (

@@ -34,14 +34,9 @@ class CanopyFreeConvection(Element1D):
         self.HEC_ab = 0.0  # Heat exchange coefficient
         # Modelica-style port names are now inherited from Element1D (port_a/b)
         
-    def step(self, dt):
+    def step(self):
         """
         Calculate heat transfer between leaves and air
-        
-        Parameters:
-        -----------
-        dt : float
-            Time step [s]
         """
         # Calculate heat exchange coefficient (풍속과 높이 반영)
         self.HEC_ab = 2 * self.LAI * self.U * (1 + 0.1 * self.u) * (self.h_Air / 3.8)**0.5

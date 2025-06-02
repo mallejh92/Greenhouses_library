@@ -50,11 +50,15 @@ class PrescribedTemperature:
         T : float
             Temperature [K]
         """
+        if T <= 0:
+            raise ValueError("Temperature must be positive (in Kelvin)")
         self.T = T
         self.port.T = T
+        self.port.Q_flow = 0.0  # 열유량 초기화
     
     def calculate(self):
         """
         Update port temperature to prescribed value
         """
-        self.port.T = self.T 
+        self.port.T = self.T
+        self.port.Q_flow = 0.0  # 열유량 초기화 

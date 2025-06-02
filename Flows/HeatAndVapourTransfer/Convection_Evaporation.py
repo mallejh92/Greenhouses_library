@@ -1,9 +1,10 @@
 import numpy as np
+from Interfaces.HeatAndVapour.Element1D import Element1D
 
-class Convection_Evaporation:
+class Convection_Evaporation(Element1D):
     """
-    Heat and mass transfer by evaporation from a surface to the air.
-    Mass transfer by evaporation from the cover/screen (empty port) to the air (filled port).
+    Upward heat exchange by free convection between the thermal screen (filled port) and top air (empty port).
+    Mass transfer by evaporation from upper side of the screen to the air at the top compartment.
     """
     
     def __init__(self, A: float, SC: float = 0.0):
@@ -11,66 +12,50 @@ class Convection_Evaporation:
         Initialize convection and evaporation model
         
         Parameters:
-            A (float): Floor surface [m2]
+            A (float): Floor surface [m²]
             SC (float): Screen closure (1:closed, 0:open), default is 0.0
         """
+        # Initialize parent class with default values
+        super().__init__()
+        
         # Parameters
         self.A = A
         
         # Input variables
         self.SC = SC  # Screen closure 1:closed, 0:open
-        
-        # Port variables (Modelica naming)
-        class HeatPort:
-            def __init__(self):
-                self.T = 293.15  # Temperature [K]
-                self.Q_flow = 0.0  # Heat flow rate [W]
-        
-        class MassPort:
-            def __init__(self):
-                self.VP = 0.0  # Vapor pressure [Pa]
-                self.P = 101325.0  # Total pressure [Pa]
-                self.MV_flow = 0.0  # Mass flow rate [kg/s]
-        
-        self.HeatPort_a = HeatPort()
-        self.HeatPort_b = HeatPort()
-        self.MassPort_a = MassPort()
-        self.MassPort_b = MassPort()
+        self.MV_AirScr = 0.0  # Mass flow rate from the main air zone to the screen [kg/s]
         
         # State variables
-        self.HEC_ab = 0.0  # Heat exchange coefficient [W/(m2.K)]
-        self.VEC_ab = 0.0  # Mass transfer coefficient [kg/(s.Pa.m2)]
-        self.Q_flow = 0.0  # Heat flow rate [W]
-        self.MV_flow = 0.0  # Mass flow rate [kg/s]
+        self.HEC_ab = 0.0  # Heat exchange coefficient [W/(m²·K)]
+        self.VEC_ab = 0.0  # Mass transfer coefficient [kg/(s·Pa·m²)]
         
-        # Modelica-style port names (alias)
-        self.heatPort_a = self.HeatPort_a
-        self.heatPort_b = self.HeatPort_b
+        # Mass transfer ports
+        self.MassPort_a = type('MassPort', (), {'VP': 0.0, 'P': 0.0})()
+        self.MassPort_b = type('MassPort', (), {'VP': 0.0, 'P': 0.0})()
         self.massPort_a = self.MassPort_a
         self.massPort_b = self.MassPort_b
         
-    def step(self, dt: float) -> None:
+    def step(self) -> None:
         """
         Update heat and mass flux exchange for one time step
-        
-        Parameters:
-            dt (float): Time step [s]
         """
         # Update heat and mass flux exchange
         self.update(
             SC=self.SC,
-            T_a=self.heatPort_a.T,
-            T_b=self.heatPort_b.T,
-            VP_a=self.massPort_a.VP,
-            VP_b=self.massPort_b.VP
+            MV_AirScr=self.MV_AirScr,
+            T_a=self.HeatPort_a.T,
+            T_b=self.HeatPort_b.T,
+            VP_a=self.MassPort_a.VP,
+            VP_b=self.MassPort_b.VP
         )
         
-    def update(self, SC: float, T_a: float, T_b: float, VP_a: float, VP_b: float) -> tuple:
+    def update(self, SC: float, MV_AirScr: float, T_a: float, T_b: float, VP_a: float, VP_b: float) -> tuple:
         """
         Update heat and mass flux exchange
         
         Parameters:
             SC (float): Screen closure (1:closed, 0:open)
+            MV_AirScr (float): Mass flow rate from the main air zone to the screen [kg/s]
             T_a (float): Temperature at port a [K]
             T_b (float): Temperature at port b [K]
             VP_a (float): Vapor pressure at port a [Pa]
@@ -79,11 +64,13 @@ class Convection_Evaporation:
         Returns:
             tuple: (Q_flow, MV_flow) Heat and mass flow rates [W, kg/s]
         """
-        # Update input variable
+        # Update input variables
         self.SC = SC
+        self.MV_AirScr = MV_AirScr
         
-        # Calculate temperature difference
+        # Calculate temperature and pressure differences
         dT = T_a - T_b
+        dP = VP_a - VP_b
         
         # Calculate heat exchange coefficient
         self.HEC_ab = self.SC * 1.7 * max(1e-9, abs(dT))**0.33
@@ -92,13 +79,14 @@ class Convection_Evaporation:
         self.Q_flow = self.A * self.HEC_ab * dT
         
         # Calculate mass transfer coefficient and mass flow
-        self.VEC_ab = max(0, 6.4e-9 * self.HEC_ab)
-        self.MV_flow = max(0, self.A * self.VEC_ab * (VP_a - VP_b))  # Evaporation fluxes are prohibited from being negative
+        # Modelica: VEC_ab = max(0, min(6.4e-9*HEC_ab, MV_AirScr/A/max(1e-9,dP)))
+        self.VEC_ab = max(0, min(6.4e-9 * self.HEC_ab, 
+                                self.MV_AirScr / (self.A * max(1e-9, dP))))
         
-        # Update port values
-        self.heatPort_a.Q_flow = self.Q_flow
-        self.heatPort_b.Q_flow = -self.Q_flow
-        self.massPort_a.MV_flow = self.MV_flow
-        self.massPort_b.MV_flow = -self.MV_flow
+        # Modelica: MV_flow = max(0, A*VEC_ab*dP)
+        self.MV_flow = max(0, self.A * self.VEC_ab * dP)
+        
+        # Update parent class variables
+        super().update()
         
         return self.Q_flow, self.MV_flow

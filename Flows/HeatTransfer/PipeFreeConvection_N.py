@@ -49,14 +49,9 @@ class PipeFreeConvection_N:
         self.Q_flow = 0.0         # Total heat flow
         self.dT = np.zeros(N)     # Temperature differences
         
-    def step(self, dt):
+    def step(self):
         """
         Calculate heat transfer by pipe convection for multiple pipes
-        
-        Parameters:
-        -----------
-        dt : float
-            Time step [s]
         """
         # Calculate for each pipe
         for i in range(self.N):
