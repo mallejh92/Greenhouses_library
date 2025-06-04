@@ -5,7 +5,7 @@ from Components.Greenhouse.Air import Air
 from Components.Greenhouse.Canopy import Canopy
 from Components.Greenhouse.Floor import Floor
 from Components.Greenhouse.Air_Top import TopAirCompartment
-from Components.Greenhouse.Solar_model import SolarModel
+from Components.Greenhouse.Solar_model import Solar_model
 from Components.Greenhouse.HeatingPipe import HeatingPipe
 from Components.Greenhouse.Illumination import Illumination
 from Components.Greenhouse.ThermalScreen import ThermalScreen
@@ -41,7 +41,7 @@ class Greenhouse_2:
         self.illu = Illumination(A=self.surface, power_input=True, P_el=500, p_el=100)
         self.thScreen = ThermalScreen(A=self.surface, SC=0, steadystate=False)
         self.air_top = TopAirCompartment(A=self.surface, steadystate=True, steadystateVP=True, h_Top=0.4)
-        self.solar_model = SolarModel(A=self.surface, LAI=1.06, SC=0, I_glob=0)
+        self.solar_model = Solar_model(A=self.surface, LAI=1.06, SC=0, I_glob=0)
         self.pipe_low = HeatingPipe(A=self.surface, d=0.051, freePipe=False, N=5, N_p=625, l=50)
         self.pipe_up = HeatingPipe(A=self.surface, freePipe=True, d=0.025, l=44, N=5, N_p=292)
         self.CO2_air = CO2_Air(cap_CO2=3.8)

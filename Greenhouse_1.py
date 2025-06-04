@@ -706,11 +706,11 @@ class Greenhouse_1:
             self.air_top.steadystateVP = False
             print("\n=== 동적 모드로 전환됨 (steadystate=False) ===")
         
-        # 1) 현재 날씨 데이터 읽기 (CombiTimeTable은 시간(h) 단위)
-        t_h = time_idx * dt / 3600.0
-        weather = self.TMY_and_control.get_value(t_h, interpolate=True)
-        setpoint = self.SP_new.get_value(t_h, interpolate=True)
-        sc_usable = self.SC_usable.get_value(t_h, interpolate=True)
+        # 1) 현재 날씨 데이터 읽기 (CombiTimeTable은 초(s) 단위)
+        t_sec = time_idx * dt
+        weather = self.TMY_and_control.get_value(t_sec, interpolate=True)
+        setpoint = self.SP_new.get_value(t_sec, interpolate=True)
+        sc_usable = self.SC_usable.get_value(t_sec, interpolate=True)
 
         # 2) 외기 온도/상대습도로부터 VP_out 계산
         T_out_C = weather['T_out']
@@ -724,11 +724,11 @@ class Greenhouse_1:
         self.I_glob = weather['I_glob']
         self.T_sky = weather['T_sky'] + 273.15
         
-        # 4) 컴포넌트 업데이트 (환기, 파이프, 태양, 작물 등)
-        self._update_components(dt, weather, setpoint)
-        
-        # 5) 제어 시스템 업데이트 (PID, 화면, 환기 등)
+        # 4) 제어 시스템 먼저 업데이트 (스크린 SC 값이 여기서 결정됨)
         self._update_control_systems(weather, setpoint, sc_usable)
+        
+        # 5) 컴포넌트 업데이트 (포트 연결 및 시야계수는 SC 값이 결정된 후에 갱신)
+        self._update_components(dt, weather, setpoint)
         
         # 6) 방사, 대류, 열 수지 계산
         self._update_heat_transfer(dt)
