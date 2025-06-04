@@ -70,9 +70,9 @@ def test_soil_conduction():
             print("Case 3 (N_c=0):", [f"{T_layers3[i, j]-273.15:.2f}°C" for j in range(T_layers3.shape[1])])
 
         # 시간 진행
-        soil1.update(dt)
-        soil2.update(dt)
-        soil3.update(dt)
+        soil1.step(dt)
+        soil2.step(dt)
+        soil3.step(dt)
 
     # 결과 시각화
     plt.figure(figsize=(15, 10))

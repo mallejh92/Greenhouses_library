@@ -212,7 +212,7 @@ class SoilConduction:
         Q_flow = sum(Q_list_c) + Q_cc + sum(Q_list_s) + Q_ss
         return Q_flow
 
-    def update(self, dt):
+    def step(self, dt):
         if not self.steadystate:
             if self.N_c > 1:
                 for layer in self.Layer_c:
