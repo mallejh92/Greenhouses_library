@@ -30,3 +30,4 @@ class SinkP:
         self.flangeB.h_outflow = h
         self.p = p
 
+# 0604
