@@ -1,0 +1,9 @@
+PartialHeatTransfer
+PartialHeatTransfer_IdealFluid
+PartialHeatTransferZones
+PartialHeatTransferZones_IdealFluid
+PartialHeatTransferSmoothed
+PartialHeatTransferCorrelation
+PartialSinglePhaseCorrelation
+PartialPlateHeatExchangerCorrelation
+PartialPipeCorrelation
