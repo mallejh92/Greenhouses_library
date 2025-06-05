@@ -729,6 +729,9 @@ class Greenhouse_1:
         
         # 5) 제어 시스템 업데이트 (PID, 화면, 환기 등)
         self._update_control_systems(weather, setpoint, sc_usable)
+
+        # 제어 시스템에서 SC 등이 변경되었을 수 있으므로 포트와 시야계수 재갱신
+        self._update_port_connections_ports_only(dt)
         
         # 6) 방사, 대류, 열 수지 계산
         self._update_heat_transfer(dt)
