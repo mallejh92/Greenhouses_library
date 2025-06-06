@@ -4,7 +4,7 @@ from Components.Greenhouse.Cover import Cover
 from Components.Greenhouse.Floor import Floor
 from Components.Greenhouse.HeatingPipe import HeatingPipe
 from Components.Greenhouse.ThermalScreen import ThermalScreen
-from Components.Greenhouse.Solar_model import SolarModel
+from Components.Greenhouse.Solar_model import Solar_model
 from Components.Greenhouse.Air_Top import Air_Top
 from Components.Greenhouse.BasicComponents.AirVP import AirVP
 from Flows.HeatTransfer.CanopyFreeConvection import CanopyFreeConvection
@@ -84,7 +84,7 @@ class Greenhouse:
         self.air_Top = Air_Top(steadystate=True, steadystateVP=True, h_Top=0.4, A=14000)
         
         # Initialize solar model
-        self.solar_model = SolarModel(A=14000, LAI=self.canopy.LAI, SC=0, I_glob=0)
+        self.solar_model = Solar_model(A=14000, LAI=self.canopy.LAI, SC=0, I_glob=0)
         
         # Initialize illumination
         self.illu = Illumination(A=14000, power_input=True, P_el=500, p_el=100)

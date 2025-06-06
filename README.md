@@ -12,6 +12,8 @@
 ```bash
 pip install -r requirements.txt
 ```
+필요한 패키지는 `requirements.txt`에 명시되어 있으며 `numpy`, `pandas`,
+`matplotlib`, `scipy` 등을 포함합니다.
 
 ## 사용 방법
 ```python

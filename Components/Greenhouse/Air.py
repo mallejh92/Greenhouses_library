@@ -3,6 +3,7 @@ from Components.Greenhouse.BasicComponents.AirVP import AirVP
 from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
 from Interfaces.Vapour.WaterMassPort_a import WaterMassPort_a
 from Interfaces.Heat.HeatFluxVectorInput import HeatFluxVectorInput
+from Interfaces.Heat.HeatFluxInput import HeatFlux
 from Modelica.Thermal.HeatTransfer.Sources.PrescribedTemperature import PrescribedTemperature
 
 class Air:
@@ -47,7 +48,7 @@ class Air:
         # Components - 먼저 모든 컴포넌트를 초기화
         self.heatPort = HeatPort_a(T_start=T_start)
         self.massPort = WaterMassPort_a()  # VP는 나중에 설정
-        self.R_Air_Glob = HeatFluxVectorInput(N_rad)
+        self.R_Air_Glob = HeatFluxVectorInput([HeatFlux(0.0)] * N_rad)
         self.airVP = AirVP(V_air=self.V, steadystate=steadystateVP)
         self.preTem = PrescribedTemperature(T_start=T_start)
         
@@ -72,9 +73,10 @@ class Air:
         self.RH_out = 0.5  # Outside relative humidity [-]
         self.T_set = T_start  # Temperature setpoint [K]
         self.CO2_set = 0.0  # CO2 setpoint [ppm]
-        
+
         # Initialize radiation port
         self.R_Air_Glob.flux = np.zeros(N_rad)
+        self.R_Air_Glob.values = [HeatFlux(0.0) for _ in range(N_rad)]
         
         # 초기 습도 계산
         self.update_humidity()
@@ -91,7 +93,7 @@ class Air:
         if hasattr(self, 'massPort'):
             self.massPort.VP = value
             self.airVP.set_prescribed_pressure(value)
-            self.update_humidity()
+        self.update_humidity()
 
     @property
     def massPort_VP(self):
@@ -102,15 +104,19 @@ class Air:
     def massPort_VP(self, value):
         """Set massPort vapor pressure"""
         if hasattr(self, 'massPort'):
+            self._VP = value
             self.massPort.VP = value
             self.airVP.set_prescribed_pressure(value)
+            self.VP = value
             self.update_humidity()
 
     def compute_power_input(self):
         """Calculate power input from radiation"""
-        if len(self.R_Air_Glob.flux) == 0:
+        if len(self.R_Air_Glob.values) == 0:
             return 0.0
-        return np.sum(self.R_Air_Glob.flux) * self.A
+        # Sum numeric heat flux values
+        total_flux = sum(hf.value for hf in self.R_Air_Glob.values)
+        return total_flux * self.A
     
     def compute_derivatives(self):
         """Compute temperature derivative"""
@@ -187,7 +193,7 @@ class Air:
         self.heatPort.Q_flow = Q_flow
         
         if R_Air_Glob is not None:
-            self.R_Air_Glob.flux = np.array(R_Air_Glob)
+            self.R_Air_Glob.values = [HeatFlux(v) for v in R_Air_Glob]
             
         if massPort_VP is not None and hasattr(self, 'massPort'):
             self.massPort_VP = massPort_VP

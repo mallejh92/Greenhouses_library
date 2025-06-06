@@ -341,6 +341,9 @@ class TomatoYieldModel:
         return results
 
     def step(self, dt):
+        """Advance the crop model by ``dt`` seconds."""
+    
+        # Current state vector
         y0 = np.concatenate([
             [self.C_Buf, self.C_Leaf, self.C_Stem],
             self.C_Fruit,
@@ -351,10 +354,14 @@ class TomatoYieldModel:
         t = [0, dt]
         sol = odeint(self.calculate_derivatives, y0, t, tfirst=True)  # <-- tfirst=True 추가
         self.C_Buf, self.C_Leaf, self.C_Stem = sol[-1, 0:3]
-        self.C_Fruit = sol[-1, 3:3+self.n_dev]
-        self.N_Fruit = sol[-1, 3+self.n_dev:3+2*self.n_dev]
-        self.T_can24C, self.T_canSumC = sol[-1, 3+2*self.n_dev:3+2*self.n_dev+2]
+        self.C_Fruit = sol[-1, 3:3 + self.n_dev]
+        self.N_Fruit = sol[-1, 3 + self.n_dev:3 + 2 * self.n_dev]
+        self.T_can24C, self.T_canSumC = sol[-1, 3 + 2 * self.n_dev:3 + 2 * self.n_dev + 2]
         self.DM_Har = sol[-1, -1]
+
+        # Recalculate derivatives once more to update flux variables such as
+        # ``MC_AirCan`` at the end of the step
+        self.calculate_derivatives(t[-1], sol[-1])
 
 # # Example usage
 # if __name__ == "__main__":

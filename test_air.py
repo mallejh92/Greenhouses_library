@@ -30,6 +30,9 @@ class TestAir(unittest.TestCase):
         self.assertIsNotNone(self.air.heatPort)
         self.assertIsNotNone(self.air.massPort)
         self.assertIsNotNone(self.air.R_Air_Glob)
+                # Radiation input vector should be initialized with zeros
+        self.assertEqual(len(self.air.R_Air_Glob.values), 2)
+        self.assertTrue(all(hf.value == 0.0 for hf in self.air.R_Air_Glob.values))
         print("포트 확인 완료")
     
     def test_temperature_update(self):
@@ -110,6 +113,10 @@ class TestAir(unittest.TestCase):
         # 방사열 설정
         R_Air_Glob = [100.0, 50.0]  # 태양광과 조명으로부터의 방사열
         self.air.set_inputs(0.0, R_Air_Glob, None)
+
+        # Ensure values are stored correctly
+        for hf, expected in zip(self.air.R_Air_Glob.values, R_Air_Glob):
+            self.assertAlmostEqual(hf.value, expected)
         
         # 방사열로부터의 전력 계산
         P_Air = self.air.compute_power_input()

@@ -660,8 +660,8 @@ class Greenhouse_1:
         self.Q_cnv_CanAir.port_b.T = self.air.heatPort.T    # 공기 온도
         
         # 2-2. 바닥↔공기 대류
-        self.Q_cnv_FlrAir.port_b.T = self.floor.heatPort.T  # 바닥 온도 (port_b)
-        self.Q_cnv_FlrAir.port_a.T = self.air.heatPort.T    # 공기 온도 (port_a)
+        self.Q_cnv_FlrAir.port_a.T = self.floor.heatPort.T  # 바닥
+        self.Q_cnv_FlrAir.port_b.T = self.air.heatPort.T    # 공기
         
         # 2-3. 공기↔스크린 대류
         self.Q_cnv_AirScr.port_a.T = self.air.heatPort.T     # 공기 온도
@@ -676,8 +676,8 @@ class Greenhouse_1:
         self.Q_cnv_TopCov.port_b.T = self.cover.heatPort.T    # 덮개 온도
         
         # 2-6. 덮개↔외부 대류
-        self.Q_cnv_CovOut.port_b.T = self.cover.heatPort.T   # 덮개 온도 (port_b)
-        self.Q_cnv_CovOut.port_a.T = self.T_out              # 외부 온도 (port_a)
+        self.Q_cnv_CovOut.port_a.T = self.cover.heatPort.T  # 덮개
+        self.Q_cnv_CovOut.port_b.T = self.T_out             # 외부
         
         # 3. 전도열 연결
         # 3-1. 바닥→토양 전도
@@ -751,9 +751,16 @@ class Greenhouse_1:
         self.canopy.step(dt)
 
         # Floor update
+        Q_floor_total = (
+            -self.Q_rad_FlrCan_val
+            -self.Q_rad_FlrCov_val
+            -self.Q_rad_FlrScr_val
+            +self.Q_cnv_FlrAir_val
+            +self.Q_cd_Soil.step(dt)  # 토양 전도 열유량 포함
+        )
         self.floor.set_inputs(
-            Q_flow=self.floor.Q_flow,
-            R_Flr_Glob=[self.solar_model.R_SunFlr_Glob, self.illu.P_el]
+            Q_flow=Q_floor_total,
+            R_Flr_Glob=[self.solar_model.R_SunFlr_Glob, self.illu.R_IluFlr_Glob]
         )
         self.floor.step(dt)
 
@@ -780,26 +787,6 @@ class Greenhouse_1:
             )
         )
         self.air.step(dt)
-
-        # Remaining updates
-        self.thScreen.step(dt)
-        self.CO2_air.step(dt)
-        self.CO2_top.step(dt)
-        self.air_top.step(dt)
-
-        # SoilConduction: 매 스텝마다 지면 온도(외기)를 반영
-        self.Q_cd_Soil.port_b.T = weather['T_out'] + 273.15 if 'T_out' in weather else 283.15
-        if hasattr(self.Q_cd_Soil, 'step'):
-            self.Q_cd_Soil.step(dt)
-            Q_flow_soil = getattr(self.Q_cd_Soil, 'Q_flow', 0.0)
-        else:
-            Q_flow_soil = self.Q_cd_Soil.calculate()
-        # SoilConduction에서 나오는 Q_flow_soil 은 '바닥→토양'을 (+)로 줌.
-        # 따라서 실제 floor 에너지 수지에는 부호를 반전(-Q_flow_soil)하여 더해줘야 함.
-        Q_floor_total = self.floor.Q_flow - Q_flow_soil
-
-        self.floor.set_inputs(Q_flow=Q_floor_total, R_Flr_Glob=self.floor.R_Flr_Glob)
-        self.floor.step(dt)
         
         # 8) Print current state
         print(f"\n=== Step {time_idx} 시작 (t={time_idx*dt/3600:.2f}h) ===")
@@ -815,6 +802,9 @@ class Greenhouse_1:
         print(f"Global: I={self.I_glob:.0f} W/m²")
         print(f"Screen: SC={self.thScreen.SC:.2f}, vent={self.Q_ven_AirOut.U_vents:.2f}, DM_Har={self.TYM.DM_Har:.2f} mg/m²")
         
+        # Update accumulated energy flows after all component updates
+        self._calculate_energy_flows(dt)
+
         return self._get_state()
     
     def _update_components(self, dt, weather, setpoint):
@@ -884,6 +874,14 @@ class Greenhouse_1:
         self.solar_model.LAI = self.canopy.LAI
         self.solar_model.SC = self.thScreen.SC
         self.solar_model.step(dt)
+
+        # Update tomato yield model with the latest environmental conditions
+        self.TYM.set_environmental_conditions(
+            R_PAR_can=self.solar_model.R_PAR_Can_umol + self.illu.R_PAR_Can_umol,
+            CO2_air=self.CO2_air.CO2_ppm,
+            T_canK=self.canopy.T,
+        )
+        self.TYM.step(dt)
         
         # Update CanopyFreeConvection LAI
         self.Q_cnv_CanAir.LAI = self.canopy.LAI
@@ -906,8 +904,8 @@ class Greenhouse_1:
         self.MC_AirOut.step(dt)
         self.MC_TopOut.step(dt)
         
-        # Update CO2 concentrations with external injection
-        self.CO2_air.CO2_flow = self.phi_ExtCO2  # Direct CO2 injection
+        # External CO2 injection directly sets the mass flow rate of CO2
+        self.CO2_air.MC_flow = self.phi_ExtCO2
         self.CO2_air.step(dt)
         self.CO2_top.step(dt)
 
@@ -957,8 +955,8 @@ class Greenhouse_1:
         self.Q_cnv_CanAir.port_a.T = self.canopy.heatPort.T
         self.Q_cnv_CanAir.port_b.T = self.air.heatPort.T
         
-        self.Q_cnv_FlrAir.port_b.T = self.floor.heatPort.T
-        self.Q_cnv_FlrAir.port_a.T = self.air.heatPort.T
+        self.Q_cnv_FlrAir.port_a.T = self.floor.heatPort.T  # 바닥
+        self.Q_cnv_FlrAir.port_b.T = self.air.heatPort.T    # 공기
         
         self.Q_cnv_AirScr.port_a.T = self.air.heatPort.T
         self.Q_cnv_AirScr.port_b.T = self.thScreen.heatPort.T
@@ -1005,7 +1003,7 @@ class Greenhouse_1:
 
         # 2) Convection 계산 (단, u, VP는 이미 포트 업데이트에서 할당됨)
         self.Q_cnv_CanAir_val = self.Q_cnv_CanAir.step() or 0.0
-        self.Q_cnv_FlrAir_val = self.Q_cnv_FlrAir.step() or 0.0
+        self.Q_cnv_FlrAir_val = self.Q_cnv_FlrAir.step()
         self.Q_cnv_CovOut_val = self.Q_cnv_CovOut.step() or 0.0
         self.Q_cnv_AirScr_val = self.Q_cnv_AirScr.step() or 0.0
         self.Q_cnv_AirCov_val = self.Q_cnv_AirCov.step() or 0.0
@@ -1024,6 +1022,7 @@ class Greenhouse_1:
             -self.Q_rad_FlrCov_val
             -self.Q_rad_FlrScr_val
             +self.Q_cnv_FlrAir_val
+            +self.Q_cd_Soil.step(dt)  # SoilConduction의 열유량을 직접 사용
         )
         self.thScreen.Q_flow = (
             +self.Q_rad_CanScr_val
