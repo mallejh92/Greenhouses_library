@@ -726,6 +726,9 @@ class Greenhouse_1:
         
         # 4) 제어 시스템 먼저 업데이트 (스크린 SC 값이 여기서 결정됨)
         self._update_control_systems(weather, setpoint, sc_usable)
+
+        # 제어 시스템에서 SC 등이 변경되었을 수 있으므로 포트와 시야계수 재갱신
+        self._update_port_connections_ports_only(dt)
         
         # 5) 컴포넌트 업데이트 (포트 연결 및 시야계수는 SC 값이 결정된 후에 갱신)
         self._update_components(dt, weather, setpoint)
