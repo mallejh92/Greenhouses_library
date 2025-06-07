@@ -46,3 +46,5 @@ class CanopyFreeConvection(Element1D):
         
         # Element1D의 update() 호출하여 포트 열유량 업데이트
         self.update()
+
+        return self.Q_flow

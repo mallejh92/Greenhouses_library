@@ -168,11 +168,16 @@ class Air:
         self.preTem.connect_T(self.T)
         self.preTem.calculate()
         
-        # Update humidity
-        self.update_humidity()
+        # Integrate vapour pressure first
+        self.airVP.step(dt)
         
         # Update air component
         self.airVP.step(dt)
+
+        # Synchronize local VP variable and update humidity
+        self._VP = self.airVP.VP
+        self.massPort.VP = self._VP
+        self.update_humidity()
         
         return self.T, self.RH
     

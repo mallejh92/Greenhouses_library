@@ -93,9 +93,13 @@ class Canopy:
         - 온도 적분
         - 포트 업데이트
         """
-        # 온도 적분
+        # 온도 적분 - 큰 변화 억제를 위해 제한 적용
         dTdt = self.compute_derivatives()
-        self.T += dTdt * dt
+        max_dT = 5.0  # 한 스텝당 최대 온도 변화 [K]
+        dT = dTdt * dt
+        if abs(dT) > max_dT:
+            dT = np.sign(dT) * max_dT
+        self.T += dT
         
         # 포트 업데이트 (Modelica connect 구문과 동일)
         self.heatPort.T = self.T

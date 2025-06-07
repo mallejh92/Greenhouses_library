@@ -791,16 +791,19 @@ class Greenhouse_1:
         self.air.set_inputs(
             Q_flow=Q_flow_air,
             R_Air_Glob=R_Air_Glob,
-            massPort_VP=(
-                self.MV_CanAir.MV_flow +
-                self.Q_ven_AirOut.MV_flow +
-                self.Q_ven_AirTop.MV_flow +
-                self.Q_cnv_AirScr_val +
-                self.Q_cnv_AirCov_val +
-                self.Q_cnv_TopCov_val +
-                self.Q_cnv_ScrTop_val
-            )
         )
+         
+        # Update air humidity using mass flows from surrounding components
+        mv_air = (
+            self.MV_CanAir.MV_flow +
+            self.Q_ven_AirOut.MV_flow +
+            self.Q_ven_AirTop.MV_flow +
+            self.Q_cnv_AirScr_val +
+            self.Q_cnv_AirCov_val +
+            self.Q_cnv_TopCov_val +
+            self.Q_cnv_ScrTop_val
+        )
+        self.air.airVP.set_mv_flow(mv_air)
         self.air.step(dt)
         
         # 8) Print current state
@@ -1195,75 +1198,3 @@ class Greenhouse_1:
             'SC': self.thScreen.SC,
             'vent_opening': self.U_vents.U_vents
         }
-
-def main():
-    # 1) 모델 초기화
-    model = Greenhouse_1()
-
-    # 2) 날씨 데이터 로드 확인
-    if model.weather_df is None or model.weather_df.empty:
-        print("날씨 데이터를 찾을 수 없습니다. 기본값으로 실행합니다.")
-        weather = {
-            'T_out': 20,
-            'u_wind': 2,
-            'RH_out': 50,
-            'I_glob': 1000,
-            'T_sky': 20,
-            'T_air': 20,
-            'RH_air': 50
-        }
-    else:
-        print("\n=== 날씨 데이터 로드 완료 ===")
-        print(f"데이터 크기: {model.weather_df.shape}")
-        print("\n날씨 데이터 샘플:")
-        print(model.weather_df.head())
-    
-    # 3) 시뮬레이션 실행 (1일, 1시간 단위)
-    dt = 3600  # 1시간 = 3600초
-    days = 1
-    hours_per_day = 24
-    total_steps = days * hours_per_day
-    
-    print(f"\n=== 시뮬레이션 시작 (총 {days}일, {total_steps}시간) ===")
-    
-    for time_idx in range(total_steps):
-        # 실제 날씨 데이터에서 현재 시간의 데이터 가져오기
-        if model.weather_df is not None and not model.weather_df.empty:
-            # time_idx를 시간으로 변환 (0~23)
-            hour = time_idx % 24
-            # 해당 시간의 날씨 데이터 가져오기
-            weather_data = model.weather_df.iloc[hour % len(model.weather_df)]
-            weather = {
-                'T_out': weather_data['T_out'],
-                'u_wind': weather_data['u_wind'],
-                'RH_out': weather_data['RH_out'],
-                'I_glob': weather_data['I_glob'],
-                'T_sky': weather_data['T_sky'],
-                'T_air': weather_data['T_air_sp'],
-                'RH_air': weather_data['RH_out']
-            }
-        
-        # 시뮬레이션 스텝 실행
-        model.step(dt=dt, time_idx=time_idx)
-        
-        # 매 시간마다 주요 상태 출력
-        hour = time_idx % 24
-        if hour % 6 == 0:  # 6시간마다 상세 정보 출력
-            print(f"\n=== {hour:02d}:00 상태 ===")
-            print(f"외기: T={weather['T_out']:.1f}°C, RH={weather['RH_out']:.1f}%, u={weather['u_wind']:.1f} m/s")
-            print(f"태양광: I={weather['I_glob']:.0f} W/m²")
-            print(f"온실: T_air={model.air.T-273.15:.1f}°C, RH_air={model.air.RH*100:.1f}%")
-            print(f"작물: T={model.canopy.T-273.15:.1f}°C, DM={model.DM_Har:.1f} mg/m²")
-            print(f"스크린: SC={model.thScreen.SC:.2f}, 환기: {model.Q_ven_AirOut.U_vents:.2f}")
-            print("=" * 30)
-    
-    # 4) 시뮬레이션 종료 요약
-    print("\n=== 시뮬레이션 종료 요약 ===")
-    print(f"누적 열에너지: {model.E_th_tot_kWhm2:.2f} kWh/m²")
-    print(f"누적 전기에너지: {model.E_el_tot_kWhm2:.2f} kWh/m²")
-    print(f"최종 작물 건물중: {model.DM_Har:.2f} mg/m²")
-    print("=" * 30)
-
-if __name__ == "__main__":
-    main()
-

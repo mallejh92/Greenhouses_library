@@ -376,35 +376,35 @@ class TomatoYieldModel:
         self.calculate_derivatives(t[-1], sol[-1])
 
 # # Example usage
-if __name__ == "__main__":
-    model = TomatoYieldModel()
-    # CSV 파일에서 환경 데이터를 읽어 시뮬레이션 실행
-    results = model.simulate(csv_file='greenhouse_data.csv')
+# if __name__ == "__main__":
+#     model = TomatoYieldModel()
+#     # CSV 파일에서 환경 데이터를 읽어 시뮬레이션 실행
+#     results = model.simulate(csv_file='greenhouse_data.csv')
     
-    # Print results in a formatted way
-    print("\n=== 토마토 생장 모델 시뮬레이션 결과 ===")
-    print("\n[탄수화물 저장량 (mg/m²)]")
-    print(f"버퍼: {results['C_Buf']:.2f}")
-    print(f"잎: {results['C_Leaf']:.2f}")
-    print(f"줄기: {results['C_Stem']:.2f}")
+#     # Print results in a formatted way
+#     print("\n=== 토마토 생장 모델 시뮬레이션 결과 ===")
+#     print("\n[탄수화물 저장량 (mg/m²)]")
+#     print(f"버퍼: {results['C_Buf']:.2f}")
+#     print(f"잎: {results['C_Leaf']:.2f}")
+#     print(f"줄기: {results['C_Stem']:.2f}")
     
-    print("\n[과실 탄수화물 (mg/m²)]")
-    print(f"총량: {results['C_Fruit']['total']:.2f}")
-    print(f"평균: {results['C_Fruit']['mean']:.2f}")
-    print(f"최대: {results['C_Fruit']['max']:.2f}")
-    print(f"최소: {results['C_Fruit']['min']:.2f}")
-    print(f"비영과실 수: {results['C_Fruit']['non_zero']:.0f}")
+#     print("\n[과실 탄수화물 (mg/m²)]")
+#     print(f"총량: {results['C_Fruit']['total']:.2f}")
+#     print(f"평균: {results['C_Fruit']['mean']:.2f}")
+#     print(f"최대: {results['C_Fruit']['max']:.2f}")
+#     print(f"최소: {results['C_Fruit']['min']:.2f}")
+#     print(f"비영과실 수: {results['C_Fruit']['non_zero']:.0f}")
     
-    print("\n[과실 수 (개/m²)]")
-    print(f"총수: {results['N_Fruit']['total']:.2f}")
-    print(f"평균: {results['N_Fruit']['mean']:.2f}")
-    print(f"최대: {results['N_Fruit']['max']:.2f}")
-    print(f"최소: {results['N_Fruit']['min']:.2f}")
-    print(f"비영과실 수: {results['N_Fruit']['non_zero']:.0f}")
+#     print("\n[과실 수 (개/m²)]")
+#     print(f"총수: {results['N_Fruit']['total']:.2f}")
+#     print(f"평균: {results['N_Fruit']['mean']:.2f}")
+#     print(f"최대: {results['N_Fruit']['max']:.2f}")
+#     print(f"최소: {results['N_Fruit']['min']:.2f}")
+#     print(f"비영과실 수: {results['N_Fruit']['non_zero']:.0f}")
     
-    print("\n[온도 정보]")
-    print(f"24시간 평균 온도: {results['T_can24C']:.2f}°C")
-    print(f"온도 적산: {results['T_canSumC']:.2f}°C")
+#     print("\n[온도 정보]")
+#     print(f"24시간 평균 온도: {results['T_can24C']:.2f}°C")
+#     print(f"온도 적산: {results['T_canSumC']:.2f}°C")
     
-    print(f"\n수확된 건물중: {results['DM_Har']:.2f} mg/m²")
+#     print(f"\n수확된 건물중: {results['DM_Har']:.2f} mg/m²")
  

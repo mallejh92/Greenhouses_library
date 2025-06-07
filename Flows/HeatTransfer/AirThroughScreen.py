@@ -92,6 +92,8 @@ class AirThroughScreen(Element1D):
         
         # Update parent class variables
         super().update()
+
+        return self.Q_flow
         
     def _calculate_air_density(self, T):
         """

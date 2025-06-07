@@ -73,3 +73,5 @@ class PipeFreeConvection_N:
         # Calculate total heat flow
         self.Q_flow = sum(port.Q_flow for port in self.heatPorts_a.ports)
         self.heatPort_b.Q_flow = -self.Q_flow  # Negative sign as in original Modelica code
+
+        return self.Q_flow

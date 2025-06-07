@@ -104,3 +104,5 @@ class Radiation_N:
         
         # Set port_b heat flow (negative of total)
         self.port_b.Q_flow = -self.Q_flow
+
+        return self.Q_flow
