@@ -45,7 +45,7 @@ class Control_ThScreen:
         self.RH_air = 0.0      # Default relative humidity [0-1]
         self.SC_usable = 0.0   # Default screen usability
         
-    def compute(self):
+    def compute(self, dt: float = 0.0):
         """
         Compute control signal based on current state and inputs
         
@@ -54,10 +54,21 @@ class Control_ThScreen:
         float
             Screen control signal (0-1)
         """
+        # Increment timer for states with timed transitions
+        if self.state in ("opening_ColdDay", "opening_WarmDay", "closing_ColdDay"):
+            self.timer += dt
+        else:
+            self.timer = 0
+
+        # Separate timer for crack -> crack2 transition
+        if not hasattr(self, "crack_timer"):
+            self.crack_timer = 0.0
+
         # State machine logic
         if self.state == "closed":
             if self.RH_air > 0.83:
                 self.state = "crack"
+                self.crack_timer = 0
             elif self.R_Glob_can > self.R_Glob_can_min and self.T_out <= (self.T_air_sp - 7):
                 self.state = "opening_ColdDay"
                 self.timer = 0
@@ -83,22 +94,40 @@ class Control_ThScreen:
         elif self.state == "crack":
             if self.RH_air < 0.7:
                 self.state = "closed"
+                self.crack_timer = 0
             elif self.RH_air > 0.85:
                 self.state = "crack2"
+                self.crack_timer += dt
+                if self.crack_timer >= 15 * 60:
+                    self.state = "crack2"
+                    self.crack_timer = 0
+            else:
+                self.crack_timer = 0
                 
         elif self.state == "crack2":
             if self.RH_air < 0.7:
                 self.state = "closed"
             elif self.R_Glob_can > self.R_Glob_can_min and self.T_out <= (self.T_air_sp - 7):
                 self.state = "opening_ColdDay"
+                self.timer = 0
             elif self.R_Glob_can > self.R_Glob_can_min and self.T_out > (self.T_air_sp - 7):
                 self.state = "opening_WarmDay"
+                self.timer = 0
                 
         elif self.state == "open":
             if self.R_Glob_can > self.R_Glob_can_min and self.T_out <= (self.T_air_sp - 7):
                 self.state = "opening_ColdDay"
+                self.timer = 0
             elif self.R_Glob_can > self.R_Glob_can_min and self.T_out > (self.T_air_sp - 7):
                 self.state = "opening_WarmDay"
+                self.timer = 0
+            elif self.SC_usable > 0 and self.T_out < (self.T_air_sp - 7):
+                self.timer += dt
+                if self.timer >= 2 * 3600:  # 2 hours
+                    self.state = "closing_ColdDay"
+                    self.timer = 0
+            else:
+                self.timer = 0
         
         # Update screen values
         self.opening_CD = self.SC_OCD_value if self.state == "opening_ColdDay" else 0

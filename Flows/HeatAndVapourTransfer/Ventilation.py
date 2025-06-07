@@ -149,8 +149,8 @@ class Ventilation(Element1D):
         self.MassPort_a.MV_flow = MV_flow
         self.MassPort_b.MV_flow = -MV_flow
         
-        return Q_flow, MV_flow, self.f_vent_total
-    
+        return Q_flow, MV_flow
+        
     def _calculate_natural_ventilation_air(self) -> float:
         """주 공기 구역의 자연 환기율 계산 [m³/(m²·s)]"""
         _, f_vent_air = self.natural_vent.update(

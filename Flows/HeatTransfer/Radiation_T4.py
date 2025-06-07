@@ -67,7 +67,7 @@ class Radiation_T4(Element1D):
         # Stefan-Boltzmann constant [W/(m²·K⁴)]
         self.sigma = 5.67e-8
 
-    def step(self):
+    def step(self, dt=None):
         """
         Calculate and update radiation heat transfer between two surfaces.
         

@@ -210,7 +210,7 @@ class TomatoYieldModel:
             dC_Fruit[j] = MC_BufFruit_j[j] - MC_FruitAir_m[j] - MC_FruitHar[j]
         
         # Calculate harvested dry matter
-        dDM_Har = np.sum(MC_FruitHar) + MC_LeafHar
+        dDM_Har = self.eta_C_DM * np.sum(MC_FruitHar)
         
         # Fruit development calculations
         r_dev = self.c_dev_1 + self.c_dev_2 * T_can24C
@@ -340,8 +340,20 @@ class TomatoYieldModel:
         
         return results
 
-    def step(self, dt):
-        """Advance the crop model by ``dt`` seconds."""
+    def step(self, dt, R_PAR_can=None, CO2_air=None, T_canK=None):
+        """Advance the crop model by ``dt`` seconds.
+
+        Optional environmental conditions can be provided to ensure the
+        model integrates using the most recent values.
+        """
+
+        # Update environmental conditions if provided
+        if R_PAR_can is not None or CO2_air is not None or T_canK is not None:
+            self.set_environmental_conditions(
+                R_PAR_can if R_PAR_can is not None else self.R_PAR_can,
+                CO2_air if CO2_air is not None else self.CO2_air,
+                T_canK if T_canK is not None else self.T_canK,
+            )
     
         # Current state vector
         y0 = np.concatenate([
@@ -364,35 +376,35 @@ class TomatoYieldModel:
         self.calculate_derivatives(t[-1], sol[-1])
 
 # # Example usage
-# if __name__ == "__main__":
-#     model = TomatoYieldModel()
-#     # CSV 파일에서 환경 데이터를 읽어 시뮬레이션 실행
-#     results = model.simulate(csv_file='greenhouse_data.csv')
+if __name__ == "__main__":
+    model = TomatoYieldModel()
+    # CSV 파일에서 환경 데이터를 읽어 시뮬레이션 실행
+    results = model.simulate(csv_file='greenhouse_data.csv')
     
-#     # Print results in a formatted way
-#     print("\n=== 토마토 생장 모델 시뮬레이션 결과 ===")
-#     print("\n[탄수화물 저장량 (mg/m²)]")
-#     print(f"버퍼: {results['C_Buf']:.2f}")
-#     print(f"잎: {results['C_Leaf']:.2f}")
-#     print(f"줄기: {results['C_Stem']:.2f}")
+    # Print results in a formatted way
+    print("\n=== 토마토 생장 모델 시뮬레이션 결과 ===")
+    print("\n[탄수화물 저장량 (mg/m²)]")
+    print(f"버퍼: {results['C_Buf']:.2f}")
+    print(f"잎: {results['C_Leaf']:.2f}")
+    print(f"줄기: {results['C_Stem']:.2f}")
     
-#     print("\n[과실 탄수화물 (mg/m²)]")
-#     print(f"총량: {results['C_Fruit']['total']:.2f}")
-#     print(f"평균: {results['C_Fruit']['mean']:.2f}")
-#     print(f"최대: {results['C_Fruit']['max']:.2f}")
-#     print(f"최소: {results['C_Fruit']['min']:.2f}")
-#     print(f"비영과실 수: {results['C_Fruit']['non_zero']:.0f}")
+    print("\n[과실 탄수화물 (mg/m²)]")
+    print(f"총량: {results['C_Fruit']['total']:.2f}")
+    print(f"평균: {results['C_Fruit']['mean']:.2f}")
+    print(f"최대: {results['C_Fruit']['max']:.2f}")
+    print(f"최소: {results['C_Fruit']['min']:.2f}")
+    print(f"비영과실 수: {results['C_Fruit']['non_zero']:.0f}")
     
-#     print("\n[과실 수 (개/m²)]")
-#     print(f"총수: {results['N_Fruit']['total']:.2f}")
-#     print(f"평균: {results['N_Fruit']['mean']:.2f}")
-#     print(f"최대: {results['N_Fruit']['max']:.2f}")
-#     print(f"최소: {results['N_Fruit']['min']:.2f}")
-#     print(f"비영과실 수: {results['N_Fruit']['non_zero']:.0f}")
+    print("\n[과실 수 (개/m²)]")
+    print(f"총수: {results['N_Fruit']['total']:.2f}")
+    print(f"평균: {results['N_Fruit']['mean']:.2f}")
+    print(f"최대: {results['N_Fruit']['max']:.2f}")
+    print(f"최소: {results['N_Fruit']['min']:.2f}")
+    print(f"비영과실 수: {results['N_Fruit']['non_zero']:.0f}")
     
-#     print("\n[온도 정보]")
-#     print(f"24시간 평균 온도: {results['T_can24C']:.2f}°C")
-#     print(f"온도 적산: {results['T_canSumC']:.2f}°C")
+    print("\n[온도 정보]")
+    print(f"24시간 평균 온도: {results['T_can24C']:.2f}°C")
+    print(f"온도 적산: {results['T_canSumC']:.2f}°C")
     
-#     print(f"\n수확된 건물중: {results['DM_Har']:.2f} mg/m²")
+    print(f"\n수확된 건물중: {results['DM_Har']:.2f} mg/m²")
  

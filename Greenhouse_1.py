@@ -571,7 +571,7 @@ class Greenhouse_1:
         # Initialize TomatoYieldModel
         self.TYM = TomatoYieldModel(
             n_dev=50,
-            LAI_MAX=3.5,
+            LAI_MAX=2.7,
             LAI_0=1.06,
             T_canSumC_0=0,
             C_Leaf_0=40e3,
@@ -594,6 +594,9 @@ class Greenhouse_1:
         self.Q_cd_Soil.port_a = self.floor.heatPort
         # port_b를 지중 온도(예: 외기 온도 또는 고정값)와 연결
         self.Q_cd_Soil.port_b = type('SoilTempPort', (), {'T': 283.15})()  # 예시: 10°C 고정
+
+        # Soil conduction heat flux placeholder
+        self.Q_cd_Soil_val = 0.0
         
         # Source/Sink (난방수 공급/배출) 생성
         self.sourceMdot_1ry = SourceMdot(Mdot_0=0.528, T_0=363.15)  # 90°C
@@ -725,13 +728,24 @@ class Greenhouse_1:
         self.T_sky = weather['T_sky'] + 273.15
         
         # 4) 제어 시스템 먼저 업데이트 (스크린 SC 값이 여기서 결정됨)
-        self._update_control_systems(weather, setpoint, sc_usable)
+        self._update_control_systems(dt, weather, setpoint, sc_usable)
         
         # 5) 컴포넌트 업데이트 (포트 연결 및 시야계수는 SC 값이 결정된 후에 갱신)
         self._update_components(dt, weather, setpoint)
         
         # 6) 방사, 대류, 열 수지 계산
         self._update_heat_transfer(dt)
+
+        # Canopy transpiration (MV_CanAir)
+        P_illu = self.illu.p_el if self.illu.power_input else self.illu.P_el / self.illu.A
+        R_can = self.solar_model.R_t_Glob + (0.25 + 0.17) * P_illu * getattr(self.illu, 'switch', 0)
+        self.MV_CanAir.massPort_a.VP = self.canopy.surfaceVP.VP
+        self.MV_CanAir.massPort_b.VP = self.air.massPort.VP
+        self.MV_CanAir.R_can = R_can
+        self.MV_CanAir.T_can = self.canopy.T
+        self.MV_CanAir.CO2_ppm = self.CO2_air.CO2_ppm
+        self.MV_CanAir.LAI = self.canopy.LAI
+        self.MV_CanAir.step(dt)
         
         # 7) Cover, Canopy, Floor, Air step (입력된 Q_flow 활용)
         self.air.update_humidity()
@@ -746,7 +760,8 @@ class Greenhouse_1:
         # Canopy update
         self.canopy.set_inputs(
             Q_flow=self.canopy.Q_flow,
-            R_Can_Glob=[self.solar_model.R_PAR_Can_umol, self.illu.R_PAR_Can_umol]
+            R_Can_Glob=[self.solar_model.R_PAR_Can_umol, self.illu.R_PAR_Can_umol],
+            MV_flow=self.MV_CanAir.MV_flow
         )
         self.canopy.step(dt)
 
@@ -756,7 +771,7 @@ class Greenhouse_1:
             -self.Q_rad_FlrCov_val
             -self.Q_rad_FlrScr_val
             +self.Q_cnv_FlrAir_val
-            +self.Q_cd_Soil.step(dt)  # 토양 전도 열유량 포함
+            +self.Q_cd_Soil_val  # 토양 전도 열유량
         )
         self.floor.set_inputs(
             Q_flow=Q_floor_total,
@@ -836,7 +851,7 @@ class Greenhouse_1:
         self.illu.step()
 
         # 환기 제어 업데이트
-        Q_flow_AirOut, MV_flow_AirOut, f_vent_AirOut = self.Q_ven_AirOut.update(
+        Q_flow_AirOut, MV_flow_AirOut = self.Q_ven_AirOut.update(
             SC=self.thScreen.SC,
             u=weather['u_wind'],
             U_vents=self.U_vents.U_vents,
@@ -846,7 +861,7 @@ class Greenhouse_1:
             VP_b=self.VP_out
         )
         
-        Q_flow_TopOut, MV_flow_TopOut, f_vent_TopOut = self.Q_ven_TopOut.update(
+        Q_flow_TopOut, MV_flow_TopOut = self.Q_ven_TopOut.update(
             SC=self.thScreen.SC,
             u=weather['u_wind'],
             U_vents=self.U_vents.U_vents,
@@ -876,12 +891,12 @@ class Greenhouse_1:
         self.solar_model.step(dt)
 
         # Update tomato yield model with the latest environmental conditions
-        self.TYM.set_environmental_conditions(
+        self.TYM.step(
+            dt,
             R_PAR_can=self.solar_model.R_PAR_Can_umol + self.illu.R_PAR_Can_umol,
             CO2_air=self.CO2_air.CO2_ppm,
             T_canK=self.canopy.T,
         )
-        self.TYM.step(dt)
         
         # Update CanopyFreeConvection LAI
         self.Q_cnv_CanAir.LAI = self.canopy.LAI
@@ -1001,6 +1016,9 @@ class Greenhouse_1:
         self.Q_rad_ScrCov_val = self.Q_rad_ScrCov.step() or 0.0
         self.Q_rad_CovSky_val = self.Q_rad_CovSky.step() or 0.0
 
+        # Soil conduction heat flux (computed once per step)
+        self.Q_cd_Soil_val = self.Q_cd_Soil.step(dt)
+
         # 2) Convection 계산 (단, u, VP는 이미 포트 업데이트에서 할당됨)
         self.Q_cnv_CanAir_val = self.Q_cnv_CanAir.step() or 0.0
         self.Q_cnv_FlrAir_val = self.Q_cnv_FlrAir.step()
@@ -1022,7 +1040,7 @@ class Greenhouse_1:
             -self.Q_rad_FlrCov_val
             -self.Q_rad_FlrScr_val
             +self.Q_cnv_FlrAir_val
-            +self.Q_cd_Soil.step(dt)  # SoilConduction의 열유량을 직접 사용
+            +self.Q_cd_Soil_val  # SoilConduction의 열유량
         )
         self.thScreen.Q_flow = (
             +self.Q_rad_CanScr_val
@@ -1085,9 +1103,20 @@ class Greenhouse_1:
         print(f"Air Q_flow: {self.air.Q_flow:.2f} W")
         print(f"Air Top Q_flow: {self.air_top.Q_flow:.2f} W")
     
-    def _update_control_systems(self, weather, setpoint, sc_usable):
+    def _update_control_systems(self, dt, weather, setpoint, sc_usable):
         """
         Update control systems based on current state and setpoints
+        
+        Parameters
+        ----------
+        dt : float
+            Simulation time step [s]
+        weather : dict
+            Current weather data
+        setpoint : dict
+            Climate setpoints
+        sc_usable : dict
+            Screen usability information
         """
         # Update PID controllers
         self.PID_Mdot.PV = self.air.T
@@ -1104,7 +1133,7 @@ class Greenhouse_1:
         self.SC.T_out = weather['T_out'] + 273.15
         self.SC.RH_air = self.air.RH
         self.SC.SC_usable = sc_usable['SC_usable']  # SC_usable 데이터 사용
-        self.SC.compute()
+        self.SC.compute(dt)
         
         # Update ventilation control
         self.U_vents.T_air = self.air.T
