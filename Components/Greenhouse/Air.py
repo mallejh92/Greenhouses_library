@@ -45,9 +45,9 @@ class Air:
         self.R_s = 461.5  # Gas constant for water vapor [J/(kg·K)]
         self.P_atm = 101325.0  # Atmospheric pressure [Pa]
         
-        # Components - 먼저 모든 컴포넌트를 초기화
+        # Components
         self.heatPort = HeatPort_a(T_start=T_start)
-        self.massPort = WaterMassPort_a()  # VP는 나중에 설정
+        self.massPort = WaterMassPort_a()
         self.R_Air_Glob = HeatFluxVectorInput([HeatFlux(0.0)] * N_rad)
         self.airVP = AirVP(V_air=self.V, steadystate=steadystateVP)
         self.preTem = PrescribedTemperature(T_start=T_start)
@@ -56,7 +56,7 @@ class Air:
         self.airVP.connect(self.massPort)
         self.preTem.connect_port(self.heatPort)
         
-        # State variables - 컴포넌트 초기화 후 상태 변수 설정
+        # State variables
         self.T = T_start  # Temperature [K]
         self._VP = None  # VP는 setter를 통해 설정
         self.RH = 0.5    # Relative humidity [-]
@@ -69,11 +69,8 @@ class Air:
         
         # Input variables
         self.Q_flow = 0.0  # Heat flow rate [W]
-        self.T_out = T_start  # Outside temperature [K]
-        self.RH_out = 0.5  # Outside relative humidity [-]
-        self.T_set = T_start  # Temperature setpoint [K]
-        self.CO2_set = 0.0  # CO2 setpoint [ppm]
-
+        self.P_Air = 0.0   # Power from radiation [W]
+        
         # Initialize radiation port
         self.R_Air_Glob.flux = np.zeros(N_rad)
         self.R_Air_Glob.values = [HeatFlux(0.0) for _ in range(N_rad)]
@@ -116,7 +113,8 @@ class Air:
             return 0.0
         # Sum numeric heat flux values
         total_flux = sum(hf.value for hf in self.R_Air_Glob.values)
-        return total_flux * self.A
+        self.P_Air = total_flux * self.A
+        return self.P_Air
     
     def compute_derivatives(self):
         """Compute temperature derivative"""
@@ -127,11 +125,10 @@ class Air:
         self.rho = self.P_atm / (self.R_a * self.T)
         
         # Compute temperature derivative (Modelica equation)
-        return self.Q_flow / (self.rho * self.c_p * self.V)
+        return (self.Q_flow + self.P_Air) / (self.rho * self.c_p * self.V)
     
     def update_humidity(self):
         """Update humidity calculations"""
-        # VP가 None이면 계산하지 않음
         if self._VP is None:
             return
             
@@ -168,7 +165,7 @@ class Air:
         self.preTem.connect_T(self.T)
         self.preTem.calculate()
         
-        # Integrate vapour pressure first
+        # Integrate vapour pressure
         self.airVP.step(dt)
         
         # Update air component
@@ -199,6 +196,7 @@ class Air:
         
         if R_Air_Glob is not None:
             self.R_Air_Glob.values = [HeatFlux(v) for v in R_Air_Glob]
+            self.compute_power_input()
             
         if massPort_VP is not None and hasattr(self, 'massPort'):
             self.massPort_VP = massPort_VP

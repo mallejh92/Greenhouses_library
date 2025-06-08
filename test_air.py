@@ -8,7 +8,7 @@ class TestAir(unittest.TestCase):
         print("\n테스트 설정 초기화...")
         # 기본 매개변수로 Air 인스턴스 생성
         self.air = Air(
-            A=100.0,  # 바닥 면적 [m²]
+            A=10000.0,  # 바닥 면적 [m²]
             h_Air=4.0,  # 공기층 높이 [m]
             T_start=298.15,  # 초기 온도 [K] (25°C)
             steadystate=False,
@@ -20,10 +20,10 @@ class TestAir(unittest.TestCase):
         """초기화 테스트"""
         print("\n초기화 테스트 실행...")
         # 기본 속성 확인
-        self.assertEqual(self.air.A, 100.0)
+        self.assertEqual(self.air.A, 10000.0)
         self.assertEqual(self.air.h_Air, 4.0)
         self.assertEqual(self.air.T, 298.15)
-        self.assertEqual(self.air.V, 400.0)  # A * h_Air
+        self.assertEqual(self.air.V, 40000.0)  # A * h_Air = 10000 * 4 = 40000
         print("기본 속성 확인 완료")
         
         # 포트 확인
@@ -81,7 +81,7 @@ class TestAir(unittest.TestCase):
         print("\n정상 상태 테스트 실행...")
         # 정상 상태 모드로 변경
         steady_air = Air(
-            A=100.0,
+            A=10000.0,
             h_Air=4.0,
             T_start=298.15,
             steadystate=True,
@@ -122,8 +122,8 @@ class TestAir(unittest.TestCase):
         P_Air = self.air.compute_power_input()
         print(f"계산된 전력: {P_Air}W")
         
-        # 예상 전력: (100 + 50) * 100 = 15000W
-        expected_power = 15000.0
+        # 예상 전력: (100 + 50) * 10000 = 1500000W
+        expected_power = 1500000.0
         self.assertAlmostEqual(P_Air, expected_power)
         print("방사열 전력 계산 확인 완료")
 
