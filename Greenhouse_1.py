@@ -1122,10 +1122,12 @@ class Greenhouse_1:
             Screen usability information
         """
         # Update PID controllers
+        self.PID_Mdot.dt = dt
         self.PID_Mdot.PV = self.air.T
         self.PID_Mdot.SP = setpoint['T_sp'] + 273.15
         self.PID_Mdot.compute()
         
+        self.PID_CO2.dt = dt
         self.PID_CO2.PV = self.CO2_air.CO2
         self.PID_CO2.SP = setpoint['CO2_sp']
         self.PID_CO2.compute()
@@ -1139,11 +1141,14 @@ class Greenhouse_1:
         self.SC.compute(dt)
         
         # Update ventilation control
+        self.U_vents.PID.dt = dt
+        self.U_vents.PIDT.dt = dt
+        self.U_vents.PIDT_noH.dt = dt
         self.U_vents.T_air = self.air.T
         self.U_vents.T_air_sp = setpoint['T_sp'] + 273.15
         self.U_vents.Mdot = self.PID_Mdot.CS
         self.U_vents.RH_air_input = self.air.RH
-        self.U_vents.compute()
+        self.U_vents.compute(dt)
         
         # Update screen state
         self.thScreen.SC = self.SC.SC

@@ -175,11 +175,25 @@ class Uvents_RH_T_Mdot:
         """Expose control output as .y to match Modelica interface."""
         return self.U_vents
 
-    def compute(self):
+    def compute(self, dt: float):
         """
         Compute vent opening fraction based on RH_air, T_air, T_air_sp, and Mdot.
-        Returns: float between 0 and U_max.
+
+        Parameters
+        ----------
+        dt : float, optional
+            Time step [s]. If provided, it will be assigned to the internal PID
+            controllers before computing their outputs.
+
+        Returns
+        -------
+        float
+            Vent opening control fraction between 0 and ``U_max``.
         """
+        if dt is not None:
+            self.PID.dt = dt
+            self.PIDT.dt = dt
+            self.PIDT_noH.dt = dt
         # cardinality(RH_air)==0 -> use default input
         rh = self.RH_air_input if self.RH_air is None else self.RH_air
 

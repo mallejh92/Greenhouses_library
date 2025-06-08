@@ -143,7 +143,7 @@ class Air:
         Psat = 610.78 * np.exp(T_C / (T_C + 238.3) * 17.2694)
         self.RH = self._VP / Psat if Psat > 0 else 0.0
         self.RH = np.clip(self.RH, 0, 1)
-    
+            
     def step(self, dt):
         """
         Advance simulation by one time step
