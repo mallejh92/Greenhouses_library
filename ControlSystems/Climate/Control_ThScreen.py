@@ -45,10 +45,15 @@ class Control_ThScreen:
         self.RH_air = 0.0      # Default relative humidity [0-1]
         self.SC_usable = 0.0   # Default screen usability
         
-    def compute(self, dt: float = 0.0):
+    def step(self, dt: float) -> float:
         """
-        Compute control signal based on current state and inputs
+        Update control signal based on current state and inputs
         
+        Parameters:
+        -----------
+        dt : float
+            Time step [s]
+            
         Returns:
         --------
         float

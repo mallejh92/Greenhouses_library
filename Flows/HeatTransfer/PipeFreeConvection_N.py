@@ -40,7 +40,8 @@ class PipeFreeConvection_N:
         self.freePipe = freePipe
         
         # Initialize heat ports
-        self.heatPorts_a = HeatPorts_a(N)  # Vector of heat ports
+        self.heatPorts_a = HeatPorts_a()  # Vector of heat ports
+        self.heatPorts_a.set_size(N)  # N개의 포트 생성
         self.heatPort_b = HeatPort_b()  # Single heat port
         
         # State variables

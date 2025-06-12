@@ -9,7 +9,7 @@ class MV_CanopyTranspiration(Element1D):
     This is a Python implementation of Greenhouses.Flows.VapourMassTransfer.MV_CanopyTranspiration
     """
     
-    def __init__(self, A=1.0):
+    def __init__(self, A=1.0, LAI=1.0, CO2_ppm=350.0, R_can=100.0, T_can=300.0):
         """
         Initialize the MV_CanopyTranspiration model
         
@@ -17,6 +17,14 @@ class MV_CanopyTranspiration(Element1D):
         -----------
         A : float
             Floor surface area [m²]
+        LAI : float
+            Leaf Area Index
+        CO2_ppm : float
+            CO2 concentration in ppm of internal air
+        R_can : float
+            Global irradiation above the canopy [W/m²]
+        T_can : float
+            Temperature of the canopy (port a) [K]
         """
         super().__init__()
         
@@ -24,10 +32,10 @@ class MV_CanopyTranspiration(Element1D):
         self.A = A
         
         # Varying inputs
-        self.CO2_ppm = 350.0  # CO2 concentration in ppm of internal air
-        self.LAI = 1.0        # Leaf Area Index
-        self.R_can = 100.0    # Global irradiation above the canopy [W/m²]
-        self.T_can = 300.0    # Temperature of the canopy (port a)
+        self.CO2_ppm = CO2_ppm  # CO2 concentration in ppm of internal air
+        self.LAI = LAI         # Leaf Area Index
+        self.R_can = R_can     # Global irradiation above the canopy [W/m²]
+        self.T_can = T_can     # Temperature of the canopy (port a)
         
         # Constants
         self.gamma = 65.8     # Psychometric constant

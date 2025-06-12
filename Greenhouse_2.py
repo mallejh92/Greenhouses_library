@@ -122,7 +122,7 @@ class Greenhouse_2:
         self.air.RH_out = weather['RH_out'] / 100.0
         self.solar_model.I_glob = weather['I_glob']
         self.illu.switch = weather['ilu_sp']
-        self.illu.compute()
+        self.illu.step()
 
         self.Q_ven_AirOut.u = weather['u_wind']
         self.Q_ven_TopOut.u = weather['u_wind']
@@ -148,16 +148,26 @@ class Greenhouse_2:
         self.canopy.step(dt)
 
         # Floor
-        self.floor.set_inputs(Q_flow=0.0,
-                              R_Flr_Glob=[self.solar_model.R_SunFlr_Glob, self.illu.P_el])
+        self.floor.set_inputs(
+            Q_flow=0.0,
+            R_Flr_Glob=[
+                self.solar_model.R_SunFlr_Glob,
+                getattr(self.illu.R_IluFlr_Glob, "value", 0.0),
+            ],
+        )
         self.floor.step(dt)
 
         # Air
         Q_flow_air = self.cover.Q_flow + self.canopy.Q_flow + self.floor.Q_flow
-        R_Air_Glob = [self.solar_model.R_SunAir_Glob, self.illu.P_el]
-        self.air.set_inputs(Q_flow=Q_flow_air,
-                            R_Air_Glob=R_Air_Glob,
-                            massPort_VP=0.0)
+        R_Air_Glob = [
+            self.solar_model.R_SunAir_Glob,
+            getattr(self.illu.R_IluAir_Glob, "value", 0.0),
+        ]
+        self.air.set_inputs(
+            Q_flow=Q_flow_air,
+            R_Air_Glob=R_Air_Glob,
+            massPort_VP=0.0,
+        )
         self.air.step(dt)
 
         # Pipes and screens

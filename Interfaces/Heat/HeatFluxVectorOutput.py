@@ -1,4 +1,5 @@
 from typing import Optional, Union, List
+import pandas as pd
 from Interfaces.Heat.HeatFluxInput import HeatFlux
 from Interfaces.Heat.HeatFluxVectorInput import HeatFluxVectorInput
 

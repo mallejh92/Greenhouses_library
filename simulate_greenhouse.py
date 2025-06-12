@@ -1,96 +1,362 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from dataclasses import dataclass
+from typing import Dict, List, Optional
+import logging
+from pathlib import Path
+import json
 from Greenhouse_1 import Greenhouse_1
 
-def simulate_greenhouse():
-    # Create greenhouse model (시간 단위가 초이므로 time_unit_scaling=1)
-    greenhouse = Greenhouse_1(time_unit_scaling=1)
+# 로깅 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('greenhouse_simulation.log'),
+        logging.StreamHandler()
+    ]
+)
+
+@dataclass
+class SimulationConfig:
+    """시뮬레이션 설정값을 관리하는 클래스"""
+    dt: float = 3600.0                  # 시간 간격 [s] (1시간)
+    sim_time: float = 24 * 3600.0      # 시뮬레이션 시간 [s] (24시간)
+    time_unit_scaling: float = 1.0     # 시간 단위 스케일링
+    debug_interval: int = 1            # 디버그 출력 간격 (스텝, 1시간마다)
     
-    # Simulation parameters
-    dt = 60                    # Time step [s] (60초)
-    sim_time = 1 * 60 * 60    # 1시간 시뮬레이션
-    n_steps = int(sim_time / dt)
+    def __post_init__(self):
+        """초기화 후 검증"""
+        if self.dt != 3600.0:
+            logging.warning("데이터 입력 파일이 3600초 간격으로 구성되어 있어 dt를 3600초로 강제 설정합니다.")
+            self.dt = 3600.0
+        if self.sim_time % self.dt != 0:
+            logging.warning(f"시뮬레이션 시간({self.sim_time}초)이 dt({self.dt}초)의 배수가 아니어 조정합니다.")
+            self.sim_time = (self.sim_time // self.dt) * self.dt
     
-    # Storage for results
-    times = np.linspace(0, sim_time/3600, n_steps)  # Time in hours [0…24]
-    results = {
-        'T_air':         np.zeros(n_steps),
-        'RH_air':        np.zeros(n_steps),
-        'T_canopy':      np.zeros(n_steps),
-        'T_cover':       np.zeros(n_steps),
-        'T_floor':       np.zeros(n_steps),
-        'q_tot':         np.zeros(n_steps),
-        'E_th_tot_kWhm2':np.zeros(n_steps),
-        'E_el_tot_kWhm2':np.zeros(n_steps),
-        'CO2_air':       np.zeros(n_steps),
-        'SC':            np.zeros(n_steps),
-        'vent_opening':  np.zeros(n_steps),
-        'DM_Har':        np.zeros(n_steps),
-    }
+    @classmethod
+    def from_file(cls, filepath: str) -> 'SimulationConfig':
+        """JSON 파일에서 설정을 로드합니다."""
+        with open(filepath, 'r') as f:
+            config_dict = json.load(f)
+        return cls(**config_dict)
     
-    # Simulation loop
-    for i in range(n_steps):
-        state = greenhouse.step(dt, i)  # 스텝 인덱스 사용
+    def save(self, filepath: str) -> None:
+        """설정을 JSON 파일로 저장합니다."""
+        with open(filepath, 'w') as f:
+            json.dump(self.__dict__, f, indent=4)
+
+class SimulationResults:
+    """시뮬레이션 결과를 관리하는 클래스"""
+    def __init__(self, n_steps: int):
+        self.times = np.linspace(0, 0, n_steps)  # 시간 [h]
+        self.data: Dict[str, np.ndarray] = {
+            'temperatures': {
+                'air': np.zeros(n_steps),
+                'air_top': np.zeros(n_steps),
+                'canopy': np.zeros(n_steps),
+                'cover': np.zeros(n_steps),
+                'floor': np.zeros(n_steps),
+                'screen': np.zeros(n_steps),
+                'pipe_low': np.zeros(n_steps),
+                'pipe_up': np.zeros(n_steps),
+                'soil': np.zeros(n_steps)
+            },
+            'humidity': {
+                'air_rh': np.zeros(n_steps),
+                'air_top_rh': np.zeros(n_steps),
+                'air_vp': np.zeros(n_steps),
+                'air_top_vp': np.zeros(n_steps)
+            },
+            'energy': {
+                'heating': {
+                    'q_low': np.zeros(n_steps),
+                    'q_up': np.zeros(n_steps),
+                    'q_tot': np.zeros(n_steps),
+                    'E_th_tot_kWhm2': np.zeros(n_steps),
+                    'E_th_tot': np.zeros(n_steps)
+                },
+                'electrical': {
+                    'W_el_illu': np.zeros(n_steps),
+                    'W_el_illu_instant': np.zeros(n_steps),
+                    'E_el_tot_kWhm2': np.zeros(n_steps),
+                    'E_el_tot': np.zeros(n_steps)
+                }
+            },
+            'control': {
+                'screen': {
+                    'SC': np.zeros(n_steps),
+                    'SC_usable': np.zeros(n_steps)
+                },
+                'ventilation': {
+                    'U_vents': np.zeros(n_steps),
+                    'f_vent': np.zeros(n_steps)
+                },
+                'heating': {
+                    'Mdot': np.zeros(n_steps),
+                    'T_supply': np.zeros(n_steps)
+                },
+                'co2': {
+                    'CO2_air': np.zeros(n_steps),
+                    'CO2_injection': np.zeros(n_steps)
+                },
+                'illumination': {
+                    'switch': np.zeros(n_steps),
+                    'P_el': np.zeros(n_steps)
+                }
+            },
+            'crop': {
+                'LAI': np.zeros(n_steps),
+                'DM_Har': np.zeros(n_steps),
+                'C_Leaf': np.zeros(n_steps),
+                'C_Stem': np.zeros(n_steps),
+                'R_PAR_can': np.zeros(n_steps),
+                'MC_AirCan': np.zeros(n_steps)
+            }
+        }
+    
+    def update(self, step: int, state: Dict) -> None:
+        """한 스텝의 상태를 결과에 저장합니다."""
+        self.times[step] = state.get('time', 0)
         
-        # Store
-        for key, arr in results.items():
-            arr[i] = state[key]
+        # 온도 데이터 업데이트
+        for key, value in state['temperatures'].items():
+            if key in self.data['temperatures']:
+                self.data['temperatures'][key][step] = value
         
-        # 디버깅 출력 (10 스텝마다)
-        if i % 10 == 0:
-            print(f"\n=== Step {i} | t={times[i]:.2f} h ===")
-            print(f" T_air={state['T_air']:.2f}°C, RH_air={state['RH_air']:.1f}%, CO2={state['CO2_air']:.1f} ppm")
-            print(f" q_tot={state['q_tot']:.1f} W/m², E_th={state['E_th_tot_kWhm2']:.2f} kWh/m², "
-                  f"E_el={state['E_el_tot_kWhm2']:.2f} kWh/m²")
-            print(f" SC={state['SC']:.2f}, vent={state['vent_opening']:.2f}, DM_Har={state['DM_Har']:.2f} mg/m²")
+        # 습도 데이터 업데이트
+        for key, value in state['humidity'].items():
+            if key in self.data['humidity']:
+                self.data['humidity'][key][step] = value
+        
+        # 에너지 데이터 업데이트
+        for category in ['heating', 'electrical']:
+            for key, value in state['energy'][category].items():
+                if key in self.data['energy'][category]:
+                    self.data['energy'][category][key][step] = value
+        
+        # 제어 데이터 업데이트
+        for category in ['screen', 'ventilation', 'heating', 'co2', 'illumination']:
+            for key, value in state['control'][category].items():
+                if key in self.data['control'][category]:
+                    self.data['control'][category][key][step] = value
+        
+        # 작물 데이터 업데이트
+        for key, value in state['crop'].items():
+            if key in self.data['crop']:
+                self.data['crop'][key][step] = value
     
-    # -- Plotting --
-    plt.figure(figsize=(15, 15))
+    def save(self, filepath: str) -> None:
+        """결과를 NPZ 파일로 저장합니다."""
+        save_dict = {'times': self.times}
+        for category, subcategories in self.data.items():
+            if isinstance(subcategories, dict):
+                for subcategory, data in subcategories.items():
+                    if isinstance(data, dict):
+                        for key, array in data.items():
+                            save_dict[f'{category}_{subcategory}_{key}'] = array
+                    else:
+                        save_dict[f'{category}_{subcategory}'] = data
+            else:
+                save_dict[category] = subcategories
+        np.savez(filepath, **save_dict)
     
-    # 1) Temperature
-    plt.subplot(4,2,1)
-    plt.plot(times, results['T_air'],    label='Air')
-    plt.plot(times, results['T_canopy'], label='Canopy')
-    plt.plot(times, results['T_cover'],  label='Cover')
-    plt.plot(times, results['T_floor'],  label='Floor')
-    plt.title('Temperatures'); plt.xlabel('Time [h]'); plt.ylabel('°C')
-    plt.legend(); plt.grid(True)
+    @classmethod
+    def load(cls, filepath: str) -> 'SimulationResults':
+        """NPZ 파일에서 결과를 로드합니다."""
+        data = np.load(filepath)
+        n_steps = len(data['times'])
+        results = cls(n_steps)
+        results.times = data['times']
+        # 데이터 복원 로직 구현 필요
+        return results
+
+def plot_results(results: SimulationResults, save_path: Optional[str] = None) -> None:
+    """시뮬레이션 결과를 시각화합니다."""
+    plt.style.use('seaborn')
+    fig = plt.figure(figsize=(20, 15))
     
-    # 2) Humidity
-    plt.subplot(4,2,2)
-    plt.plot(times, results['RH_air'])
-    plt.title('Air RH'); plt.xlabel('Time [h]'); plt.ylabel('%'); plt.grid(True)
+    # 1. 온도 그래프
+    ax1 = plt.subplot(4, 2, 1)
+    for name, data in results.data['temperatures'].items():
+        if name in ['air', 'canopy', 'cover', 'floor']:
+            ax1.plot(results.times, data, label=name.replace('_', ' ').title())
+    ax1.set_title('온도 변화')
+    ax1.set_xlabel('시간 [h]')
+    ax1.set_ylabel('온도 [°C]')
+    ax1.legend()
+    ax1.grid(True)
     
-    # 3) Heat flux
-    plt.subplot(4,2,3)
-    plt.plot(times, results['q_tot'])
-    plt.title('Total Heat Flux'); plt.xlabel('Time [h]'); plt.ylabel('W/m²'); plt.grid(True)
+    # 2. 습도 그래프
+    ax2 = plt.subplot(4, 2, 2)
+    ax2.plot(results.times, results.data['humidity']['air_rh'], label='실내')
+    ax2.plot(results.times, results.data['humidity']['air_top_rh'], label='상부')
+    ax2.set_title('상대습도 변화')
+    ax2.set_xlabel('시간 [h]')
+    ax2.set_ylabel('상대습도 [%]')
+    ax2.legend()
+    ax2.grid(True)
     
-    # 4) Energy
-    plt.subplot(4,2,4)
-    plt.plot(times, results['E_th_tot_kWhm2'], label='Thermal')
-    plt.plot(times, results['E_el_tot_kWhm2'],  label='Electrical')
-    plt.title('Accumulated Energy'); plt.xlabel('Time [h]'); plt.ylabel('kWh/m²')
-    plt.legend(); plt.grid(True)
+    # 3. 열량 그래프
+    ax3 = plt.subplot(4, 2, 3)
+    ax3.plot(results.times, results.data['energy']['heating']['q_tot'])
+    ax3.set_title('총 열량')
+    ax3.set_xlabel('시간 [h]')
+    ax3.set_ylabel('열량 [W/m²]')
+    ax3.grid(True)
     
-    # 5) CO2
-    plt.subplot(4,2,5)
-    plt.plot(times, results['CO2_air'])
-    plt.title('CO₂ Concentration'); plt.xlabel('Time [h]'); plt.ylabel('ppm'); plt.grid(True)
+    # 4. 에너지 그래프
+    ax4 = plt.subplot(4, 2, 4)
+    ax4.plot(results.times, results.data['energy']['heating']['E_th_tot_kWhm2'], 
+             label='난방')
+    ax4.plot(results.times, results.data['energy']['electrical']['E_el_tot_kWhm2'], 
+             label='전기')
+    ax4.set_title('누적 에너지 사용량')
+    ax4.set_xlabel('시간 [h]')
+    ax4.set_ylabel('에너지 [kWh/m²]')
+    ax4.legend()
+    ax4.grid(True)
     
-    # 6) Control
-    plt.subplot(4,2,6)
-    plt.plot(times, results['SC'],           label='Screen')
-    plt.plot(times, results['vent_opening'], label='Ventilation')
-    plt.title('Control Variables'); plt.xlabel('Time [h]'); plt.ylabel('Opening'); plt.legend(); plt.grid(True)
+    # 5. CO2 그래프
+    ax5 = plt.subplot(4, 2, 5)
+    ax5.plot(results.times, results.data['control']['co2']['CO2_air'])
+    ax5.set_title('CO₂ 농도')
+    ax5.set_xlabel('시간 [h]')
+    ax5.set_ylabel('CO₂ [mg/m³]')
+    ax5.grid(True)
     
-    # 7) Tomato yield
-    plt.subplot(4,2,7)
-    plt.plot(times, results['DM_Har'])
-    plt.title('Tomato Dry Matter'); plt.xlabel('Time [h]'); plt.ylabel('mg/m²'); plt.grid(True)
+    # 6. 제어 그래프
+    ax6 = plt.subplot(4, 2, 6)
+    ax6.plot(results.times, results.data['control']['screen']['SC'], 
+             label='보온 스크린')
+    ax6.plot(results.times, results.data['control']['ventilation']['U_vents'], 
+             label='환기')
+    ax6.set_title('제어 변수')
+    ax6.set_xlabel('시간 [h]')
+    ax6.set_ylabel('개도율 [0-1]')
+    ax6.legend()
+    ax6.grid(True)
+    
+    # 7. 작물 그래프
+    ax7 = plt.subplot(4, 2, 7)
+    ax7.plot(results.times, results.data['crop']['DM_Har'])
+    ax7.set_title('토마토 건물중')
+    ax7.set_xlabel('시간 [h]')
+    ax7.set_ylabel('건물중 [mg/m²]')
+    ax7.grid(True)
+    
+    # 8. 엽면적지수 그래프
+    ax8 = plt.subplot(4, 2, 8)
+    ax8.plot(results.times, results.data['crop']['LAI'])
+    ax8.set_title('엽면적지수')
+    ax8.set_xlabel('시간 [h]')
+    ax8.set_ylabel('LAI [m²/m²]')
+    ax8.grid(True)
     
     plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.show()
 
+def simulate_greenhouse(config: Optional[SimulationConfig] = None) -> SimulationResults:
+    """
+    온실 시뮬레이션을 실행합니다.
+    
+    Args:
+        config: 시뮬레이션 설정값. None인 경우 기본값 사용
+    
+    Returns:
+        SimulationResults: 시뮬레이션 결과
+    
+    Raises:
+        ValueError: 시뮬레이션 중 오류 발생 시
+    """
+    try:
+        # 설정값 로드 또는 기본값 사용
+        if config is None:
+            config = SimulationConfig()
+        
+        # 온실 모델 생성
+        greenhouse = Greenhouse_1(time_unit_scaling=config.time_unit_scaling)
+        n_steps = int(config.sim_time / config.dt)
+        
+        logging.info(f"시뮬레이션 시작: {n_steps}시간 ({n_steps} 스텝)")
+        logging.info(f"시간 간격: {config.dt}초")
+        logging.info(f"총 시뮬레이션 시간: {config.sim_time/3600:.1f}시간")
+        
+        # 결과 저장소 초기화
+        results = SimulationResults(n_steps)
+        
+        # 시뮬레이션 루프
+        for i in range(n_steps):
+            try:
+                # 시뮬레이션 스텝 실행
+                greenhouse.step(config.dt, i)
+                state = greenhouse._get_state()
+                state['time'] = i * config.dt / 3600  # 시간 [h] 추가
+                results.update(i, state)
+                
+                # 디버그 출력 (매 시간마다)
+                if i % config.debug_interval == 0:
+                    logging.info(f"\n=== Step {i} | t={state['time']:.1f} h ===")
+                    logging.info(
+                        f" T_air={state['temperatures']['air']:.2f}°C, "
+                        f"RH_air={state['humidity']['air_rh']:.1f}%, "
+                        f"CO2={state['control']['co2']['CO2_air']:.1f} mg/m³"
+                    )
+                    logging.info(
+                        f" q_tot={state['energy']['heating']['q_tot']:.1f} W/m², "
+                        f"E_th={state['energy']['heating']['E_th_tot_kWhm2']:.2f} kWh/m², "
+                        f"E_el={state['energy']['electrical']['E_el_tot_kWhm2']:.2f} kWh/m²"
+                    )
+                    logging.info(
+                        f" SC={state['control']['screen']['SC']:.2f}, "
+                        f"vent={state['control']['ventilation']['U_vents']:.2f}, "
+                        f"DM_Har={state['crop']['DM_Har']:.2f} mg/m²"
+                    )
+            
+            except Exception as e:
+                logging.error(f"스텝 {i} (t={i*config.dt/3600:.1f}h) 실행 중 오류 발생: {str(e)}")
+                raise
+        
+        logging.info("시뮬레이션 완료")
+        return results
+    
+    except Exception as e:
+        logging.error(f"시뮬레이션 실행 중 오류 발생: {str(e)}")
+        raise
+
+def main():
+    """메인 실행 함수"""
+    try:
+        # 설정 파일 경로
+        config_path = Path('simulation_config.json')
+        
+        # 설정 로드 또는 기본값 사용
+        if config_path.exists():
+            config = SimulationConfig.from_file(str(config_path))
+            logging.info("설정 파일을 로드했습니다.")
+        else:
+            config = SimulationConfig()
+            config.save(str(config_path))
+            logging.info("기본 설정을 사용하고 설정 파일을 저장했습니다.")
+        
+        # 시뮬레이션 실행
+        results = simulate_greenhouse(config)
+        
+        # 결과 저장
+        results_path = Path('simulation_results.npz')
+        results.save(str(results_path))
+        logging.info(f"시뮬레이션 결과를 {results_path}에 저장했습니다.")
+        
+        # 결과 시각화
+        plot_path = Path('simulation_results.png')
+        plot_results(results, str(plot_path))
+        logging.info(f"시뮬레이션 결과 그래프를 {plot_path}에 저장했습니다.")
+        
+    except Exception as e:
+        logging.error(f"프로그램 실행 중 오류 발생: {str(e)}")
+        raise
+
 if __name__ == "__main__":
-    simulate_greenhouse()
+    main()

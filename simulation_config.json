@@ -1,0 +1,6 @@
+{
+    "dt": 60.0,
+    "sim_time": 3600,
+    "time_unit_scaling": 1.0,
+    "debug_interval": 10
+}

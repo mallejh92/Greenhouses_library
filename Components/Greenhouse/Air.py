@@ -195,7 +195,8 @@ class Air:
         self.heatPort.Q_flow = Q_flow
         
         if R_Air_Glob is not None:
-            self.R_Air_Glob.values = [HeatFlux(v) for v in R_Air_Glob]
+            # HeatFluxOutput 객체인 경우 value 속성을 사용
+            self.R_Air_Glob.values = [HeatFlux(v.value if hasattr(v, 'value') else v) for v in R_Air_Glob]
             self.compute_power_input()
             
         if massPort_VP is not None and hasattr(self, 'massPort'):

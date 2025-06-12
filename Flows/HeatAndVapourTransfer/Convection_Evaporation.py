@@ -35,6 +35,10 @@ class Convection_Evaporation(Element1D):
         self.massPort_a = self.MassPort_a
         self.massPort_b = self.MassPort_b
         
+        # Heat transfer ports
+        self.heatPort_a = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
+        self.heatPort_b = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
+        
     def step(self) -> None:
         """
         Update heat and mass flux exchange for one time step
@@ -43,10 +47,10 @@ class Convection_Evaporation(Element1D):
         self.update(
             SC=self.SC,
             MV_AirScr=self.MV_AirScr,
-            T_a=self.HeatPort_a.T,
-            T_b=self.HeatPort_b.T,
-            VP_a=self.MassPort_a.VP,
-            VP_b=self.MassPort_b.VP
+            T_a=self.heatPort_a.T,
+            T_b=self.heatPort_b.T,
+            VP_a=self.massPort_a.VP,
+            VP_b=self.massPort_b.VP
         )
         
     def update(self, SC: float, MV_AirScr: float, T_a: float, T_b: float, VP_a: float, VP_b: float) -> tuple:

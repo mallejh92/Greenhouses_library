@@ -5,16 +5,24 @@ class SinkP:
     Python version of Greenhouses.Flows.FluidFlow.Reservoirs.SinkP
     Pressure sink for fluid flows (e.g., heating water return)
     """
-    def __init__(self, p0=1.01325e5, h=1e5, Medium=None):
+    def __init__(self, p0=1.01325e5, h=1e5):
+        """
+        Initialize pressure sink
+        
+        Parameters:
+            p0 (float): Nominal pressure [Pa]
+            h (float): Nominal specific enthalpy [J/kg]
+        """
         # Parameters
         self.p0 = p0        # Nominal pressure [Pa]
         self.h = h          # Nominal specific enthalpy [J/kg]
-        self.Medium = Medium  # Medium model (optional)
+        
         # Input signals (if None, use parameter)
         self.in_p0 = None
         self.in_h = None
+        
         # Output port
-        self.flangeB = FluidPort_b(Medium=self.Medium, p_start=p0, h_start=h)
+        self.flangeB = FluidPort_b(p_start=p0, h_start=h)
         self.p = p0  # Current pressure
 
     def step(self):

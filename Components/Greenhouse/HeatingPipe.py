@@ -67,7 +67,7 @@ class HeatingPipe:
         # Initialize heat ports as NumPy array of HeatPort_a objects
         self.heatPorts = np.array([HeatPort_a() for _ in range(N)], dtype=object)
         
-        # Connect heat ports to flow model
+        # Connect heat ports to flow model (Modelica의 connect(heatPorts, flow1DimInc.heatPorts_a)와 동일)
         self.flow1DimInc.heatPorts_a = self.heatPorts
     
     def step(self, dt):
@@ -83,6 +83,8 @@ class HeatingPipe:
         self.flow1DimInc.step(dt)
         
         # Update heat port temperatures from flow model's Summary
+        # Modelica에서는 connect(heatPorts, flow1DimInc.heatPorts_a)로 자동 연결되지만,
+        # Python에서는 명시적으로 업데이트해야 함
         for i in range(self.N):
             self.heatPorts[i].T = self.flow1DimInc.Summary.T[i]
     
@@ -97,3 +99,12 @@ class HeatingPipe:
     def get_outlet_temperature(self):
         """Get outlet temperature [K]"""
         return self.flow1DimInc.Summary.T[-1]
+    
+    @property
+    def T(self) -> float:
+        """
+        파이프의 평균 온도를 반환합니다 [K]
+        Modelica에서는 직접적인 평균 온도 계산이 없지만,
+        Python에서는 복사 열전달 계산을 위해 필요
+        """
+        return np.mean([port.T for port in self.heatPorts])

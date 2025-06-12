@@ -73,14 +73,19 @@ class PID:
         
         self.CS = self.CSstart  # 실제 제어 신호 (초기값)
         
-    def compute(self):
+    def step(self, dt: float) -> float:
         """
-        Compute PID control signal
+        PID 제어 신호를 계산합니다.
         
+        Parameters:
+        -----------
+        dt : float
+            시간 간격 [s]
+            
         Returns:
         --------
         float
-            Control signal
+            제어 신호
         """
         # Scaling
         SPs = (self.SP - self.PVmin) / (self.PVmax - self.PVmin)
@@ -93,7 +98,7 @@ class PID:
         if self.Ti > 0:
             track = (self.CSs - self.CSbs) / (self.Kp * self.Ni)
             dI = (SPs - PVs + track) / self.Ti
-            self.I += dI * self.dt
+            self.I += dI * dt
         else:
             self.I = 0
             
@@ -101,7 +106,7 @@ class PID:
         if self.Td > 0:
             # State equation of approximated derivator
             dDx = (self.Nd / self.Td) * ((self.c * SPs - PVs) - self.Dx)
-            self.Dx += dDx * self.dt
+            self.Dx += dDx * dt
             # Output equation of approximated derivator
             D = self.Nd * ((self.c * SPs - PVs) - self.Dx)
         else:

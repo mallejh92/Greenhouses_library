@@ -213,7 +213,7 @@ class SoilConduction:
         return Q_flow
 
     def step(self, dt):
-        Q_flow = self.calculate()
+        self.Q_flow = self.calculate()  # Q_flow를 객체의 속성으로 저장
 
         if not self.steadystate:
             if self.N_c > 1:
@@ -222,4 +222,4 @@ class SoilConduction:
             for layer in self.Layer_s:
                 layer.update(dt)
 
-        return Q_flow
+        return self.Q_flow  # 저장된 Q_flow 반환

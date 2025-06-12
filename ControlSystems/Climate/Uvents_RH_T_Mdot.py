@@ -122,105 +122,115 @@ from ControlSystems.PID import PID
 
 class Uvents_RH_T_Mdot:
     """
-    Controller for window opening based on air humidity and temperature.
-
-    - If RH_air is not externally set, use RH_air_input (0.75).
-    - Humidity PID setpoint = RH_max (0.85).
-    - Two temperature PIDs (with/without humidity).
-    - Blend PID outputs via sigmoid functions of Mdot.
+    환기 제어 시스템 (습도, 온도, 질량유량 기반)
+    습도와 온도를 허용 한계 이하로 유지하기 위한 창문 개폐 제어
     """
-
+    
     def __init__(self):
         # Default inputs if not overridden by connector
-        self.RH_air_input = 0.75    # [-]
-        self.RH_air = None          # will default to RH_air_input
+        self.RH_air_input = 0.75  # 기본 상대습도 입력값
+        self.RH_air = None  # 외부에서 설정된 상대습도 (없으면 RH_air_input 사용)
         
-        self.T_air = 293.15         # [K]
-        self.T_air_sp = 293.15      # [K]
-        self.Mdot = 0.528           # [kg/s]
+        # Varying inputs
+        self.T_air = 293.15  # 공기 온도 [K]
+        self.T_air_sp = 293.15  # 공기 온도 설정값 [K]
+        self.Mdot = 0.528  # 질량 유량 [kg/s]
         
         # Parameters
-        self.RH_max = 0.85          # [-], maximum allowed RH
-        self.Tmax_tomato = 299.15   # [K]
-        self.U_max = 1.0            # [-]
+        self.Tmax_tomato = 299.15  # 토마토 최대 허용 온도 [K]
+        self.U_max = 1.0  # 최대 제어 신호
+        self.RH_max = 0.85  # 최대 허용 상대습도
         
         # PID controllers
         self.PID = PID(
-            Kp=-0.5, Ti=650,
-            PVmin=0.1, PVmax=1.0,
-            CSmin=0.0, CSmax=self.U_max,
-            PVstart=0.5, CSstart=0.5,
-            steadyStateInit=False
-        )
-        self.PIDT = PID(
-            Kp=-0.5, Ti=500,
-            PVmin=12+273.15, PVmax=30+273.15,
-            CSmin=0.0, CSmax=self.U_max,
-            PVstart=0.5, CSstart=0.5,
-            steadyStateInit=False
-        )
-        self.PIDT_noH = PID(
-            Kp=-0.5, Ti=500,
-            PVmin=12+273.15, PVmax=30+273.15,
-            CSmin=0.0, CSmax=self.U_max,
-            PVstart=0.5, CSstart=0.5,
-            steadyStateInit=False
+            Kp=-0.5,
+            Ti=650,
+            Td=0,
+            CSstart=0.5,
+            steadyStateInit=False,
+            CSmin=0,
+            PVmin=0.1,
+            PVmax=1.0,
+            CSmax=self.U_max,
+            PVstart=0.5
         )
         
-        # Control output
-        self.U_vents = 0.0
-
+        self.PIDT = PID(
+            Kp=-0.5,
+            Ti=500,
+            Td=0,
+            CSstart=0.5,
+            steadyStateInit=False,
+            CSmin=0,
+            PVmin=12 + 273.15,
+            PVmax=30 + 273.15,
+            CSmax=self.U_max,
+            PVstart=0.5
+        )
+        
+        self.PIDT_noH = PID(
+            Kp=-0.5,
+            Ti=500,
+            Td=0,
+            CSstart=0.5,
+            steadyStateInit=False,
+            CSmin=0,
+            PVmin=12 + 273.15,
+            PVmax=30 + 273.15,
+            CSmax=self.U_max,
+            PVstart=0.5
+        )
+        
+        # Output signal
+        self.U_vents = 0.0  # 환기 개도율 [0-1]
+        
     @property
     def y(self):
-        """Expose control output as .y to match Modelica interface."""
+        """환기 제어 신호 (0-1)"""
         return self.U_vents
-
-    def compute(self, dt: float):
+        
+    def step(self, dt: float) -> float:
         """
-        Compute vent opening fraction based on RH_air, T_air, T_air_sp, and Mdot.
-
-        Parameters
-        ----------
-        dt : float, optional
-            Time step [s]. If provided, it will be assigned to the internal PID
-            controllers before computing their outputs.
-
-        Returns
-        -------
+        환기 제어 시스템 업데이트
+        
+        Parameters:
+        -----------
+        dt : float
+            Time step [s]
+            
+        Returns:
+        --------
         float
-            Vent opening control fraction between 0 and ``U_max``.
+            Ventilation control signal (0-1)
         """
-        if dt is not None:
-            self.PID.dt = dt
-            self.PIDT.dt = dt
-            self.PIDT_noH.dt = dt
-        # cardinality(RH_air)==0 -> use default input
+        # RH_air가 설정되지 않은 경우 RH_air_input 사용
         rh = self.RH_air_input if self.RH_air is None else self.RH_air
-
-        # Humidity PID
+        
+        # 습도 PID 제어
         self.PID.PV = rh
         self.PID.SP = self.RH_max
-        self.PID.compute()
-
-        # Temperature PID (with humidity)
+        self.PID.step(dt)
+        
+        # 온도 PID 제어 (최대 온도 기준)
         self.PIDT.PV = self.T_air
         self.PIDT.SP = self.Tmax_tomato
-        self.PIDT.compute()
-
-        # Temperature-only PID
+        self.PIDT.step(dt)
+        
+        # 온도 PID 제어 (설정 온도 + 2K 기준)
         self.PIDT_noH.PV = self.T_air
         self.PIDT_noH.SP = self.T_air_sp + 2.0
-        self.PIDT_noH.compute()
-
-        # Stable sigmoid weights
+        self.PIDT_noH.step(dt)
+        
+        # 시그모이드 함수 계산 (질량유량에 따른 가중치)
         x = 200.0 * (self.Mdot - 0.05)
-        x = np.clip(x, -500.0, 500.0)
+        x = np.clip(x, -500.0, 500.0)  # 수치 안정성을 위한 클리핑
         sigmoid1 = 1.0 / (1.0 + np.exp(-x))
-        sigmoid2 = 1.0 / (1.0 + np.exp( x))
-
-        # Blend PID outputs
+        sigmoid2 = 1.0 / (1.0 + np.exp(x))
+        
+        # PID 출력 결합 (Modelica 모델과 동일한 방식)
         self.U_vents = (
-            sigmoid1 * max(self.PID.CS, self.PIDT.CS)
-          + sigmoid2 * max(self.PID.CS, self.PIDT_noH.CS)
+            sigmoid1 * max(self.PID.CS, self.PIDT.CS) +
+            sigmoid2 * max(self.PID.CS, self.PIDT_noH.CS)
         )
+        
         return self.U_vents

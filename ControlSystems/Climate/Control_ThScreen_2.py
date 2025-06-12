@@ -59,27 +59,40 @@ class Control_ThScreen_2:
         self.cl = 1
         self.y = 0
         
-    def update(self, T_out: float, T_air: float, T_air_sp: float, 
-              R_Glob_can: float, RH_air: float, SC_usable: float, dt: float):
+    def step(self, T_out: float, T_air: float, T_air_sp: float, 
+             R_Glob_can: float, RH_air: float, SC_usable: float, dt: float) -> float:
         """
         Update control system state and outputs
         
         Parameters:
-            T_out (float): Outside temperature [K]
-            T_air (float): Air temperature [K]
-            T_air_sp (float): Air temperature setpoint [K]
-            R_Glob_can (float): Global radiation at canopy level [W/m2]
-            RH_air (float): Air relative humidity [0-1]
-            SC_usable (float): Screen usability
-            dt (float): Time step [s]
+        -----------
+        T_out : float
+            Outside temperature [K]
+        T_air : float
+            Air temperature [K]
+        T_air_sp : float
+            Air temperature setpoint [K]
+        R_Glob_can : float
+            Global radiation at canopy level [W/m2]
+        RH_air : float
+            Air relative humidity [0-1]
+        SC_usable : float
+            Screen usability
+        dt : float
+            Time step [s]
+            
+        Returns:
+        --------
+        float
+            Screen control signal (0-1)
         """
         # Update timer
         if self.state in ["opening_ColdDay", "opening_WarmDay", "closing_ColdDay"]:
             self.timer += dt
             
         # Update PID controllers
-        self.PID_crack.update(RH_air, self.RH_air_SP, dt)
-        self.PID_crack_T.update(T_air, T_air_sp + 1.5, dt)
+        self.PID_crack.step(dt)
+        self.PID_crack_T.step(dt)
         
         # State machine logic
         if self.state == "closed":

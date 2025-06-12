@@ -97,12 +97,16 @@ class Convection_Condensation(Element1D):
                 if self.Air_Cov:
                     if not self.topAir:
                         # Exchange main air-cover (with screen)
-                        self.HEC_ab = (1 - self.SC) * 1.7 * max(1e-9, abs(dT))**0.33 * (np.cos(self.phi))**(-0.66)
+                        # 스크린이 닫혀있을 때(SC=1)와 열려있을 때(SC=0)의 대류 열전달을 모두 고려
+                        self.HEC_ab = (1 - self.SC) * 1.7 * max(1e-9, abs(dT))**0.33 * (np.cos(self.phi))**(-0.66) + \
+                                    self.SC * 0.5 * 1.7 * max(1e-9, abs(dT))**0.33 * (np.cos(self.phi))**(-0.66)
                     else:
                         # Exchange top air-cover
+                        # 스크린이 닫혀있을 때만 상부 공기-커버 간 대류 열전달 발생
                         self.HEC_ab = self.SC * 1.7 * max(1e-9, abs(dT))**0.33 * (np.cos(self.phi))**(-0.66)
                 else:
                     # Exchange air-screen
+                    # 스크린이 닫혀있을 때만 공기-스크린 간 대류 열전달 발생
                     self.HEC_ab = self.SC * 1.7 * max(1e-9, abs(dT))**0.33
             else:
                 # Exchange main air-cover (no screen)

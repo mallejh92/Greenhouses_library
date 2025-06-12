@@ -38,10 +38,15 @@ class Control_Illu:
         # Output
         self.illu_signal = 0  # Control signal
         
-    def compute(self):
+    def step(self, dt: float) -> float:
         """
-        Compute control signal based on current state and inputs
+        Update control signal based on current state and inputs
         
+        Parameters:
+        -----------
+        dt : float
+            Time step [s]
+            
         Returns:
         --------
         float
@@ -49,11 +54,11 @@ class Control_Illu:
         """
         # Update timers
         if self.newDay_active:
-            self.timer += 1
+            self.timer += dt
         if self.state == "off_ProvingTime":
-            self.proving_timer += 1
+            self.proving_timer += dt
         if self.state == "on":
-            self.min_on_timer += 1
+            self.min_on_timer += dt
             
         # State machine logic
         if self.state == "off":
@@ -89,7 +94,7 @@ class Control_Illu:
         self.R_PAR_day = self.R_PAR_tot if self.newDay_active else 0
         
         # Update accumulated energy
-        self.E_acc += (self.R_PAR_tot - self.R_PAR_day) / 86400
+        self.E_acc += (self.R_PAR_tot - self.R_PAR_day) * dt / 86400
         
         # Update output
         self.illu_signal = 1 if self.state == "on" else 0

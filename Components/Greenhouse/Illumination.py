@@ -12,6 +12,7 @@ class Illumination:
                  P_el=0.0,
                  A=1.0,
                  p_el=55.0,
+                 LAI=1.0,
                  K1_PAR=0.7,
                  K2_PAR=0.7,
                  K_NIR=0.27,
@@ -24,6 +25,7 @@ class Illumination:
         self.P_el = P_el
         self.A = A
         self.p_el = p_el
+        self.LAI = LAI
         self.K1_PAR = K1_PAR
         self.K2_PAR = K2_PAR
         self.K_NIR = K_NIR
@@ -35,7 +37,6 @@ class Illumination:
 
         # Inputs
         self.switch = 0.0  # Lamp on/off (0 or 1)
-        self.LAI = 1.0     # Leaf Area Index
         
         # Outputs
         self.W_el = 0.0    # Electrical power [W]
@@ -51,7 +52,7 @@ class Illumination:
         rho = rho_Can + tau_Can**2 * rho_Flr / (1 - rho_Can * rho_Flr)
         return tau, rho
 
-    def step(self):
+    def step(self, dt):
         switch = self.switch
 
         # Power per area
