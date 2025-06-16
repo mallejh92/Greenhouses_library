@@ -24,7 +24,7 @@ class TomatoYieldModel:
         self.T_canK = T_canK
 
         # Initial states
-        self.C_Buf = 5000.0  # 버퍼를 적당히 설정
+        self.C_Buf = 0.0  # 버퍼를 적당히 설정
         self.C_Leaf = C_Leaf_0
         self.C_Stem = C_Stem_0
         self.C_Fruit = np.zeros(n_dev)
@@ -35,7 +35,9 @@ class TomatoYieldModel:
         self.W_Fruit_1_Pot = 10.0
 
         # SLA 설정
-        self.SLA = LAI_0 / C_Leaf_0
+        # self.SLA = LAI_0 / C_Leaf_0
+        self.SLA = 2.66e-5
+        
         self.LAI = LAI_0
 
         # Plant density
@@ -95,6 +97,17 @@ class TomatoYieldModel:
         self.eta_C_DM = 1.0
         self.tau = 86400.0
         self.k = 1.0
+
+        # 디버깅용 변수 기록
+        self.debug_history = {
+            'C_Buf': [],
+            'MC_AirBuf': [],
+            'MC_BufLeaf': [],
+            'MC_BufStem': [],
+            'MC_BufFruit': [],
+            'MC_BufAir': [],
+            't': []
+        }
 
     @staticmethod
     def _safe_sigmoid(x, scale=1.0):
@@ -157,6 +170,7 @@ class TomatoYieldModel:
 
             # Update LAI
             LAI = max(0.01, self.SLA * C_Leaf)
+            # LAI = self.SLA * self.C_Leaf
 
             # Plant density
             n_plants = self.calculate_plant_density(t)
@@ -277,10 +291,20 @@ class TomatoYieldModel:
 
             # === LEAF PRUNING ===
             C_Leaf_MAX = self.LAI_MAX / self.SLA
+            LAI_min_threshold = 2.0
+            C_Leaf_min = LAI_min_threshold / self.SLA
+
+            # 내 버전 (if문 사용)
             if C_Leaf > C_Leaf_MAX:
-                MC_LeafHar = self._safe_sigmoid(C_Leaf - C_Leaf_MAX, 5e-5) * (C_Leaf - C_Leaf_MAX)
+                MC_LeafHar_raw = self._safe_sigmoid(C_Leaf - C_Leaf_MAX, 1e-5) * (C_Leaf - C_Leaf_MAX) * 0.1
+                # pruning 양이 C_Leaf - C_Leaf_min을 초과하지 않도록 제한 (odeint에 맞게 dt 사용 X)
+                MC_LeafHar = min(MC_LeafHar_raw, C_Leaf - C_Leaf_min)
+                MC_LeafHar = max(0, MC_LeafHar)
             else:
                 MC_LeafHar = 0
+
+            # Modelica 원본 버전 (항상 계산)
+            # MC_LeafHar = max(0, self._safe_sigmoid(C_Leaf - C_Leaf_MAX, 5e-5) * (C_Leaf - C_Leaf_MAX))
 
             # === DERIVATIVES ===
             
@@ -329,10 +353,18 @@ class TomatoYieldModel:
             dW_Fruit_1_Pot = GR[0] / 86400 if len(GR) > 0 else 0
             dDM_Har = max(0, self.eta_C_DM * MC_FruitHar)
 
-            # # 디버깅 정보 (시뮬레이션 초기에만)
-            # if t < 86400 and t % 3600 < 60:  # 매시간마다
-            #     print(f"t={t/3600:.1f}h: LAI={LAI:.3f}, MC_BufLeaf={MC_BufLeaf:.6f}, MC_LeafAir={MC_LeafAir:.6f}, dC_Leaf={dC_Leaf:.6f}")
-            #     print(f"  h_CBuf={h_CBuf_MCBufOrg:.3f}, h_T24={h_Tcan24:.3f}, g_T24={g_Tcan24:.3f}, MC_AirBuf={MC_AirBuf:.3f}")
+            # === AIR EXCHANGE ===
+            MC_AirCan = MC_AirBuf - MC_BufAir - MC_FruitAir - MC_LeafAir - MC_StemAir
+            MC_AirCan_mgCO2m2s = MC_AirCan / self.M_CH2O * self.M_CO2
+
+            # 디버깅용 기록
+            self.debug_history['C_Buf'].append(C_Buf)
+            self.debug_history['MC_AirBuf'].append(MC_AirBuf)
+            self.debug_history['MC_BufLeaf'].append(MC_BufLeaf)
+            self.debug_history['MC_BufStem'].append(MC_BufStem)
+            self.debug_history['MC_BufFruit'].append(MC_BufFruit)
+            self.debug_history['MC_BufAir'].append(MC_BufAir)
+            self.debug_history['t'].append(t)
 
             return np.concatenate([
                 [dC_Buf, dC_Leaf, dC_Stem],
@@ -395,7 +427,8 @@ class TomatoYieldModel:
                 'T_canSumC': float(self.T_canSumC),
                 'W_Fruit_1_Pot': float(self.W_Fruit_1_Pot),
                 'DM_Har': float(self.DM_Har),
-                'simulation_data': sol
+                'simulation_data': sol,
+                'debug_history': self.debug_history
             }
             
         except Exception as e:
