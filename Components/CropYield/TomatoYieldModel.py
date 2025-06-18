@@ -43,6 +43,9 @@ class TomatoYieldModel:
         # Plant density
         self.n_plants = 2.5
 
+        # CO2 exchange rate (mg/m²/s)
+        self.MC_AirCan_mgCO2m2s = 0.0
+
         # Physical constants
         self.M_CH2O = 30e-3
         self.M_CO2 = 44e-3
@@ -355,7 +358,7 @@ class TomatoYieldModel:
 
             # === AIR EXCHANGE ===
             MC_AirCan = MC_AirBuf - MC_BufAir - MC_FruitAir - MC_LeafAir - MC_StemAir
-            MC_AirCan_mgCO2m2s = MC_AirCan / self.M_CH2O * self.M_CO2
+            self.MC_AirCan_mgCO2m2s = MC_AirCan / self.M_CH2O * self.M_CO2
 
             # 디버깅용 기록
             self.debug_history['C_Buf'].append(C_Buf)
@@ -447,6 +450,10 @@ class TomatoYieldModel:
         ])
         
         dy = self.calculate_derivatives(y, 0)
+        
+        # Update MC_AirCan_mgCO2m2s from the last calculation
+        # This value is calculated in calculate_derivatives method
+        # and stored in self.MC_AirCan_mgCO2m2s
         
         self.C_Buf = max(0, self.C_Buf + dy[0] * dt)
         self.C_Leaf = max(0, self.C_Leaf + dy[1] * dt)
