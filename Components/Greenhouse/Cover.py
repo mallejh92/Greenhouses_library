@@ -66,10 +66,10 @@ class Cover:
         
         # RealExpression for port temperature
         # Modelica: portT(y=T) -> RealExpression with y=T
-        self.portT = RealExpression(y=lambda time: self.T)  # time-dependent expression
+        self.portT = RealExpression(y=T_start)  # Simple value, not lambda
         
         # Connect components
-        self.portT.connect(self.preTem)  # portT.y -> preTem.T
+        self.portT.connect(self.preTem, 'T')  # portT.y -> preTem.T
         self.preTem.connect_port(self.heatPort)  # preTem.port -> heatPort
         self.surfaceVP.port = self.massPort  # surfaceVP.port -> massPort
 
@@ -110,8 +110,7 @@ class Cover:
         self.surfaceVP.T = self.T
         
         # Update RealExpression and propagate changes
-        self.portT.time += dt  # Advance time
-        self.portT.calculate()  # Calculate and propagate new value
+        self.portT.set_expression(self.T)  # Update expression value and propagate
         
         return self.T
 

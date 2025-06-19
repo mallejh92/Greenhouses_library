@@ -1,107 +1,152 @@
 class RealExpression:
     """
-    The (time varying) Real output signal of this block can be defined in its parameter menu via variable y.
-    The purpose is to support the easy definition of Real expressions in a block diagram.
-    For example, in the y-menu the definition "if time < 1 then 0 else 1" can be given in order to define
-    that the output signal is one, if time ≥ 1 and otherwise it is zero.
-    Note, that "time" is a built-in variable that is always accessible and represents the "model time"
-    and that variable y is both a variable and a connector.
+    Modelica.Blocks.Sources.RealExpression의 Python 구현
+    
+    Set output signal to a time varying Real expression
+    
+    The (time varying) Real output signal of this block can be defined in its 
+    parameter menu via variable y. The purpose is to support the easy definition 
+    of Real expressions in a block diagram.
+    
+    Parameters:
+    -----------
+    y : float
+        Value of Real output (both parameter and connector)
+    
+    Attributes:
+    -----------
+    y : float
+        Value of Real output (both parameter and connector)
     """
-    def __init__(self, y=None, time=0.0):
+    
+    def __init__(self, y=0.0):
         """
-        Initialize RealExpression
+        Initialize RealExpression block
         
         Parameters:
         -----------
-        y : callable or float, optional
-            Expression or value for the output signal. If callable, it should take 'time' as an argument.
-            Example: lambda time: 0 if time < 1 else 1
+        y : float
+            Initial value of Real output (both parameter and connector)
+        """
+        self.y = y
+        self._connected_components = []
+    
+    def set_expression(self, y):
+        """
+        Set the expression output value
+        
+        Parameters:
+        -----------
+        y : float
+            New output value
+        """
+        self.y = y
+        # 연결된 컴포넌트들에게 값 전파
+        self._propagate_value()
+    
+    def get_output(self):
+        """
+        Get the current output value
+        
+        Returns:
+        --------
+        float
+            Current output value
+        """
+        return self.y
+    
+    def connect(self, target_component, target_attribute=None):
+        """
+        Connect this RealExpression to another component
+        
+        Parameters:
+        -----------
+        target_component : object
+            Target component to connect to
+        target_attribute : str, optional
+            Target attribute name (default: 'y')
+        """
+        if target_attribute is None:
+            target_attribute = 'y'
+        
+        connection = {
+            'component': target_component,
+            'attribute': target_attribute
+        }
+        
+        if connection not in self._connected_components:
+            self._connected_components.append(connection)
+            # 초기값 전파
+            setattr(target_component, target_attribute, self.y)
+    
+    def disconnect(self, target_component, target_attribute=None):
+        """
+        Disconnect this RealExpression from another component
+        
+        Parameters:
+        -----------
+        target_component : object
+            Target component to disconnect from
+        target_attribute : str, optional
+            Target attribute name (default: 'y')
+        """
+        if target_attribute is None:
+            target_attribute = 'y'
+        
+        connection = {
+            'component': target_component,
+            'attribute': target_attribute
+        }
+        
+        if connection in self._connected_components:
+            self._connected_components.remove(connection)
+    
+    def _propagate_value(self):
+        """연결된 모든 컴포넌트에게 현재 값을 전파"""
+        for connection in self._connected_components:
+            component = connection['component']
+            attribute = connection['attribute']
+            try:
+                setattr(component, attribute, self.y)
+            except AttributeError:
+                # 속성이 없는 경우 무시
+                pass
+    
+    def update(self, time=None, **kwargs):
+        """
+        Update the expression value (for time-varying expressions)
+        
+        Parameters:
+        -----------
         time : float, optional
-            Current simulation time [s]
+            Current simulation time
+        **kwargs : dict
+            Additional parameters for expression evaluation
         """
-        self._y = y if y is not None else 0.0
-        self._time = time
-        self._connected_blocks = []
-
-    @property
-    def y(self):
-        """Get current output value"""
-        if callable(self._y):
-            return self._y(self._time)
-        return self._y
-
-    @y.setter
-    def y(self, value):
-        """Set output expression or value"""
-        self._y = value
-
-    @property
-    def time(self):
-        """Get current simulation time"""
-        return self._time
-
-    @time.setter
-    def time(self, value):
-        """Set current simulation time"""
-        self._time = float(value)
-
-    def connect(self, block):
+        # 기본적으로는 단순히 현재 값을 유지
+        # 시간에 따른 표현식이 필요한 경우 이 메서드를 오버라이드
+        pass
+    
+    def step(self, dt, time=None):
         """
-        Connect this expression to another block
-        
-        Parameters:
-        -----------
-        block : object
-            Block to connect to. The block should have a 'y' attribute or property.
-        """
-        if block not in self._connected_blocks:
-            self._connected_blocks.append(block)
-
-    def calculate(self):
-        """Calculate and propagate the output value to connected blocks"""
-        current_value = self.y
-        for block in self._connected_blocks:
-            if hasattr(block, 'y'):
-                block.y = current_value
-            elif hasattr(block, 'T'):
-                block.T = current_value
-            # Add more connection types as needed
-
-    def step(self, dt):
-        """
-        Advance simulation time and update output
+        Step the expression (for time-varying expressions)
         
         Parameters:
         -----------
         dt : float
-            Time step [s]
+            Time step
+        time : float, optional
+            Current simulation time
         """
-        self._time += dt
-        self.calculate()
-        return self.y
-
-    def set_expression(self, expr):
-        """
-        Set a time-dependent expression
-        
-        Parameters:
-        -----------
-        expr : str or callable
-            Expression as a string or callable function.
-            If string, it will be converted to a lambda function.
-            Example: "if time < 1 then 0 else 1"
-        """
-        if isinstance(expr, str):
-            # Convert string expression to lambda function
-            # Note: This is a simple implementation. For complex expressions,
-            # you might want to use a proper expression parser
-            try:
-                # Replace Modelica-style 'then' with Python 'if'
-                expr = expr.replace('then', 'if').replace('else', 'else:')
-                # Create lambda function
-                self._y = eval(f"lambda time: {expr}")
-            except Exception as e:
-                print(f"Error parsing expression: {e}")
-                raise
-        else:
-            self._y = expr 
+        # 시간에 따른 표현식 업데이트
+        self.update(time=time)
+        # 연결된 컴포넌트들에게 값 전파
+        self._propagate_value()
+    
+    def __str__(self):
+        """String representation of the RealExpression"""
+        return f"RealExpression(y={self.y})"
+    
+    def __repr__(self):
+        """Detailed string representation of the RealExpression"""
+        return f"RealExpression(y={self.y}, connected_to={len(self._connected_components)}_components)" 

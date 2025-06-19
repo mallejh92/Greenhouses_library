@@ -70,9 +70,6 @@ class Canopy:
             self._is_initialized = True  # 초기화 완료 표시
             return 0.0
 
-        # FF 계산을 먼저 수행 (Modelica equation 섹션과 동일)
-        self.FF = 1 - np.exp(-0.94 * self.LAI)
-        
         # R_Can_Glob 처리 (Modelica cardinality 체크와 동일)
         if len(self.R_Can_Glob) == 0:
             self.R_Can_Glob = HeatFluxVectorInput([0.0] * self.N_rad)
@@ -93,6 +90,9 @@ class Canopy:
         - 온도 적분
         - 포트 업데이트
         """
+        # FF 계산을 먼저 수행 (Modelica equation 섹션과 동일)
+        self.FF = 1 - np.exp(-0.94 * self.LAI)
+        
         # 온도 적분 - 큰 변화 억제를 위해 제한 적용
         dTdt = self.compute_derivatives()
         max_dT = 5.0  # 한 스텝당 최대 온도 변화 [K]

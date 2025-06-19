@@ -64,9 +64,13 @@ class Radiation_N:
     
     def _update_REC_ab(self):
         """Update radiation exchange coefficient"""
-        self.REC_ab = (self.epsilon_a * self.epsilon_b * self.FFa * self.FFb * 
-                      (1 - self.FFab1) * (1 - self.FFab2) * 
-                      (1 - self.FFab3) * (1 - self.FFab4) * self.sigma)
+        # View Factor가 0이면 복사 열전달도 0
+        if self.FFa <= 0 or self.FFb <= 0:
+            self.REC_ab = 0.0
+        else:
+            self.REC_ab = (self.epsilon_a * self.epsilon_b * self.FFa * self.FFb * 
+                          (1 - self.FFab1) * (1 - self.FFab2) * 
+                          (1 - self.FFab3) * (1 - self.FFab4) * self.sigma)
     
     def set_heatPorts_a_temperature(self, T):
         """
@@ -91,18 +95,21 @@ class Radiation_N:
         """
         Advance simulation by one time step
         """
-        # Calculate temperature differences to the 4th power
+        # 1) Modelica와 동일하게 REC_ab 매 스텝마다 재계산
+        self._update_REC_ab()
+        
+        # 2) Calculate temperature differences to the 4th power
         for i in range(self.N):
             self.dT4[i] = self.heatPorts_a[i].T**4 - self.port_b.T**4
         
-        # Calculate heat flows for each port
+        # 3) Calculate heat flows for each port (Modelica와 동일: A/N * REC_ab * dT4)
         for i in range(self.N):
             self.heatPorts_a[i].Q_flow = (self.A / self.N) * self.REC_ab * self.dT4[i]
         
-        # Calculate total heat flow
+        # 4) Calculate total heat flow
         self.Q_flow = np.sum([port.Q_flow for port in self.heatPorts_a])
         
-        # Set port_b heat flow (negative of total)
+        # 5) Set port_b heat flow (negative of total)
         self.port_b.Q_flow = -self.Q_flow
 
         return self.Q_flow

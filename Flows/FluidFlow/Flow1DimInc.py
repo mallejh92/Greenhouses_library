@@ -1,6 +1,6 @@
 import numpy as np
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 from Modelica.Fluid.Interfaces.FluidPort_a import FluidPort_a
 from Modelica.Fluid.Interfaces.FluidPort_b import FluidPort_b
 from Interfaces.Heat.ThermalPortConverter import ThermalPortConverter
@@ -9,6 +9,9 @@ from Interfaces.Heat.HeatPorts_a import HeatPorts_a
 from Interfaces.Heat.ThermalPortL import ThermalPortL
 from Flows.FluidFlow.HeatTransfer.MassFlowDependence import MassFlowDependence
 from Modelica.Fluid.Interfaces.FluidPort import Medium
+
+if TYPE_CHECKING:
+    from Modelica.Fluid.Interfaces.FluidPort import Medium as MediumType
 
 @dataclass
 class SummaryClass:
@@ -19,7 +22,7 @@ class SummaryClass:
             self.T_cell = T_cell
     
     def __init__(self, n: int, T_cell: np.ndarray, h: np.ndarray, T: np.ndarray,
-                 hnode: np.ndarray, rho: np.ndarray, Mdot: float, p: float):
+                 hnode: np.ndarray, rho: np.ndarray, Mdot: float, p: float, medium: Optional['MediumType'] = None):
         self.T_profile = self.Arrays(n, T_cell)
         self.n = n
         self.h = h
@@ -28,6 +31,7 @@ class SummaryClass:
         self.rho = rho
         self.Mdot = Mdot
         self.p = p
+        self.Medium = medium or Medium()
 
 @dataclass
 class Cell1DimInc:
@@ -42,12 +46,16 @@ class Cell1DimInc:
     pstart: float   # Fluid pressure start value [Pa]
     hstart: float   # Fluid specific enthalpy start value [J/kg]
     steadystate: bool  # If true, sets the derivative of h to zero during initialization
-    Medium: Medium = Medium()  # Medium model
+    medium: Optional['MediumType'] = None  # Medium model
     
     def __post_init__(self):
+        # Set default Medium if None
+        if self.medium is None:
+            self.medium = Medium()
+            
         # Initialize ports
-        self.InFlow = FluidPort_a(Medium=self.Medium, p_start=self.pstart, h_start=self.hstart)
-        self.OutFlow = FluidPort_b(Medium=self.Medium, p_start=self.pstart, h_start=self.hstart)
+        self.InFlow = FluidPort_a(Medium=self.medium, p_start=self.pstart, h_start=self.hstart)
+        self.OutFlow = FluidPort_b(Medium=self.medium, p_start=self.pstart, h_start=self.hstart)
         self.Wall_int = ThermalPortL()
         
         # Initialize state variables
@@ -83,7 +91,12 @@ class Cell1DimInc:
     @property
     def T(self) -> float:
         """Calculate temperature from enthalpy"""
-        return self.h / self.c_p
+        return (self.h / self.c_p) + 273.15  # 엔탈피를 비열로 나누고 273.15를 더해 켈빈 온도로 변환
+    
+    @property
+    def p(self) -> float:
+        """Get pressure from inlet flow"""
+        return self.InFlow.p
     
     def step(self, dt: float):
         """
@@ -142,7 +155,7 @@ class Flow1DimInc:
     
     def __init__(self, N=10, A=16.18, Nt=1, Mdotnom=0.2588, Unom=1000.0,
                  V=0.03781, pstart=1e5, Tstart_inlet=293.15, Tstart_outlet=283.15,
-                 steadystate=True, Medium=Medium()):
+                 steadystate=True, medium: Optional['MediumType'] = None):
         """
         Initialize flow model
         
@@ -168,9 +181,13 @@ class Flow1DimInc:
             Outlet temperature start value [K]
         steadystate : bool
             If true, sets the derivative of h to zero during initialization
-        Medium : Medium
+        medium : Optional['MediumType']
             Medium model
         """
+        # Set default Medium if None
+        if medium is None:
+            medium = Medium()
+            
         # Parameters
         self.N = N
         self.A = A
@@ -179,7 +196,7 @@ class Flow1DimInc:
         self.Unom = Unom
         self.V = V
         self.steadystate = steadystate
-        self.Medium = Medium
+        self.Medium = medium
         
         # Constants
         self.rho = 1000.0  # Water density [kg/m³]
@@ -203,14 +220,14 @@ class Flow1DimInc:
                 pstart=pstart,
                 hstart=hstart[i],
                 steadystate=steadystate,
-                Medium=Medium
+                medium=medium
             )
             for i in range(N)
         ]
         
         # Initialize ports and converters
-        self.InFlow = FluidPort_a(Medium=Medium, p_start=pstart, h_start=hstart[0])
-        self.OutFlow = FluidPort_b(Medium=Medium, p_start=pstart, h_start=hstart[-1])
+        self.InFlow = FluidPort_a(Medium=medium, p_start=pstart, h_start=hstart[0])
+        self.OutFlow = FluidPort_b(Medium=medium, p_start=pstart, h_start=hstart[-1])
         self.thermalPortConverter = ThermalPortConverter(N)
         self.heatPort_ThermoCycle_Modelica = HeatPortConverter_ThermoCycle_Modelica(N, A, Nt)
         
@@ -232,7 +249,7 @@ class Flow1DimInc:
         self.heatPort_ThermoCycle_Modelica.connect_heat_ports(self.heatPorts_a)
         
         # Initialize node enthalpies
-        self.hnode_ = np.zeros(N+1)
+        self.hnode_ = np.zeros(N+1)  # N+1 크기로 수정
         self.hnode_[0] = hstart[0]
         self.hnode_[1:] = hstart
         
@@ -273,17 +290,20 @@ class Flow1DimInc:
         self.thermalPortConverter.update()
         self.heatPort_ThermoCycle_Modelica.update()
         
-        # Update node enthalpies
-        self.hnode_[1:] = np.array([cell.h for cell in self.Cells])
+        # Update node enthalpies (Modelica와 동일하게)
+        for i in range(self.N):
+            self.hnode_[i+1] = self.Cells[i].hnode_su
+        self.hnode_[self.N] = self.Cells[-1].hnode_ex
         
-        # Calculate total heat flux and mass
+        # Calculate total heat flux and mass (Modelica와 동일하게)
         self.Q_tot = self.A/self.N * sum(cell.heatTransfer.q_dot[0] for cell in self.Cells) * self.Nt
         self.M_tot = self.V/self.N * sum(cell.rho for cell in self.Cells)
         
-        # Update summary
+        # Update summary (Modelica와 동일하게)
         self.Summary.T_cell = np.array([cell.T for cell in self.Cells])
         self.Summary.h = np.array([cell.h for cell in self.Cells])
         self.Summary.T = np.array([cell.T for cell in self.Cells])
         self.Summary.hnode = self.hnode_
         self.Summary.rho = np.array([cell.rho for cell in self.Cells])
-        self.Summary.p = self.Cells[0].InFlow.p
+        self.Summary.Mdot = self.Cells[0].InFlow.m_flow  # InFlow.m_flow 사용
+        self.Summary.p = self.Cells[0].p  # Cells[1].p 사용
