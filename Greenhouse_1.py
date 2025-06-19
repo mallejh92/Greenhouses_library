@@ -640,6 +640,15 @@ class Greenhouse_1:
             epsilon_a=0.84,
             epsilon_b=1.0
         )
+        
+        # 스크린 → 외피 복사 추가 (누락됨)
+        self.Q_rad_ScrCov = Radiation_T4(
+            A=SURFACE_AREA,
+            epsilon_a=1.0,   # 스크린 방사율
+            epsilon_b=0.84,  # 외피 방사율
+            FFa=self.thScreen.FF_i,
+            FFb=1.0
+        )
     
     def _init_control_systems(self) -> None:
         """제어 시스템 초기화"""
@@ -986,6 +995,13 @@ class Greenhouse_1:
         # 외피와 하늘 사이의 복사
         self.Q_rad_CovSky.port_a.T = self.cover.T
         self.Q_rad_CovSky.port_b.T = self.T_sky
+
+        # 바닥 → 스크린 복사 올바른 연결
+        self.Q_rad_FlrScr.port_a.T = self.floor.T      # 바닥 온도
+        self.Q_rad_FlrScr.port_b.T = self.thScreen.T   # 스크린 온도
+
+        self.Q_rad_FlrScr.FFa = 1.0  # 바닥 전체 표면
+        self.Q_rad_FlrScr.FFb = self.thScreen.FF_i  # 스크린 하부면
         
         # 난방 파이프 관련 복사 포트
         self._update_pipe_radiation_ports()
@@ -1177,35 +1193,25 @@ class Greenhouse_1:
         
         # 보온 스크린 열 균형 - 디버깅 추가
         screen_heat_flows = {
-            'Q_cnv_AirScr': self.Q_cnv_AirScr.Q_flow,
-            'Q_cnv_ScrTop': self.Q_cnv_ScrTop.Q_flow,
-            'Q_rad_CanScr': self.Q_rad_CanScr.Q_flow,
-            'Q_rad_LowScr': self.Q_rad_LowScr.Q_flow,
-            'Q_rad_UpScr': self.Q_rad_UpScr.Q_flow,
-            'Q_rad_FlrScr': self.Q_rad_FlrScr.Q_flow 
+            # 유입 (+): 하부 구성요소에서 스크린으로
+            'Q_rad_CanScr': +self.Q_rad_CanScr.Q_flow,    # 작물 → 스크린
+            'Q_rad_LowScr': +self.Q_rad_LowScr.Q_flow,    # 하부파이프 → 스크린  
+            'Q_rad_UpScr': +self.Q_rad_UpScr.Q_flow,      # 상부파이프 → 스크린
+            'Q_rad_FlrScr': +self.Q_rad_FlrScr.Q_flow,    # 바닥 → 스크린
+            'Q_cnv_AirScr': +self.Q_cnv_AirScr.Q_flow,    # 공기 → 스크린 대류
+            
+            # 유출 (-): 스크린에서 상부로  
+            'Q_cnv_ScrTop': -self.Q_cnv_ScrTop.Q_flow,    # 스크린 → 상부공기
+            'Q_rad_ScrCov': -self.Q_rad_ScrCov.Q_flow     # 스크린 → 외피 (추가 필요)
         }
         
         self.thScreen.Q_flow = sum(screen_heat_flows.values())
         
         # 스크린 온도가 비정상적일 때 디버깅 출력
-        if self.thScreen.T < 200 or self.thScreen.T > 400:  # -73°C ~ 127°C 범위
-            print(f"스크린 온도 비정상: {self.thScreen.T - 273.15:.1f}°C")
-            print(f"스크린 열 균형 구성요소:")
+        if abs(self.thScreen.Q_flow) > 10000:  # 10kW 이상
+            print(f"스크린 과도한 열유속 감지: {self.thScreen.Q_flow:.2f} W")
             for name, value in screen_heat_flows.items():
                 print(f"  {name}: {value:.2f} W")
-            print(f"총 열유속: {self.thScreen.Q_flow:.2f} W")
-            print(f"스크린 질량: {self.thScreen.m} kg")
-            print(f"스크린 비열: {self.thScreen.c_p} J/(kg·K)")
-            
-            # 추가 디버깅: 각 열전달 구성 요소의 상세 정보
-            print(f"복사 열전달 상세:")
-            print(f"  Q_rad_LowScr.Q_flow: {self.Q_rad_LowScr.Q_flow:.2f} W")
-            print(f"  Q_rad_UpScr.Q_flow: {self.Q_rad_UpScr.Q_flow:.2f} W")
-            print(f"  Q_rad_CanScr.Q_flow: {self.Q_rad_CanScr.Q_flow:.2f} W")
-            print(f"대류 열전달 상세:")
-            print(f"  Q_cnv_AirScr.Q_flow: {self.Q_cnv_AirScr.Q_flow:.2f} W")
-            print(f"  Q_cnv_ScrTop.Q_flow: {self.Q_cnv_ScrTop.Q_flow:.2f} W")
-            print("---")
     
     def _update_control_systems(self, dt: float, weather: List[float], setpoint: List[float], sc_usable: List[float]) -> None:
         """
