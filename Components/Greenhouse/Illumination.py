@@ -41,6 +41,8 @@ class Illumination:
         # Outputs
         self.W_el = 0.0    # Electrical power [W]
         self.R_PAR_Can_umol = 0.0  # PAR absorbed in canopy (umol/m²/s)
+        self.R_PAR = 0.0   # PAR radiation [W/m²]
+        self.R_NIR = 0.0   # NIR radiation [W/m²]
 
         # Ports
         self.R_IluAir_Glob = HeatFluxOutput(name="R_IluAir_Glob")  # Radiation absorbed by air
@@ -63,6 +65,10 @@ class Illumination:
         R_PAR = 0.25 * P * switch
         R_NIR = 0.17 * P * switch
         R_IluAir_Glob = 0.58 * P * switch
+        
+        # Store radiation components as instance attributes
+        self.R_PAR = R_PAR
+        self.R_NIR = R_NIR
 
         # NIR multilayer model
         tau_Can = np.exp(-self.K_NIR * self.LAI)
@@ -98,6 +104,8 @@ class Illumination:
         self.R_IluFlr_Glob.value = R_IluFlr_Glob
 
         return {
+            "R_PAR": R_PAR,
+            "R_NIR": R_NIR,
             "R_IluAir_Glob": R_IluAir_Glob,
             "R_IluCan_Glob": R_IluCan_Glob,
             "R_IluFlr_Glob": R_IluFlr_Glob,

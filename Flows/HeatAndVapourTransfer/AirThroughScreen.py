@@ -85,7 +85,25 @@ class AirThroughScreen(Element1D):
         self.HeatPort_b.T = T_b
         self.MassPort_a.VP = VP_a
         self.MassPort_b.VP = VP_b
-        self.MassPort_a.P = dP
-        self.MassPort_b.P = dP
         
         return self.Q_flow, self.MV_flow
+    
+    def step(self, dt: float = None):
+        """
+        Update the model state for one time step
+        
+        Parameters:
+            dt (float): Time step [s]. Not used in calculations but included for compatibility.
+            
+        Returns:
+            tuple: (Q_flow, MV_flow) Heat and mass flow rates [W, kg/s]
+        """
+        # Get current port values
+        T_a = self.HeatPort_a.T
+        T_b = self.HeatPort_b.T
+        VP_a = self.MassPort_a.VP
+        VP_b = self.MassPort_b.VP
+        dP = VP_a - VP_b  # Modelica: dP = MassPort_a.VP - MassPort_b.VP
+        
+        # Update heat and mass flux exchange
+        return self.update(T_a, T_b, VP_a, VP_b, dP)

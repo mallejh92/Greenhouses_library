@@ -7,23 +7,33 @@ class Convection_Evaporation(Element1D):
     Mass transfer by evaporation from upper side of the screen to the air at the top compartment.
     """
     
-    def __init__(self, A: float, SC: float = 0.0):
+    def __init__(self, A: float, SC: float = 0.0, phi: float = 0.0, floor: bool = False, 
+                 thermalScreen: bool = False, Air_Cov: bool = False, MV_AirScr: float = 0.0):
         """
         Initialize convection and evaporation model
         
         Parameters:
             A (float): Floor surface [m²]
             SC (float): Screen closure (1:closed, 0:open), default is 0.0
+            phi (float): Angle parameter, default is 0.0
+            floor (bool): Whether this is floor convection, default is False
+            thermalScreen (bool): Whether this involves thermal screen, default is False
+            Air_Cov (bool): Whether this is air-cover convection, default is False
+            MV_AirScr (float): Mass flow rate from the main air zone to the screen [kg/s], default is 0.0
         """
         # Initialize parent class with default values
         super().__init__()
         
         # Parameters
         self.A = A
+        self.phi = phi
+        self.floor = floor
+        self.thermalScreen = thermalScreen
+        self.Air_Cov = Air_Cov
         
         # Input variables
         self.SC = SC  # Screen closure 1:closed, 0:open
-        self.MV_AirScr = 0.0  # Mass flow rate from the main air zone to the screen [kg/s]
+        self.MV_AirScr = MV_AirScr  # Mass flow rate from the main air zone to the screen [kg/s]
         
         # State variables
         self.HEC_ab = 0.0  # Heat exchange coefficient [W/(m²·K)]
@@ -39,9 +49,12 @@ class Convection_Evaporation(Element1D):
         self.heatPort_a = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
         self.heatPort_b = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
         
-    def step(self) -> None:
+    def step(self, dt: float = None) -> None:
         """
         Update heat and mass flux exchange for one time step
+        
+        Parameters:
+            dt (float): Time step [s]. Not used in calculations but included for compatibility.
         """
         # Update heat and mass flux exchange
         self.update(

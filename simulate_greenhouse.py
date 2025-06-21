@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from dataclasses import dataclass
 from typing import Dict, List, Optional
@@ -21,7 +22,7 @@ logging.basicConfig(
 class SimulationConfig:
     """시뮬레이션 설정값을 관리하는 클래스"""
     dt: float = 3600.0                  # 시간 간격 [s] (1시간)
-    sim_time: float = 24 * 3600.0      # 시뮬레이션 시간 [s] (24시간)
+    sim_time: float = 1 * 3600.0       # 시뮬레이션 시간 [s] (1시간으로 수정)
     time_unit_scaling: float = 1.0     # 시간 단위 스케일링
     debug_interval: int = 1            # 디버그 출력 간격 (스텝, 1시간마다)
     
@@ -60,13 +61,18 @@ class SimulationResults:
                 'screen': np.zeros(n_steps),
                 'pipe_low': np.zeros(n_steps),
                 'pipe_up': np.zeros(n_steps),
-                'soil': np.zeros(n_steps)
+                'soil': np.zeros(n_steps),
+                'outdoor': np.zeros(n_steps),
+                'sky': np.zeros(n_steps)
             },
             'humidity': {
                 'air_rh': np.zeros(n_steps),
                 'air_top_rh': np.zeros(n_steps),
                 'air_vp': np.zeros(n_steps),
-                'air_top_vp': np.zeros(n_steps)
+                'air_top_vp': np.zeros(n_steps),
+                'cover_vp': np.zeros(n_steps),
+                'screen_vp': np.zeros(n_steps),
+                'canopy_vp': np.zeros(n_steps)
             },
             'energy': {
                 'heating': {
@@ -173,83 +179,85 @@ class SimulationResults:
 
 def plot_results(results: SimulationResults, save_path: Optional[str] = None) -> None:
     """시뮬레이션 결과를 시각화합니다."""
-    plt.style.use('seaborn')
     fig = plt.figure(figsize=(20, 15))
     
     # 1. 온도 그래프
     ax1 = plt.subplot(4, 2, 1)
     for name, data in results.data['temperatures'].items():
-        if name in ['air', 'canopy', 'cover', 'floor']:
+        if name in ['air', 'canopy', 'cover', 'floor', 'outdoor']:
             ax1.plot(results.times, data, label=name.replace('_', ' ').title())
-    ax1.set_title('온도 변화')
-    ax1.set_xlabel('시간 [h]')
-    ax1.set_ylabel('온도 [°C]')
+    ax1.set_title('Temperature Changes')
+    ax1.set_xlabel('Time [h]')
+    ax1.set_ylabel('Temperature [°C]')
     ax1.legend()
     ax1.grid(True)
     
     # 2. 습도 그래프
     ax2 = plt.subplot(4, 2, 2)
-    ax2.plot(results.times, results.data['humidity']['air_rh'], label='실내')
-    ax2.plot(results.times, results.data['humidity']['air_top_rh'], label='상부')
-    ax2.set_title('상대습도 변화')
-    ax2.set_xlabel('시간 [h]')
-    ax2.set_ylabel('상대습도 [%]')
+    ax2.plot(results.times, results.data['humidity']['air_rh'], label='Indoor')
+    ax2.plot(results.times, results.data['humidity']['air_top_rh'], label='Top')
+    ax2.set_title('Relative Humidity Changes')
+    ax2.set_xlabel('Time [h]')
+    ax2.set_ylabel('Relative Humidity [%]')
     ax2.legend()
     ax2.grid(True)
     
     # 3. 열량 그래프
     ax3 = plt.subplot(4, 2, 3)
-    ax3.plot(results.times, results.data['energy']['heating']['q_tot'])
-    ax3.set_title('총 열량')
-    ax3.set_xlabel('시간 [h]')
-    ax3.set_ylabel('열량 [W/m²]')
+    ax3.plot(results.times, results.data['energy']['heating']['q_tot'], label='Total')
+    ax3.plot(results.times, results.data['energy']['heating']['q_low'], label='Low Pipe')
+    ax3.plot(results.times, results.data['energy']['heating']['q_up'], label='Up Pipe')
+    ax3.set_title('Heat Load')
+    ax3.set_xlabel('Time [h]')
+    ax3.set_ylabel('Heat Load [W/m²]')
+    ax3.legend()
     ax3.grid(True)
     
     # 4. 에너지 그래프
     ax4 = plt.subplot(4, 2, 4)
     ax4.plot(results.times, results.data['energy']['heating']['E_th_tot_kWhm2'], 
-             label='난방')
+             label='Heating')
     ax4.plot(results.times, results.data['energy']['electrical']['E_el_tot_kWhm2'], 
-             label='전기')
-    ax4.set_title('누적 에너지 사용량')
-    ax4.set_xlabel('시간 [h]')
-    ax4.set_ylabel('에너지 [kWh/m²]')
+             label='Electrical')
+    ax4.set_title('Cumulative Energy Consumption')
+    ax4.set_xlabel('Time [h]')
+    ax4.set_ylabel('Energy [kWh/m²]')
     ax4.legend()
     ax4.grid(True)
     
     # 5. CO2 그래프
     ax5 = plt.subplot(4, 2, 5)
     ax5.plot(results.times, results.data['control']['co2']['CO2_air'])
-    ax5.set_title('CO₂ 농도')
-    ax5.set_xlabel('시간 [h]')
+    ax5.set_title('CO₂ Concentration')
+    ax5.set_xlabel('Time [h]')
     ax5.set_ylabel('CO₂ [mg/m³]')
     ax5.grid(True)
     
     # 6. 제어 그래프
     ax6 = plt.subplot(4, 2, 6)
     ax6.plot(results.times, results.data['control']['screen']['SC'], 
-             label='보온 스크린')
+             label='Thermal Screen')
     ax6.plot(results.times, results.data['control']['ventilation']['U_vents'], 
-             label='환기')
-    ax6.set_title('제어 변수')
-    ax6.set_xlabel('시간 [h]')
-    ax6.set_ylabel('개도율 [0-1]')
+             label='Ventilation')
+    ax6.set_title('Control Variables')
+    ax6.set_xlabel('Time [h]')
+    ax6.set_ylabel('Opening Rate [0-1]')
     ax6.legend()
     ax6.grid(True)
     
     # 7. 작물 그래프
     ax7 = plt.subplot(4, 2, 7)
     ax7.plot(results.times, results.data['crop']['DM_Har'])
-    ax7.set_title('토마토 건물중')
-    ax7.set_xlabel('시간 [h]')
-    ax7.set_ylabel('건물중 [mg/m²]')
+    ax7.set_title('Tomato Dry Matter')
+    ax7.set_xlabel('Time [h]')
+    ax7.set_ylabel('Dry Matter [mg/m²]')
     ax7.grid(True)
     
     # 8. 엽면적지수 그래프
     ax8 = plt.subplot(4, 2, 8)
     ax8.plot(results.times, results.data['crop']['LAI'])
-    ax8.set_title('엽면적지수')
-    ax8.set_xlabel('시간 [h]')
+    ax8.set_title('Leaf Area Index')
+    ax8.set_xlabel('Time [h]')
     ax8.set_ylabel('LAI [m²/m²]')
     ax8.grid(True)
     
@@ -301,6 +309,7 @@ def simulate_greenhouse(config: Optional[SimulationConfig] = None) -> Simulation
                     logging.info(f"\n=== Step {i} | t={state['time']:.1f} h ===")
                     logging.info(
                         f" T_air={state['temperatures']['air']:.2f}°C, "
+                        f"T_out={state['temperatures']['outdoor']:.2f}°C, "
                         f"RH_air={state['humidity']['air_rh']:.1f}%, "
                         f"CO2={state['control']['co2']['CO2_air']:.1f} mg/m³"
                     )

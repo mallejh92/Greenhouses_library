@@ -71,11 +71,27 @@ class Canopy:
             return 0.0
 
         # R_Can_Glob 처리 (Modelica cardinality 체크와 동일)
-        if len(self.R_Can_Glob) == 0:
+        if isinstance(self.R_Can_Glob, list):
+            # list인 경우 HeatFluxVectorInput으로 변환
+            self.R_Can_Glob = HeatFluxVectorInput(self.R_Can_Glob)
+        elif len(self.R_Can_Glob) == 0:
             self.R_Can_Glob = HeatFluxVectorInput([0.0] * self.N_rad)
         
         # P_Can 계산 (Modelica equation 섹션과 동일)
-        self.P_Can = sum(v.value for v in self.R_Can_Glob.values) * self.A
+        if hasattr(self.R_Can_Glob, 'get_float_values'):
+            # HeatFluxVectorInput의 경우
+            float_values = self.R_Can_Glob.get_float_values()
+            # 안전하게 float 값으로 변환
+            safe_values = []
+            for v in float_values:
+                if hasattr(v, 'value'):
+                    safe_values.append(v.value)
+                else:
+                    safe_values.append(float(v))
+            self.P_Can = sum(safe_values) * self.A
+        else:
+            # list인 경우 직접 합계 계산
+            self.P_Can = sum(self.R_Can_Glob) * self.A
         
         # L_can 계산 (Modelica equation 섹션과 동일)
         # massPort.MV_flow를 직접 사용 (Modelica와 동일)

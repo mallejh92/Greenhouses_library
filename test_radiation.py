@@ -34,9 +34,9 @@ def test_radiation():
     floor = SimpleComponent(297.15, c_p=1000, m=10.0)     # 바닥 (24°C)
     
     # 복사열 교환 컴포넌트 초기화 (면적을 줄임)
-    rad_CanScr = Radiation_T4(A=0.1, epsilon_a=1.0, epsilon_b=1.0)  # 캔오피-스크린
-    rad_FlrScr = Radiation_T4(A=0.1, epsilon_a=0.89, epsilon_b=1.0) # 바닥-스크린
-    rad_ScrCov = Radiation_T4(A=0.1, epsilon_a=1.0, epsilon_b=0.84) # 스크린-덮개
+    rad_CanScr = Radiation_T4(A=100, epsilon_a=1.0, epsilon_b=1.0)  # 캔오피-스크린
+    rad_FlrScr = Radiation_T4(A=100, epsilon_a=0.89, epsilon_b=1.0) # 바닥-스크린
+    rad_ScrCov = Radiation_T4(A=100, epsilon_a=1.0, epsilon_b=0.84) # 스크린-덮개
     
     # 결과 저장용 배열
     times = np.linspace(0, sim_time/3600, n_steps)  # 시간 [h]

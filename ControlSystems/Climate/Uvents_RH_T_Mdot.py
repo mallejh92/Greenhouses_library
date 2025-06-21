@@ -126,7 +126,7 @@ class Uvents_RH_T_Mdot:
     습도와 온도를 허용 한계 이하로 유지하기 위한 창문 개폐 제어
     """
     
-    def __init__(self):
+    def __init__(self, T_air: float, T_air_sp: float, Mdot: float, RH_air_input: float):
         # Default inputs if not overridden by connector
         self.RH_air_input = 0.75  # 기본 상대습도 입력값
         self.RH_air = None  # 외부에서 설정된 상대습도 (없으면 RH_air_input 사용)

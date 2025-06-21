@@ -45,6 +45,7 @@ class Convection_Condensation(Element1D):
         self.VEC_ab = 0.0  # Mass transfer coefficient [kg/(s.Pa.m2)]
         self.HEC_up_flr = 0.0  # Upward heat exchange coefficient [W/(m2.K)]
         self.HEC_down_flr = 0.0  # Downward heat exchange coefficient [W/(m2.K)]
+        self.MV_flow = 0.0  # Mass flow rate [kg/s]
         
         # Mass transfer ports
         self.MassPort_a = type('MassPort', (), {'VP': 0.0, 'P': 0.0})()
@@ -57,9 +58,12 @@ class Convection_Condensation(Element1D):
         if not hasattr(self, 'heatPort_b'):
             self.heatPort_b = type('HeatPort', (), {'T': 293.15, 'Q_flow': 0.0})()
         
-    def step(self) -> None:
+    def step(self, dt: float = None) -> None:
         """
         Update heat and mass flux exchange for one time step
+        
+        Parameters:
+            dt (float): Time step [s]. Not used in calculations but included for compatibility.
         """
         # Update heat and mass flux exchange
         self.update(

@@ -66,6 +66,28 @@ class Radiation_T4(Element1D):
         
         # Stefan-Boltzmann constant [W/(m²·K⁴)]
         self.sigma = 5.67e-8
+        
+        # Radiation exchange coefficient [W/(m²·K⁴)]
+        self.REC_ab = 0.0
+        
+        # Calculate initial radiation exchange coefficient
+        self._update_REC_ab()
+
+    def _update_REC_ab(self):
+        """
+        Update radiation exchange coefficient based on current view factors.
+        
+        This method recalculates the radiation exchange coefficient (REC_ab)
+        using the current view factor values. It should be called whenever
+        view factors are updated.
+        """
+        # View Factor가 0이면 복사 열전달도 0
+        if self.FFa <= 0 or self.FFb <= 0:
+            self.REC_ab = 0.0
+        else:
+            self.REC_ab = (self.epsilon_a * self.epsilon_b * self.FFa * self.FFb * 
+                          (1 - self.FFab1) * (1 - self.FFab2) * 
+                          (1 - self.FFab3) * (1 - self.FFab4) * self.sigma)
 
     def step(self, dt=None):
         """
@@ -82,9 +104,7 @@ class Radiation_T4(Element1D):
             raise RuntimeError("Both port_a and port_b must be connected before calling step()")
             
         # 1) Modelica와 동일하게 REC_ab 매 스텝마다 재계산
-        REC_ab = (self.epsilon_a * self.epsilon_b * self.FFa * self.FFb * 
-                 (1 - self.FFab1) * (1 - self.FFab2) * 
-                 (1 - self.FFab3) * (1 - self.FFab4) * self.sigma)
+        self._update_REC_ab()
         
         # 2) 현재 포트 온도를 Kelvin으로 읽어 온 뒤
         T_a = self.port_a.T   # <-- 반드시 Kelvin으로 들어와야 함
@@ -95,13 +115,16 @@ class Radiation_T4(Element1D):
             raise ValueError("Temperatures must be positive (in Kelvin)")
         
         # 3) 복사열 계산
-        Q_flow = self.A * REC_ab * (T_a**4 - T_b**4)
+        Q_flow = self.A * self.REC_ab * (T_a**4 - T_b**4)
         
-        # 4) 포트에 반영
+        # 4) 클래스의 Q_flow 속성에 저장 (중요!)
+        self.Q_flow = Q_flow
+        
+        # 5) 포트에 반영
         self.port_a.Q_flow = Q_flow
         self.port_b.Q_flow = -Q_flow
         
-        # 5) Element1D의 update() 호출하여 포트 열유량 업데이트
+        # 6) Element1D의 update() 호출하여 포트 열유량 업데이트
         self.update()
         
         return Q_flow

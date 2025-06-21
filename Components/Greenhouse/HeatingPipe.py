@@ -1,6 +1,8 @@
 import numpy as np
 from Flows.FluidFlow.Flow1DimInc import Flow1DimInc
 from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
+from Modelica.Fluid.Interfaces.FluidPort_a import FluidPort_a
+from Modelica.Fluid.Interfaces.FluidPort_b import FluidPort_b
 
 class HeatingPipe:
     """
@@ -67,8 +69,16 @@ class HeatingPipe:
         # Initialize heat ports as NumPy array of HeatPort_a objects
         self.heatPorts = np.array([HeatPort_a() for _ in range(N)], dtype=object)
         
+        # Initialize fluid ports (Modelica 원본과 동일)
+        self.pipe_in = FluidPort_a()   # 입구 포트
+        self.pipe_out = FluidPort_b()  # 출구 포트
+        
         # Connect heat ports to flow model (Modelica의 connect(heatPorts, flow1DimInc.heatPorts_a)와 동일)
         self.flow1DimInc.heatPorts_a = self.heatPorts
+        
+        # Connect fluid ports to flow model (Modelica의 connect(pipe_in, flow1DimInc.InFlow)와 동일)
+        self.flow1DimInc.InFlow = self.pipe_in
+        self.flow1DimInc.OutFlow = self.pipe_out
     
     def step(self, dt):
         """

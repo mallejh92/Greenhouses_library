@@ -112,3 +112,12 @@ class HeatFluxVectorInput:
     def __getitem__(self, index: int) -> HeatFlux:
         """Get heat flux value at specified index"""
         return self.values[index]
+    
+    def get_float_values(self) -> List[float]:
+        """
+        Get all heat flux values as float list
+        
+        Returns:
+            List[float]: List of heat flux values as floats
+        """
+        return [v.value for v in self.values]

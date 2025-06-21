@@ -27,7 +27,8 @@ class Ventilation(Element1D):
     """
     
     def __init__(self, A: float, thermalScreen: bool = False, topAir: bool = False,
-                 forcedVentilation: bool = False, phi_VentForced: float = 0.0):
+                 forcedVentilation: bool = False, phi_VentForced: float = 0.0,
+                 u: float = 0.0, U_vents: float = 0.0, SC: float = 0.0):
         """
         Ventilation 클래스 초기화
         
@@ -37,6 +38,9 @@ class Ventilation(Element1D):
             topAir: False: 주 공기 구역, True: 상부 공기 구역 (thermalScreen이 True일 때만 사용)
             forcedVentilation: 온실 내 기계 환기 시스템 존재 여부
             phi_VentForced: 기계 환기 시스템의 공기 흐름 용량 [m³/s] (forcedVentilation이 True일 때만 사용)
+            u: 풍속 [m/s] (Modelica: u_wind.y)
+            U_vents: 지붕 창문 개방도 (0~1) (Modelica: U_vents.y)
+            SC: 스크린 폐쇄도 (1: 닫힘, 0: 열림) (Modelica: SC.y)
         """
         super().__init__()
         
@@ -47,10 +51,10 @@ class Ventilation(Element1D):
         self.forcedVentilation = forcedVentilation
         self.phi_VentForced = phi_VentForced
         
-        # 변하는 입력값
-        self.SC = 0.0  # 스크린 폐쇄도 (1: 닫힘, 0: 열림)
-        self.u = 0.0   # 풍속 [m/s]
-        self.U_vents = 0.0  # 지붕 창문 개방도 (0~1)
+        # 변하는 입력값 (Modelica 원본과 일치)
+        self.SC = SC  # 스크린 폐쇄도 (1: 닫힘, 0: 열림)
+        self.u = u    # 풍속 [m/s]
+        self.U_vents = U_vents  # 지붕 창문 개방도 (0~1)
         self.U_VentForced = 0.0  # 강제 환기 제어 (0~1, forcedVentilation이 True일 때만 사용)
         
         # 변수
@@ -180,3 +184,32 @@ class Ventilation(Element1D):
         if not hasattr(self, 'forced_vent'):
             return 0.0
         return self.forced_vent.update(U_VentForced=self.U_VentForced)
+    
+    def step(self, dt: float = None) -> tuple:
+        """
+        환기 시스템 스텝 실행
+        
+        Args:
+            dt: 시간 간격 [s] (사용되지 않지만 호환성을 위해 유지)
+            
+        Returns:
+            tuple: (Q_flow, MV_flow, f_vent_total) - 열 흐름 [W], 수증기 질량 흐름 [kg/s], 총 환기율 [m³/(m²·s)]
+        """
+        # 포트에서 현재 값들을 읽어옴
+        T_a = self.HeatPort_a.T
+        T_b = self.HeatPort_b.T
+        VP_a = self.MassPort_a.VP
+        VP_b = self.MassPort_b.VP
+        
+        # 환기 시스템 상태 업데이트
+        Q_flow, MV_flow = self.update(
+            SC=self.SC,
+            u=self.u,
+            U_vents=self.U_vents,
+            T_a=T_a,
+            T_b=T_b,
+            VP_a=VP_a,
+            VP_b=VP_b
+        )
+        
+        return Q_flow, MV_flow, self.f_vent_total

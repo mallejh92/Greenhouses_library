@@ -42,7 +42,7 @@ class PipeFreeConvection_N:
         # Initialize heat ports
         self.heatPorts_a = HeatPorts_a()  # Vector of heat ports
         self.heatPorts_a.set_size(N)  # N개의 포트 생성
-        self.heatPort_b = HeatPort_b()  # Single heat port
+        self.port_b = HeatPort_b()  # Single heat port
         
         # State variables
         self.HEC_ab = np.zeros(N)  # Heat exchange coefficients
@@ -57,7 +57,7 @@ class PipeFreeConvection_N:
         # Calculate for each pipe
         for i in range(self.N):
             # Calculate temperature difference
-            self.dT[i] = self.heatPorts_a[i].T - self.heatPort_b.T
+            self.dT[i] = self.heatPorts_a.ports[i].T - self.port_b.T
             
             # Calculate convection coefficient
             if self.freePipe:
@@ -69,10 +69,10 @@ class PipeFreeConvection_N:
             self.HEC_ab[i] = self.alpha[i] * np.pi * self.d * self.l * self.N_p / self.A
             
             # Calculate individual heat flow
-            self.heatPorts_a[i].Q_flow = self.A / self.N * self.HEC_ab[i] * self.dT[i]
+            self.heatPorts_a.ports[i].Q_flow = self.A / self.N * self.HEC_ab[i] * self.dT[i]
             
         # Calculate total heat flow
         self.Q_flow = sum(port.Q_flow for port in self.heatPorts_a.ports)
-        self.heatPort_b.Q_flow = -self.Q_flow  # Negative sign as in original Modelica code
+        self.port_b.Q_flow = -self.Q_flow  # Negative sign as in original Modelica code
 
         return self.Q_flow
