@@ -155,7 +155,7 @@ class CombiTimeTable:
         주어진 시간에 대한 데이터 값을 반환
         
         Args:
-            time (float): 조회할 시간
+            time (float): 조회할 시간 또는 인덱스
             interpolate (bool): 선형 보간 사용 여부
             
         Returns:
@@ -163,7 +163,24 @@ class CombiTimeTable:
         """
         if self.data is None or len(self.data) == 0:
             raise RuntimeError("데이터가 로드되지 않았습니다")
+        
+        # time이 정수인 경우 인덱스로 처리
+        if isinstance(time, int) or (isinstance(time, float) and time.is_integer()):
+            idx = int(time)
+            if idx < 0 or idx >= len(self.data):
+                raise ValueError(f"인덱스 {idx}이(가) 데이터 범위를 벗어났습니다")
             
+            result = []
+            for i in self.columns:
+                value = self.data.iloc[idx, i]  # +1 제거 (이미 시간 제외된 컬럼 인덱스)
+                # nan 값 처리
+                if pd.isna(value):
+                    value = 0.0
+                result.append(value)
+            
+            return result[0] if len(result) == 1 else result
+        
+        # time이 float인 경우 시간 기반 보간 처리
         if time < self.data['time'].min() or time > self.data['time'].max():
             raise ValueError(f"시간 {time}이(가) 데이터 범위를 벗어났습니다")
             
@@ -248,36 +265,63 @@ class Greenhouse_1:
         self._init_state_variables()
         
         # 데이터 로더 초기화 (Modelica 원본과 동일)
-        # 1. TMY_and_control: 날씨 데이터 (columns=1:10)
+        # 1. TMY_and_control: 날씨 데이터 (columns=1:9) - 1번째부터 9번째 열까지 (시간 제외)
         self.TMY_and_control = CombiTimeTable(
             fileName=WEATHER_DATA_PATH,
-            columns=list(range(1, 10))  # 1번째부터 9번째 열까지
+            columns=list(range(1, 10))  # 1번째부터 9번째 열까지 (시간 제외)
         )
         
-        # 2. SC_usable: 스크린 사용 가능 시간 (columns=1:2)
+        # 2. SC_usable: 스크린 사용 가능 시간 (columns=1) - 1번째 열만 (시간 제외)
         self.SC_usable = CombiTimeTable(
             fileName=SCREEN_USABLE_PATH,
-            columns=[1]  # 1번째, 2번째 열
+            columns=[1]  # 1번째(스크린사용가능여부) 열만 (시간 제외)
         )
         
-        # 3. SP_new: 설정값 데이터 (columns=1:3)
+        # 3. SP_new: 설정값 데이터 (columns=1:2) - 1번째, 2번째 열 (시간 제외)
         self.SP_new = CombiTimeTable(
             fileName=SETPOINT_DATA_PATH,
-            columns=[1, 2, 3]  # 1번째, 2번째, 3번째 열
+            columns=[1, 2]  # 1번째(온도설정값), 2번째(CO2설정값) 열 (시간 제외)
         )
         
         # 초기 스크린 상태 동기화 (모든 관련 컴포넌트에 SC=1.0 적용)
         self._synchronize_screen_components()
         
+        # 초기 데이터 로드 (첫 번째 스텝의 데이터로 초기화)
+        self._load_initial_data()
+        
         # 초기값 디버깅 출력
         print(f"\n=== Greenhouse_1 초기화 완료 ===")
         print(f"초기 온도:")
         print(f"  - 공기: {self.air.T - 273.15:.2f}°C")
-        print(f"  - 외부: {self.Tout:.2f}°C")
+        print(f"  - 외부: {self.Tout:.2f}°C") 
         print(f"  - 작물: {self.canopy.T - 273.15:.2f}°C")
         print(f"초기 습도: {self.air.RH:.1f}%")
         print(f"초기 CO2: {self.CO2_air.CO2:.1f} mg/m³")
         print(f"초기 스크린: {self.thScreen.SC:.3f}")
+    
+    def _load_initial_data(self) -> None:
+        """초기 데이터를 로드하여 환경 조건을 설정합니다."""
+        try:
+            # 첫 번째 데이터 로드 (인덱스 0)
+            weather = self.TMY_and_control.get_value(0)
+            setpoint = self.SP_new.get_value(0)
+            sc_usable = self.SC_usable.get_value(0)
+            
+            # 환경 조건 설정
+            self._set_environmental_conditions(weather)
+            self._update_setpoints(setpoint)
+            
+            print(f"초기 데이터 로드 완료:")
+            print(f"  - 외부 온도: {self.Tout:.2f}°C")
+            print(f"  - 하늘 온도: {self.Tsky:.2f}°C")
+            print(f"  - 풍속: {self.u_wind:.1f} m/s")
+            print(f"  - 일사량: {self.I_glob:.1f} W/m²")
+            print(f"  - 온도 설정값: {self.Tair_setpoint - 273.15:.1f}°C")
+            print(f"  - CO2 설정값: {self.CO2_SP_var / 1.94:.0f} ppm")
+            
+        except Exception as e:
+            print(f"초기 데이터 로드 실패: {e}")
+            # 기본값 유지
     
     def _init_components(self) -> None:
         """온실 구성 요소 초기화 (Modelica 원본 순서 유지)"""
@@ -784,25 +828,25 @@ class Greenhouse_1:
         외부 환경 조건을 설정합니다.
         
         Args:
-            weather (List[float]): TMY_and_control 데이터 [0온도, 1습도, 2압력, 3일사량, 4풍속, 5하늘온도, 6온도설정값, 7CO2설정값, 8조명, 9추가값]
+            weather (List[float]): TMY_and_control 데이터 [0온도, 1습도, 2압력, 3일사량, 4풍속, 5하늘온도, 6온도설정값, 7CO2설정값, 8조명]
         """
         
-        # 외부 온도 (Modelica: TMY_and_control.y[2])
+        # 외부 온도 (Modelica: TMY_and_control.y[1])
         self.Tout = weather[0]  # Celsius (col_1이 온도)
              
-        # 하늘 온도 (Modelica: TMY_and_control.y[7])
+        # 하늘 온도 (Modelica: TMY_and_control.y[6])
         self.Tsky = weather[5]  # Celsius (col_6이 하늘온도)
         
-        # 풍속 [m/s] (Modelica: TMY_and_control.y[6])
+        # 풍속 [m/s] (Modelica: TMY_and_control.y[5])
         self.u_wind = weather[4]  # col_5가 풍속
         
-        # 일사량 [W/m²] (Modelica: TMY_and_control.y[5])
+        # 일사량 [W/m²] (Modelica: TMY_and_control.y[4])
         self.I_glob = weather[3]  # col_4가 일사량
         
-        # 외부 수증기압 [Pa] (Modelica: TMY_and_control.y[2], TMY_and_control.y[3])
+        # 외부 수증기압 [Pa] (Modelica: TMY_and_control.y[1], TMY_and_control.y[2])
         self.VPout = WaterVapourPressure().calculate(weather[0], weather[1])  # 온도, 습도
         
-        # 조명 ON/OFF 신호 (Modelica: TMY_and_control.y[10])
+        # 조명 ON/OFF 신호 (Modelica: TMY_and_control.y[9])
         self.OnOff = weather[8]  # col_9가 조명
         
         # 태양광 모델 업데이트
@@ -816,13 +860,13 @@ class Greenhouse_1:
         설정값을 업데이트합니다.
         
         Args:
-            setpoint (List[float]): 설정값 데이터 [시간, 온도, CO2, ...]
+            setpoint (List[float]): 설정값 데이터 [0온도설정값, 1CO2설정값]
         """
         # 공기 온도 설정값 [K]
-        self.Tair_setpoint = setpoint[1] + 273.15
+        self.Tair_setpoint = setpoint[0] + 273.15
         
         # CO2 설정값 [mg/m³]
-        self.CO2_SP_var = setpoint[2] * 1.94  # ppm을 mg/m³로 변환
+        self.CO2_SP_var = setpoint[1] * 1.94  # ppm을 mg/m³로 변환
 
     def step(self, dt: float, time_idx: int) -> None:
         """시뮬레이션 스텝 실행"""
@@ -835,9 +879,9 @@ class Greenhouse_1:
             self._debug_step = False
         
         # 현재 시간의 기상 데이터와 설정값 가져오기
-        weather = self.TMY_and_control.get_value(time_idx * dt)
-        setpoint = self.SP_new.get_value(time_idx * dt)
-        sc_usable = self.SC_usable.get_value(time_idx * dt)
+        weather = self.TMY_and_control.get_value(time_idx)
+        setpoint = self.SP_new.get_value(time_idx)
+        sc_usable = self.SC_usable.get_value(time_idx)
         
         # 외부 환경 조건 및 설정값 업데이트
         self._set_environmental_conditions(weather)
@@ -1413,13 +1457,13 @@ class Greenhouse_1:
     def _update_thermal_screen_control(self, weather: List[float], setpoint: List[float], sc_usable: Union[float, List[float]]) -> None:
         """보온 스크린 제어를 업데이트합니다."""
         # 보온 스크린 제어 입력값 업데이트 (Modelica 원본과 일치)
-        self.SC.T_air_sp = setpoint[1] + 273.15  # 온도 설정값 (K)
-        self.SC.Tout_Kelvin = weather[0] + 273.15      # 외부 온도 (K)
+        self.SC.T_air_sp = setpoint[0] + 273.15  # 온도 설정값 (K)
+        self.SC.Tout_Kelvin = weather[1] + 273.15      # 외부 온도 (K)
         self.SC.RH_air = self.air.RH             # 실내 상대습도
         
         # sc_usable이 리스트인지 스칼라인지 확인하여 안전하게 처리
         if isinstance(sc_usable, list):
-            self.SC.SC_usable = sc_usable[0]     # 스크린 사용 가능 시간
+            self.SC.SC_usable = sc_usable[1]     # 스크린 사용 가능 시간 (1번째 열이 실제 값)
         else:
             self.SC.SC_usable = sc_usable         # 스크린 사용 가능 시간 (스칼라 값)
             
@@ -1546,7 +1590,7 @@ class Greenhouse_1:
         """환기 제어 시스템 업데이트"""
         # 환기 제어 입력값 업데이트 (Modelica 원본과 일치)
         self.U_vents.T_air = self.air.T  # 현재 온실 내부 온도
-        self.U_vents.T_air_sp = setpoint[1] + 273.15  # 설정 온도 (K)
+        self.U_vents.T_air_sp = setpoint[0] + 273.15  # 설정 온도 (K)
         self.U_vents.RH_air = self.air.RH  # 현재 상대습도
         self.U_vents.Mdot = self.PID_Mdot.CS  # PID 제어기로부터 계산된 질량 유량
         
@@ -1561,7 +1605,7 @@ class Greenhouse_1:
         """난방 제어를 업데이트합니다."""
         # 난방 PID 제어 입력값 업데이트 (Modelica 원본과 일치)
         self.PID_Mdot.PV = self.air.T                  # 현재 온도
-        self.PID_Mdot.SP = setpoint[1] + 273.15        # 온도 설정값 [K]
+        self.PID_Mdot.SP = setpoint[0] + 273.15        # 온도 설정값 [K]
         
         # 난방 PID 제어 업데이트
         self.PID_Mdot.step(dt=self.dt)
@@ -1573,7 +1617,7 @@ class Greenhouse_1:
         """CO2 제어를 업데이트합니다."""
         # CO2 PID 제어 업데이트 (Modelica 원본과 일치)
         self.PID_CO2.PV = self.CO2_air.CO2           # [mg/m³]
-        self.PID_CO2.SP = setpoint[2] * 1.94         # ppm → mg/m³ 변환
+        self.PID_CO2.SP = setpoint[1] * 1.94         # ppm → mg/m³ 변환
         
         self.PID_CO2.step(dt=self.dt)
         self.MC_AirCan.U_MCext = self.PID_CO2.CS
