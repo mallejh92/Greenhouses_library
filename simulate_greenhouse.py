@@ -22,7 +22,7 @@ logging.basicConfig(
 class SimulationConfig:
     """시뮬레이션 설정값을 관리하는 클래스"""
     dt: float = 3600.0                  # 시간 간격 [s] (1시간)
-    sim_time: float = 1 * 3600.0       # 시뮬레이션 시간 [s] (1시간으로 수정)
+    sim_time: float = 8 * 3600.0       # 시뮬레이션 시간 [s] (8시간으로 수정)
     time_unit_scaling: float = 1.0     # 시간 단위 스케일링
     debug_interval: int = 1            # 디버그 출력 간격 (스텝, 1시간마다)
     

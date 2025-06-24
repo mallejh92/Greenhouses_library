@@ -18,9 +18,9 @@ class ThermalScreen:
         SC : float
             Screen closure [0-1]
         rho : float
-            Material density [kg/m³] - Modelica 원본과 일치: 0.2e3 kg/m³
+            Material density [kg/m³] 
         c_p : float
-            Specific heat capacity [J/(kg·K)] - Modelica 원본과 일치: 1.8e3 J/(kg·K)
+            Specific heat capacity [J/(kg·K)] 
         h : float
             Material thickness [m]
         tau_FIR : float
@@ -30,11 +30,11 @@ class ThermalScreen:
         steadystate : bool
             Whether to use steady state initialization
         """
-        # Parameters (Modelica 원본과 일치)
+        # Parameters 
         self.A = A
         self.SC = SC
-        self.rho = rho  # 0.2e3 kg/m³ (Modelica 원본)
-        self.c_p = c_p  # 1.8e3 J/(kg·K) (Modelica 원본)
+        self.rho = rho  # 0.2e3 kg/m³ 
+        self.c_p = c_p  # 1.8e3 J/(kg·K) 
         self.h = h
         self.tau_FIR = tau_FIR
         self.steadystate = steadystate
@@ -44,16 +44,15 @@ class ThermalScreen:
         self.Q_flow = 0.0  # Heat flow rate [W]
         self.L_scr = 0.0  # Latent heat flow [W]
         
-        # View factors (Modelica 원본과 일치)
+        # View factors
         self.FF_i = SC  # View factor for radiation
         self.FF_ij = SC * (1 - tau_FIR)  # View factor for FIR
                 
-        # Components (Modelica 구조와 동일)
+        # Components 
         self.heatPort = HeatPort_a(T_start=T_start)
         self.massPort = WaterMassPort_a()
         self.surfaceVP = SurfaceVP(T=T_start)
         
-        # Modelica 원본과 동일한 구조 추가
         self.preTem = PrescribedTemperature(T_start=T_start)
         self.portT = RealExpression(y=T_start)
         
@@ -80,8 +79,8 @@ class ThermalScreen:
         self.preTem.connect_port(self.heatPort)  # preTem.port -> heatPort
     
     def step(self, dt):
-        """Update with proper connections (Modelica 원본과 일치)"""
-        # 뷰 팩터 업데이트 (Modelica 원본과 일치)
+        """Update with proper connections"""
+        # 뷰 팩터 업데이트 
         self.FF_i = self.SC
         self.FF_ij = self.SC * (1 - self.tau_FIR)
         
@@ -89,7 +88,7 @@ class ThermalScreen:
         self.surfaceVP.T = self.T
         self.surfaceVP.step(dt)  # SurfaceVP 업데이트
         
-        # 잠열 계산 (Modelica 원본과 일치: 2.45e6 J/kg)
+        # 잠열 계산
         self.L_scr = self.massPort.MV_flow * 2.45e6
         
         if not self.steadystate:
@@ -117,7 +116,7 @@ class ThermalScreen:
             self.T = new_T
             
             # 디버깅 출력
-            print(f"ThermalScreen: T={self.T-273.15:.1f}°C, Q_flow={self.Q_flow:.1f}W, L_scr={self.L_scr:.1f}W, dT_dt={dT_dt:.3f}K/s")
+            # print(f"ThermalScreen: T={self.T-273.15:.1f}°C, Q_flow={self.Q_flow:.1f}W, L_scr={self.L_scr:.1f}W, dT_dt={dT_dt:.3f}K/s")
             
             # Modelica 연결 구조 업데이트
             self.portT.set_expression(self.T)  # Update expression and propagate

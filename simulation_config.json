@@ -1,6 +1,6 @@
 {
-    "dt": 60.0,
-    "sim_time": 3600,
+    "dt": 3600.0,
+    "sim_time": 28800.0,
     "time_unit_scaling": 1.0,
-    "debug_interval": 10
+    "debug_interval": 1
 }

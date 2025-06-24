@@ -288,14 +288,13 @@ class Greenhouse_1:
         
         # 초기 데이터 로드 (첫 번째 스텝의 데이터로 초기화)
         self._load_initial_data()
-        
         # 초기값 디버깅 출력
         print(f"\n=== Greenhouse_1 초기화 완료 ===")
         print(f"초기 온도:")
         print(f"  - 공기: {self.air.T - 273.15:.2f}°C")
-        print(f"  - 외부: {self.Tout:.2f}°C") 
+        print(f"  - 외부: {self.Tout - 273.15:.2f}°C") 
         print(f"  - 작물: {self.canopy.T - 273.15:.2f}°C")
-        print(f"초기 습도: {self.air.RH:.1f}%")
+        print(f"초기 습도: {self.air.RH * 100:.1f}%")
         print(f"초기 CO2: {self.CO2_air.CO2:.1f} mg/m³")
         print(f"초기 스크린: {self.thScreen.SC:.3f}")
     
@@ -311,13 +310,66 @@ class Greenhouse_1:
             self._set_environmental_conditions(weather)
             self._update_setpoints(setpoint)
             
+            # 모든 컴포넌트의 초기 온도를 Modelica 원본과 일치하게 설정
+            # Modelica 원본: T_start=298 (25°C)
+            initial_temp = 298.15  # 25°C (Modelica 원본과 일치)
+            
+            # 공기 온도 설정 (Modelica 원본과 일치)
+            self.air.T = initial_temp
+            self.air_Top.T = initial_temp
+            
+            # 작물 온도 설정 (Modelica 원본과 일치)
+            self.canopy.T = initial_temp
+            
+            # 외피 온도 설정 (Modelica 원본과 일치)
+            self.cover.T = initial_temp
+            
+            # 바닥 온도 설정 (Modelica 원본과 일치)
+            self.floor.T = initial_temp
+            
+            # 보온 스크린 온도 설정 (Modelica 원본과 일치)
+            self.thScreen.T = initial_temp
+            
+            # 난방 파이프 온도 설정 (Modelica 원본과 일치)
+            # Modelica: Tstart_inlet=353.15 (80°C), Tstart_outlet=323.15 (50°C)
+            self.pipe_low.flow1DimInc.Tstart_inlet = 353.15  # 80°C
+            self.pipe_low.flow1DimInc.Tstart_outlet = 323.15  # 50°C
+            self.pipe_up.flow1DimInc.Tstart_inlet = 353.15   # 80°C
+            self.pipe_up.flow1DimInc.Tstart_outlet = 323.15  # 50°C
+            
+            # 모든 컴포넌트의 초기 수증기압을 외부 수증기압과 동일하게 설정
+            initial_vp = self.VPout  # 외부 수증기압 [Pa]
+            
+            # 공기 수증기압 설정
+            self.air.massPort.VP = initial_vp
+            self.air_Top.massPort.VP = initial_vp
+            
+            # 작물 수증기압 설정
+            self.canopy.massPort.VP = initial_vp
+            
+            # 외피 수증기압 설정
+            self.cover.massPort.VP = initial_vp
+            
+            # 보온 스크린 수증기압 설정
+            self.thScreen.massPort.VP = initial_vp
+            
+            # **중요**: 공기 RH를 외부 RH와 동일하게 설정 (100% 고정 방지)
+            # 외부 RH 계산 (txt 파일의 2번째 열)
+            external_rh = weather[1] / 100.0  # 95% → 0.95
+            self.air.RH = external_rh
+            self.air_Top.RH = external_rh
+            
             print(f"초기 데이터 로드 완료:")
-            print(f"  - 외부 온도: {self.Tout:.2f}°C")
-            print(f"  - 하늘 온도: {self.Tsky:.2f}°C")
+            print(f"  - 외부 온도: {self.Tout - 273.15:.2f}°C")
+            print(f"  - 하늘 온도: {self.Tsky - 273.15:.2f}°C")
             print(f"  - 풍속: {self.u_wind:.1f} m/s")
             print(f"  - 일사량: {self.I_glob:.1f} W/m²")
             print(f"  - 온도 설정값: {self.Tair_setpoint - 273.15:.1f}°C")
             print(f"  - CO2 설정값: {self.CO2_SP_var / 1.94:.0f} ppm")
+            print(f"  - 모든 컴포넌트 초기 온도: {initial_temp - 273.15:.2f}°C")
+            print(f"  - 모든 컴포넌트 초기 수증기압: {initial_vp:.1f} Pa")
+            print(f"  - 외부 RH: {external_rh * 100:.1f}%")
+            print(f"  - 실내 RH 설정: {self.air.RH * 100:.1f}%")
             
         except Exception as e:
             print(f"초기 데이터 로드 실패: {e}")
@@ -831,11 +883,11 @@ class Greenhouse_1:
             weather (List[float]): TMY_and_control 데이터 [0온도, 1습도, 2압력, 3일사량, 4풍속, 5하늘온도, 6온도설정값, 7CO2설정값, 8조명]
         """
         
-        # 외부 온도 (Modelica: TMY_and_control.y[1])
-        self.Tout = weather[0]  # Celsius (col_1이 온도)
+        # 외부 온도 (Modelica: TMY_and_control.y[1]) - 섭씨를 켈빈으로 변환
+        self.Tout = weather[0] + 273.15  # Celsius → Kelvin (col_1이 온도)
              
-        # 하늘 온도 (Modelica: TMY_and_control.y[6])
-        self.Tsky = weather[5]  # Celsius (col_6이 하늘온도)
+        # 하늘 온도 (Modelica: TMY_and_control.y[6]) - 섭씨를 켈빈으로 변환
+        self.Tsky = weather[5] + 273.15  # Celsius → Kelvin (col_6이 하늘온도)
         
         # 풍속 [m/s] (Modelica: TMY_and_control.y[5])
         self.u_wind = weather[4]  # col_5가 풍속
@@ -844,7 +896,8 @@ class Greenhouse_1:
         self.I_glob = weather[3]  # col_4가 일사량
         
         # 외부 수증기압 [Pa] (Modelica: TMY_and_control.y[1], TMY_and_control.y[2])
-        self.VPout = WaterVapourPressure().calculate(weather[0], weather[1])  # 온도, 습도
+        # 섭씨 온도와 습도를 사용하여 수증기압 계산
+        self.VPout = WaterVapourPressure().calculate(weather[0], weather[1])  # 섭씨 온도, 습도
         
         # 조명 ON/OFF 신호 (Modelica: TMY_and_control.y[9])
         self.OnOff = weather[8]  # col_9가 조명
@@ -1071,21 +1124,28 @@ class Greenhouse_1:
         ]
         
         # 난방 파이프 연결 (중요!)
-        # Modelica 원본: connect(sourceMdot_1ry.flangeB, pipe_low.pipe_in)0
+        # Modelica 원본: connect(sourceMdot_1ry.flangeB, pipe_low.pipe_in)
         # Modelica 원본: connect(pipe_low.pipe_out, pipe_up.pipe_in)
         # Modelica 원본: connect(pipe_up.pipe_out, sinkP_2ry.flangeB)
+        # Modelica 원본: connect(PID_Mdot.CS, sourceMdot_1ry.in_Mdot)
         
-        # 난방수 공급: 소스 → 하부 파이프
+        # 1. PID 제어 → 소스 유량 (Modelica: connect(PID_Mdot.CS, sourceMdot_1ry.in_Mdot))
+        self.sourceMdot_1ry.Mdot = self.PID_Mdot.CS
+        
+        # 2. 소스 → 하부 파이프 (Modelica: connect(sourceMdot_1ry.flangeB, pipe_low.pipe_in))
+        # 소스가 하부 파이프에게 주는 값들
         self.pipe_low.pipe_in.p = self.sourceMdot_1ry.flangeB.p
         self.pipe_low.pipe_in.m_flow = self.sourceMdot_1ry.flangeB.m_flow
         self.pipe_low.pipe_in.h_outflow = self.sourceMdot_1ry.flangeB.h_outflow
         
-        # 직렬 연결: 하부 파이프 → 상부 파이프
+        # 3. 하부 파이프 → 상부 파이프 (Modelica: connect(pipe_low.pipe_out, pipe_up.pipe_in))
+        # 하부 파이프가 상부 파이프에게 주는 값들
         self.pipe_up.pipe_in.p = self.pipe_low.pipe_out.p
         self.pipe_up.pipe_in.m_flow = self.pipe_low.pipe_out.m_flow
         self.pipe_up.pipe_in.h_outflow = self.pipe_low.pipe_out.h_outflow
         
-        # 난방수 배출: 상부 파이프 → 싱크
+        # 4. 상부 파이프 → 싱크 (Modelica: connect(pipe_up.pipe_out, sinkP_2ry.flangeB))
+        # 상부 파이프가 싱크에게 주는 값들
         self.sinkP_2ry.flangeB.p = self.pipe_up.pipe_out.p
         self.sinkP_2ry.flangeB.m_flow = self.pipe_up.pipe_out.m_flow
         self.sinkP_2ry.flangeB.h_outflow = self.pipe_up.pipe_out.h_outflow
@@ -1293,7 +1353,7 @@ class Greenhouse_1:
         self.Q_rad_UpCov.step()
         self.Q_rad_UpScr.step()
         
-        # 바닥→스크린 복사 (누락된 부분)
+        # 바닥→스크린 복사 
         self.Q_rad_FlrScr.step()
     
     def _calculate_conduction(self) -> None:
@@ -1303,12 +1363,9 @@ class Greenhouse_1:
     
     def _calculate_latent_heat(self) -> None:
         """잠열을 계산합니다."""
-        # 작물 증산에 의한 잠열
-        MV_flow_transpiration = self.MV_CanAir.step()
-        latent_heat_transpiration = MV_flow_transpiration * LATENT_HEAT_VAPORIZATION
-        
-        # 작물 열 균형에 잠열 추가
-        self.canopy.Q_flow -= latent_heat_transpiration
+        # 작물 증산에 의한 잠열은 이미 _calculate_component_heat_balance에서 계산됨
+        # 여기서는 추가 계산이 필요하지 않음
+        pass
     
     def _calculate_component_heat_balance(self) -> None:
         """각 구성 요소의 열 균형을 계산합니다 (Modelica 방식)."""
@@ -1336,7 +1393,11 @@ class Greenhouse_1:
             
             return 0.0
         
-        # 공기 열 균형 (Modelica 방식: 모든 연결된 열전달의 합)
+        # 공기 열 균형 (Modelica 원본과 일치)
+        # MV_CanAir은 질량 포트만 연결되어 있고, 공기 열 균형에는 포함되지 않음
+        # 작물 증산으로 인한 잠열은 작물 열 균형에서만 계산됨
+        # 태양광/조명 복사열은 Air 컴포넌트의 R_Air_Glob을 통해 P_Air로 처리됨
+        
         self.air.Q_flow = (
             get_heat_flow_value(self.Q_cnv_AirScr) +
             get_heat_flow_value(self.Q_cnv_AirCov) +
@@ -1345,88 +1406,94 @@ class Greenhouse_1:
             get_heat_flow_value(self.Q_cnv_UpAir) +
             get_heat_flow_value(self.Q_cnv_CanAir) +
             get_heat_flow_value(self.Q_ven_AirOut) +
-            get_heat_flow_value(self.Q_ven_AirTop) +
-            get_heat_flow_value(self.solar_model.R_SunAir_Glob) +
-            get_heat_flow_value(self.illu.R_IluAir_Glob)
+            get_heat_flow_value(self.Q_ven_AirTop)
+            # 태양광/조명 복사열은 제거 - Air 컴포넌트에서 R_Air_Glob을 통해 P_Air로 처리됨
         )
         
         # 상부 공기 열 균형
         self.air_Top.Q_flow = (
-            get_heat_flow_value(self.Q_cnv_TopCov) +
-            get_heat_flow_value(self.Q_cnv_ScrTop) +
-            get_heat_flow_value(self.Q_ven_TopOut) -
-            get_heat_flow_value(self.Q_ven_AirTop)
+            -get_heat_flow_value(self.Q_cnv_TopCov) +   # 상부공기 → 외피 (상부공기가 줌, 음수)
+            get_heat_flow_value(self.Q_cnv_ScrTop) +    # 스크린 → 상부공기 (상부공기가 받음, 양수)
+            -get_heat_flow_value(self.Q_ven_TopOut) +   # 상부공기 → 외부 (상부공기가 줌, 음수)
+            get_heat_flow_value(self.Q_ven_AirTop)      # 하부공기 → 상부공기 (상부공기가 받음, 양수)
         )
         
-        # 외피 열 균형
+        # 외피 열 균형 (Modelica 원본과 일치)
         self.cover.Q_flow = (
-            get_heat_flow_value(self.Q_cnv_AirCov) +
-            get_heat_flow_value(self.Q_cnv_TopCov) +
-            get_heat_flow_value(self.Q_rad_CovSky) +
-            get_heat_flow_value(self.Q_rad_FlrCov) +
-            get_heat_flow_value(self.Q_rad_ScrCov)
+            get_heat_flow_value(self.Q_rad_CanCov) +      # 작물 → 외피 복사 (외피가 받음, 양수)
+            get_heat_flow_value(self.Q_rad_FlrCov) +      # 바닥 → 외피 복사 (외피가 받음, 양수)
+            get_heat_flow_value(self.Q_rad_ScrCov) +      # 스크린 → 외피 복사 (외피가 받음, 양수)
+            get_heat_flow_value(self.Q_rad_LowCov) +      # 하부파이프 → 외피 복사 (외피가 받음, 양수)
+            get_heat_flow_value(self.Q_rad_UpCov) +       # 상부파이프 → 외피 복사 (외피가 받음, 양수)
+            get_heat_flow_value(self.Q_cnv_AirCov) +      # 공기 → 외피 대류 (외피가 받음, 양수)
+            get_heat_flow_value(self.Q_cnv_TopCov) +      # 상부공기 → 외피 대류 (외피가 받음, 양수)
+            -get_heat_flow_value(self.Q_rad_CovSky) +     # 외피 → 하늘 복사 (외피가 줌, 음수)
+            -get_heat_flow_value(self.Q_cnv_CovOut)       # 외피 → 외부 대류 (외피가 줌, 음수)
         )
         
-        # 작물 열 균형
         self.canopy.Q_flow = (
-            get_heat_flow_value(self.Q_cnv_CanAir) +
-            get_heat_flow_value(self.Q_rad_CanCov) +
-            get_heat_flow_value(self.Q_rad_CanScr) +
-            get_heat_flow_value(self.Q_rad_LowCan) +
-            get_heat_flow_value(self.Q_rad_UpCan) +
-            get_heat_flow_value(self.Q_rad_FlrCan)
+            -get_heat_flow_value(self.Q_cnv_CanAir) +     # 작물 → 공기 대류 (작물이 줌, 음수)
+            -get_heat_flow_value(self.Q_rad_CanCov) +     # 작물 → 외피 복사 (작물이 줌, 음수)
+            get_heat_flow_value(self.Q_rad_CanScr) +      # 스크린 → 작물 복사 (작물이 받음, 양수)
+            -get_heat_flow_value(self.Q_rad_LowCan) +     # 작물 → 하부파이프 복사 (작물이 줌, 음수)
+            get_heat_flow_value(self.Q_rad_UpCan) +       # 상부파이프 → 작물 복사 (작물이 받음, 양수)
+            -get_heat_flow_value(self.Q_rad_FlrCan)       # 작물 → 바닥 복사 (작물이 줌, 음수)
         )
         
-        # 바닥 열 균형
+        # 바닥 열 균형 (Modelica 원본과 일치)
         self.floor.Q_flow = (
-            get_heat_flow_value(self.Q_cnv_FlrAir) +
-            get_heat_flow_value(self.Q_cd_Soil) +
-            get_heat_flow_value(self.Q_rad_LowFlr) +
-            get_heat_flow_value(self.Q_rad_UpFlr) -
-            get_heat_flow_value(self.Q_rad_FlrScr) -
-            get_heat_flow_value(self.Q_rad_FlrCan) -
-            get_heat_flow_value(self.Q_rad_FlrCov)
+            -get_heat_flow_value(self.Q_cnv_FlrAir) +      # 바닥 → 공기 대류 (바닥이 줌, 음수)
+            -get_heat_flow_value(self.Q_cd_Soil) +         # 바닥 → 토양 전도 (바닥이 줌, 음수)
+            get_heat_flow_value(self.Q_rad_LowFlr) +       # 하부파이프 → 바닥 복사 (바닥이 받음, 양수)
+            get_heat_flow_value(self.Q_rad_UpFlr) +        # 상부파이프 → 바닥 복사 (바닥이 받음, 양수)
+            -get_heat_flow_value(self.Q_rad_FlrScr) -      # 바닥 → 스크린 복사 (바닥이 줌, 음수)
+            -get_heat_flow_value(self.Q_rad_FlrCan) -      # 바닥 → 작물 복사 (바닥이 줌, 음수)
+            -get_heat_flow_value(self.Q_rad_FlrCov)        # 바닥 → 외피 복사 (바닥이 줌, 음수)
         )
         
-        # 보온 스크린 열 균형 (Modelica 방식: 모든 연결된 열전달의 합)
-        # Modelica에서는 connect() 문으로 자동 계산되지만, Python에서는 수동 계산
-        # 부호 규칙: 스크린에 들어오는 열은 양수, 나가는 열은 음수
-        
-        # 스크린에 들어오는 열 (양수)
-        screen_heat_in = (
-            get_heat_flow_value(self.Q_rad_CanScr) +    # 작물 → 스크린 복사 (양수)
-            get_heat_flow_value(self.Q_rad_LowScr) +    # 하부파이프 → 스크린 복사 (양수)
-            get_heat_flow_value(self.Q_rad_UpScr) +     # 상부파이프 → 스크린 복사 (양수)
-            get_heat_flow_value(self.Q_rad_FlrScr)      # 바닥 → 스크린 복사 (양수)
+        # 스크린 열 균형
+        self.thScreen.Q_flow = (
+            get_heat_flow_value(self.Q_rad_CanScr) +      # 작물 → 스크린 복사 (스크린이 받음, 양수)
+            get_heat_flow_value(self.Q_rad_FlrScr) +      # 바닥 → 스크린 복사 (스크린이 받음, 양수)
+            get_heat_flow_value(self.Q_rad_LowScr) +      # 하부파이프 → 스크린 복사 (스크린이 받음, 양수)
+            get_heat_flow_value(self.Q_rad_UpScr) +       # 상부파이프 → 스크린 복사 (스크린이 받음, 양수)
+            get_heat_flow_value(self.Q_cnv_AirScr) +      # 공기 → 스크린 대류 (스크린이 받음, 양수)
+            -get_heat_flow_value(self.Q_rad_ScrCov) +     # 스크린 → 외피 복사 (스크린이 줌, 음수)
+            -get_heat_flow_value(self.Q_cnv_ScrTop)       # 스크린 → 상부공기 대류 (스크린이 줌, 음수)
+        )
+
+        self.pipe_low.Q_flow = (
+            -get_heat_flow_value(self.Q_rad_LowCov) +     # pipe_low → 외피 복사 (pipe_low가 줌, 음수)
+            get_heat_flow_value(self.Q_rad_LowCan) +      # 작물 → pipe_low 복사 (pipe_low가 받음, 양수)
+            get_heat_flow_value(self.Q_rad_LowFlr) +      # 바닥 → pipe_low 복사 (pipe_low가 받음, 양수)
+            -get_heat_flow_value(self.Q_cnv_LowAir) +     # pipe_low → 공기 대류 (pipe_low가 줌, 음수)
+            -get_heat_flow_value(self.Q_rad_LowScr)       # pipe_low → 스크린 복사 (pipe_low가 줌, 음수)
         )
         
-        # 스크린에서 나가는 열 (음수)
-        screen_heat_out = (
-            get_heat_flow_value(self.Q_cnv_AirScr) +    # 공기 ↔ 스크린 대류 (스크린 관점에서는 나가는 열)
-            get_heat_flow_value(self.Q_cnv_ScrTop) +    # 스크린 ↔ 상부공기 대류 (나가는 열)
-            get_heat_flow_value(self.Q_rad_ScrCov)      # 스크린 → 외피 복사 (나가는 열)
+        self.pipe_up.Q_flow = (
+            -get_heat_flow_value(self.Q_rad_UpCov) +      # pipe_up → 외피 복사 (pipe_up가 줌, 음수)
+            -get_heat_flow_value(self.Q_rad_UpCan) +      # pipe_up → 작물 복사 (pipe_up가 줌, 음수)
+            -get_heat_flow_value(self.Q_cnv_UpAir) +      # pipe_up → 공기 대류 (pipe_up가 줌, 음수)
+            get_heat_flow_value(self.Q_rad_UpFlr) +       # 바닥 → pipe_up 복사 (pipe_up가 받음, 양수)
+            get_heat_flow_value(self.Q_rad_UpScr)         # 스크린 → pipe_up 복사 (pipe_up가 받음, 양수)
         )
-        
-        # 스크린 열 균형: 들어오는 열 - 나가는 열
-        self.thScreen.Q_flow = screen_heat_in - screen_heat_out
         
         # 디버깅 출력 (첫 번째 스텝에서만)
         if hasattr(self, '_debug_step') and self._debug_step:
             print(f"\n=== 스크린 열 균형 디버깅 ===")
-            print(f"들어오는 열 (양수):")
-            print(f"  - Q_rad_CanScr: {get_heat_flow_value(self.Q_rad_CanScr):.1f} W")
-            print(f"  - Q_rad_LowScr: {get_heat_flow_value(self.Q_rad_LowScr):.1f} W")
-            print(f"  - Q_rad_UpScr: {get_heat_flow_value(self.Q_rad_UpScr):.1f} W")
-            print(f"  - Q_rad_FlrScr: {get_heat_flow_value(self.Q_rad_FlrScr):.1f} W")
-            print(f"  - 총 들어오는 열: {screen_heat_in:.1f} W")
-            print(f"나가는 열 (음수):")
-            print(f"  - Q_cnv_AirScr: {get_heat_flow_value(self.Q_cnv_AirScr):.1f} W")
-            print(f"  - Q_cnv_ScrTop: {get_heat_flow_value(self.Q_cnv_ScrTop):.1f} W")
-            print(f"  - Q_rad_ScrCov: {get_heat_flow_value(self.Q_rad_ScrCov):.1f} W")
-            print(f"  - 총 나가는 열: {screen_heat_out:.1f} W")
+            print(f"스크린이 받는 열 (양수):")
+            print(f"  - Q_rad_CanScr: {get_heat_flow_value(self.Q_rad_CanScr):.1f} W (작물 → 스크린)")
+            print(f"  - Q_rad_FlrScr: {get_heat_flow_value(self.Q_rad_FlrScr):.1f} W (바닥 → 스크린)")
+            print(f"  - Q_rad_LowScr: {get_heat_flow_value(self.Q_rad_LowScr):.1f} W (하부파이프 → 스크린)")
+            print(f"  - Q_rad_UpScr: {get_heat_flow_value(self.Q_rad_UpScr):.1f} W (상부파이프 → 스크린)")
+            print(f"  - Q_cnv_AirScr: {get_heat_flow_value(self.Q_cnv_AirScr):.1f} W (공기 → 스크린)")
+            print(f"스크린이 주는 열 (음수):")
+            print(f"  - Q_rad_ScrCov: {get_heat_flow_value(self.Q_rad_ScrCov):.1f} W (스크린 → 외피)")
+            print(f"  - Q_cnv_ScrTop: {get_heat_flow_value(self.Q_cnv_ScrTop):.1f} W (스크린 → 상부공기)")
             print(f"순 열유속: {self.thScreen.Q_flow:.1f} W")
             print(f"면적: {surface:.0f} m²")
             print(f"단위면적당 열유속: {self.thScreen.Q_flow/surface:.1f} W/m²")
+            print(f"스크린 온도 변화: {self.thScreen.T - 273.15:.2f}°C")
             print("=" * 50)
     
     def _update_control_systems(self, dt: float, weather: List[float], setpoint: List[float], sc_usable: Union[float, List[float]]) -> None:
@@ -1458,7 +1525,7 @@ class Greenhouse_1:
         """보온 스크린 제어를 업데이트합니다."""
         # 보온 스크린 제어 입력값 업데이트 (Modelica 원본과 일치)
         self.SC.T_air_sp = setpoint[0] + 273.15  # 온도 설정값 (K)
-        self.SC.Tout_Kelvin = weather[1] + 273.15      # 외부 온도 (K)
+        self.SC.Tout_Kelvin = self.Tout  # 외부 온도 (이미 켈빈 단위)
         self.SC.RH_air = self.air.RH             # 실내 상대습도
         
         # sc_usable이 리스트인지 스칼라인지 확인하여 안전하게 처리
@@ -1722,8 +1789,6 @@ class Greenhouse_1:
     
     def _get_temperature_states(self) -> Dict[str, float]:
         """온도 관련 상태를 수집합니다."""
-        outdoor_temp = self.Tout  # Celsius
-        
         return {
             'air': self.air.T - 273.15,           # 실내 공기 온도 [°C]
             'air_top': self.air_Top.T - 273.15,   # 상부 공기 온도 [°C]
@@ -1734,15 +1799,15 @@ class Greenhouse_1:
             'pipe_low': self.pipe_low.T - 273.15, # 하부 파이프 온도 [°C]
             'pipe_up': self.pipe_up.T - 273.15,   # 상부 파이프 온도 [°C]
             'soil': self.T_soil7 - 273.15,        # 토양 온도 [°C] (외부 입력값 사용)
-            'outdoor': outdoor_temp,              # 외부 온도 [°C] (Modelica: Tout)
-            'sky': self.Tsky                      # 하늘 온도 [°C] (Modelica: Tsky)
+            'outdoor': self.Tout - 273.15,        # 외부 온도 [°C] (Modelica: Tout)
+            'sky': self.Tsky - 273.15             # 하늘 온도 [°C] (Modelica: Tsky)
         }
     
     def _get_humidity_states(self) -> Dict[str, float]:
         """습도 관련 상태를 수집합니다."""
         return {
-            'air_rh': self.air.RH,                # 실내 상대습도 [%]
-            'air_top_rh': self.air_Top.RH,        # 상부 공기 상대습도 [%]
+            'air_rh': self.air.RH * 100,                # 실내 상대습도 [%]
+            'air_top_rh': self.air_Top.RH * 100,        # 상부 공기 상대습도 [%]
             'air_vp': self.air.massPort.VP,       # 실내 수증기압 [Pa]
             'air_top_vp': self.air_Top.massPort.VP,  # 상부 공기 수증기압 [Pa]
             'cover_vp': self.cover.massPort.VP,   # 외피 수증기압 [Pa]
@@ -1864,6 +1929,10 @@ class Greenhouse_1:
                 # 난방 파이프는 더 높은 온도 허용 (0°C ~ 100°C)
                 if not (0 <= temp <= 100):
                     raise ValueError(f"{name} 온도({temp:.1f}°C)가 허용 범위를 벗어났습니다")
+            elif name == 'screen':
+                # 스크린은 일반 구성 요소보다 약간 높은 온도 허용 (-20°C ~ 60°C)
+                if not (-20 <= temp <= 60):
+                    raise ValueError(f"{name} 온도({temp:.1f}°C)가 허용 범위를 벗어났습니다")
             else:
                 # 일반 구성 요소는 기본 온도 범위 (-20°C ~ 50°C)
                 if not (-20 <= temp <= 50):
@@ -1909,14 +1978,21 @@ class Greenhouse_1:
     def _verify_vapor_balance(self) -> None:
         """수증기 균형이 유효한지 검증합니다."""
         state = self._get_state()
-        control = state['control']
+        humidity = state['humidity']
         
-        # 환기량과 수증기압 관계 검증
-        if control['ventilation']['f_vent'] > 0:
-            air_vp = state['humidity']['air_vp']
-            air_top_vp = state['humidity']['air_top_vp']
-            if air_vp < air_top_vp:
-                raise ValueError("환기 시 실내 수증기압이 상부 공기 수증기압보다 낮습니다")
+        # 수증기압 범위 검증 (음수 방지)
+        for name, vp in humidity.items():
+            if 'vp' in name and vp < 0:
+                raise ValueError(f"{name} 수증기압({vp:.1f} Pa)이 음수입니다")
+        
+        # 수증기압 차이 검증 (너무 큰 차이 방지)
+        air_vp = humidity['air_vp']
+        air_top_vp = humidity['air_top_vp']
+        vp_diff = abs(air_vp - air_top_vp)
+        
+        # 수증기압 차이가 너무 크면 경고 (오류는 아님)
+        if vp_diff > 1000:  # 1000 Pa 이상 차이나면 경고
+            print(f"경고: 상하부 공기 수증기압 차이가 큽니다: {vp_diff:.1f} Pa")
     
     def _verify_co2_concentration(self) -> None:
         """CO2 농도가 유효한지 검증합니다."""

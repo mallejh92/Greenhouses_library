@@ -14,8 +14,8 @@ if modelica_path not in sys.path:
     sys.path.insert(0, modelica_path)
 
 try:
-    from Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
-    from Thermal.HeatTransfer.Interfaces.HeatPort_b import HeatPort_b
+    from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
+    from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_b import HeatPort_b
 except ImportError:
     try:
         from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
