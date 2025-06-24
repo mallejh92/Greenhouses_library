@@ -21,16 +21,13 @@ logging.basicConfig(
 @dataclass
 class SimulationConfig:
     """시뮬레이션 설정값을 관리하는 클래스"""
-    dt: float = 3600.0                  # 시간 간격 [s] (1시간)
-    sim_time: float = 8 * 3600.0       # 시뮬레이션 시간 [s] (8시간으로 수정)
+    dt: float = 1.0                    # 시간 간격 [s] (1초로 변경)
+    sim_time: float = 24 * 3600.0     # 시뮬레이션 시간 [s] (24시간으로 확장)
     time_unit_scaling: float = 1.0     # 시간 단위 스케일링
-    debug_interval: int = 1            # 디버그 출력 간격 (스텝, 1시간마다)
+    debug_interval: int = 3600         # 디버그 출력 간격 (스텝, 1시간마다)
     
     def __post_init__(self):
         """초기화 후 검증"""
-        if self.dt != 3600.0:
-            logging.warning("데이터 입력 파일이 3600초 간격으로 구성되어 있어 dt를 3600초로 강제 설정합니다.")
-            self.dt = 3600.0
         if self.sim_time % self.dt != 0:
             logging.warning(f"시뮬레이션 시간({self.sim_time}초)이 dt({self.dt}초)의 배수가 아니어 조정합니다.")
             self.sim_time = (self.sim_time // self.dt) * self.dt

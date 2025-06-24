@@ -116,19 +116,9 @@ SCREEN_USABLE_PATH = "./SC_usable_10Dec-22Nov.txt"
 from Functions.WaterVapourPressure import WaterVapourPressure
 
 class CombiTimeTable:
-    """
-    Modelica.Blocks.Sources.CombiTimeTable의 Python 구현
-    시간에 따른 데이터 테이블을 관리하고 보간을 수행하는 클래스
-    """
+
     def __init__(self, tableOnFile: bool = True, tableName: str = "tab", 
                  columns: Optional[List[int]] = None, fileName: Optional[str] = None):
-        """
-        Args:
-            tableOnFile (bool): 파일에서 데이터를 로드할지 여부
-            tableName (str): 테이블 이름
-            columns (List[int], optional): 사용할 열 인덱스 목록
-            fileName (str, optional): 데이터 파일 경로
-        """
         self.tableOnFile = tableOnFile
         self.tableName = tableName
         self.columns = columns or list(range(1, 10))  # 기본값: 1-10 열
@@ -137,7 +127,6 @@ class CombiTimeTable:
         self.load_data()
         
     def load_data(self) -> None:
-        """데이터 파일에서 테이블 데이터를 로드"""
         if self.tableOnFile and self.fileName:
             try:
                 # 데이터 파일 로드 (탭으로 구분된 텍스트 파일)
@@ -150,97 +139,86 @@ class CombiTimeTable:
         else:
             self.data = pd.DataFrame(columns=['time'] + [f'col_{i}' for i in self.columns])
             
-    def get_value(self, time: float, interpolate: bool = False) -> Union[float, List[float]]:
-        """
-        주어진 시간에 대한 데이터 값을 반환
-        
-        Args:
-            time (float): 조회할 시간 또는 인덱스
-            interpolate (bool): 선형 보간 사용 여부
-            
-        Returns:
-            Union[float, List[float]]: 단일 열인 경우 float, 여러 열인 경우 List[float]
-        """
+    def get_value(self, time: float, interpolate: bool = True) -> Union[float, List[float]]:
+
         if self.data is None or len(self.data) == 0:
             raise RuntimeError("데이터가 로드되지 않았습니다")
         
-        # time이 정수인 경우 인덱스로 처리
+        # time이 정수이고 3600초 간격 데이터 범위 내인 경우 인덱스로 처리
         if isinstance(time, int) or (isinstance(time, float) and time.is_integer()):
             idx = int(time)
             if idx < 0 or idx >= len(self.data):
-                raise ValueError(f"인덱스 {idx}이(가) 데이터 범위를 벗어났습니다")
+                # 인덱스가 범위를 벗어나면 선형 보간 수행
+                interpolate = True
+            else:
+                # 인덱스가 범위 내이면 해당 인덱스의 값 반환
+                result = []
+                for i in self.columns:
+                    value = self.data.iloc[idx, i]
+                    # nan 값 처리
+                    if pd.isna(value):
+                        value = 0.0
+                    result.append(value)
+                return result[0] if len(result) == 1 else result
+        
+        # 선형 보간 수행 (1초 간격 데이터 생성)
+        if interpolate:
+            # 시간을 시간 단위로 변환 (txt 파일의 시간 단위)
+            time_hours = time / 3600.0  # 초 → 시간
             
+            # 시간 범위 검증
+            if time_hours < self.data['time'].min() or time_hours > self.data['time'].max():
+                # 범위를 벗어나면 가장 가까운 값 사용
+                if time_hours < self.data['time'].min():
+                    time_hours = self.data['time'].min()
+                else:
+                    time_hours = self.data['time'].max()
+            
+            # 선형 보간 수행
             result = []
-            for i in self.columns:
-                value = self.data.iloc[idx, i]  # +1 제거 (이미 시간 제외된 컬럼 인덱스)
+            for col in [f'col_{i}' for i in self.columns]:
+                value = np.interp(time_hours, self.data['time'], self.data[col])
                 # nan 값 처리
-                if pd.isna(value):
+                if np.isnan(value):
                     value = 0.0
                 result.append(value)
             
             return result[0] if len(result) == 1 else result
         
-        # time이 float인 경우 시간 기반 보간 처리
-        if time < self.data['time'].min() or time > self.data['time'].max():
-            raise ValueError(f"시간 {time}이(가) 데이터 범위를 벗어났습니다")
-            
-        if interpolate:
-            # 선형 보간 수행
-            result = []
-            for col in [f'col_{i}' for i in self.columns]:
-                value = np.interp(time, self.data['time'], self.data[col])
-                # nan 값 처리
-                if np.isnan(value):
-                    value = 0.0
-                result.append(value)
-        else:
-            # 가장 가까운 시간의 값을 반환
-            idx = (self.data['time'] - time).abs().idxmin()
-            result = []
-            for i in self.columns:
-                value = self.data.loc[idx, f'col_{i}']
-                # nan 값 처리
-                if np.isnan(value):
-                    value = 0.0
-                result.append(value)
-            
+        # 보간하지 않는 경우 가장 가까운 시간의 값을 반환
+        time_hours = time / 3600.0  # 초 → 시간
+        if time_hours < self.data['time'].min() or time_hours > self.data['time'].max():
+            # 범위를 벗어나면 가장 가까운 값 사용
+            if time_hours < self.data['time'].min():
+                time_hours = self.data['time'].min()
+            else:
+                time_hours = self.data['time'].max()
+        
+        idx = (self.data['time'] - time_hours).abs().idxmin()
+        result = []
+        for i in self.columns:
+            value = self.data.loc[idx, f'col_{i}']
+            # nan 값 처리
+            if pd.isna(value):
+                value = 0.0
+            result.append(value)
+        
         return result[0] if len(result) == 1 else result
 
 class TemperatureSensor:
-    """
-    온도 센서 클래스
-    대상 객체의 특정 속성(기본값: 'T')을 모니터링
-    """
+
     def __init__(self, target: object, attr: str = 'T'):
-        """
-        Args:
-            target (object): 온도를 모니터링할 대상 객체
-            attr (str): 모니터링할 속성 이름 (기본값: 'T')
-        """
+
         self.target = target
         self.attr = attr
         
     @property
     def T(self) -> float:
-        """
-        현재 온도 값을 반환
-        
-        Returns:
-            float: 현재 온도 [K]
-        """
+
         return getattr(self.target, self.attr)
 
 class Greenhouse_1:
-    """
-    Venlo-type 온실 시뮬레이션 모델
-    
-    주요 기능:
-    - 온실 내부 기후 시뮬레이션 (온도, 습도, CO2 농도 등)
-    - 열전달 및 질량 전달 계산
-    - 제어 시스템 (난방, 환기, CO2 공급, 스크린 등)
-    - 작물 생장 모델링
-    """
-    
+
     def __init__(self, time_unit_scaling: float = 1.0):
         """온실 시뮬레이션 모델 초기화"""
         self.time_unit_scaling = time_unit_scaling
@@ -301,10 +279,10 @@ class Greenhouse_1:
     def _load_initial_data(self) -> None:
         """초기 데이터를 로드하여 환경 조건을 설정합니다."""
         try:
-            # 첫 번째 데이터 로드 (인덱스 0)
-            weather = self.TMY_and_control.get_value(0)
-            setpoint = self.SP_new.get_value(0)
-            sc_usable = self.SC_usable.get_value(0)
+            # 시간 0초에서 데이터 로드 (선형 보간 사용)
+            weather = self.TMY_and_control.get_value(0.0, interpolate=True)
+            setpoint = self.SP_new.get_value(0.0, interpolate=True)
+            sc_usable = self.SC_usable.get_value(0.0, interpolate=True)
             
             # 환경 조건 설정
             self._set_environmental_conditions(weather)
@@ -376,8 +354,7 @@ class Greenhouse_1:
             # 기본값 유지
     
     def _init_components(self) -> None:
-        """온실 구성 요소 초기화 (Modelica 원본 순서 유지)"""
-        # 1. cover (Modelica 원본 순서)
+        # 1. cover 
         self.cover = Cover(
             rho=2600,  # 밀도 [kg/m³]
             c_p=840,   # 비열 [J/(kg·K)]
@@ -387,7 +364,7 @@ class Greenhouse_1:
             phi=0.43633231299858  # 경사각 [rad]
         )
         
-        # 2. air (Modelica 원본 순서)
+        # 2. air
         self.air = Air(
             A=surface,
             steadystate=True,
@@ -925,16 +902,19 @@ class Greenhouse_1:
         """시뮬레이션 스텝 실행"""
         self.dt = dt  # 시간 간격 업데이트
         
+        # 실제 시간 계산 (초 단위)
+        current_time = time_idx * dt  # [초]
+        
         # 디버깅 모드 활성화 (첫 번째 스텝에서만)
         if time_idx == 0:
             self._debug_step = True
         else:
             self._debug_step = False
         
-        # 현재 시간의 기상 데이터와 설정값 가져오기
-        weather = self.TMY_and_control.get_value(time_idx)
-        setpoint = self.SP_new.get_value(time_idx)
-        sc_usable = self.SC_usable.get_value(time_idx)
+        # 현재 시간의 기상 데이터와 설정값 가져오기 (선형 보간 사용)
+        weather = self.TMY_and_control.get_value(current_time, interpolate=True)
+        setpoint = self.SP_new.get_value(current_time, interpolate=True)
+        sc_usable = self.SC_usable.get_value(current_time, interpolate=True)
         
         # 외부 환경 조건 및 설정값 업데이트
         self._set_environmental_conditions(weather)
@@ -1021,45 +1001,6 @@ class Greenhouse_1:
         
         # 4. View Factor 기반 복사 열전달 계수 업데이트
         self._update_radiation_coefficients()
-        
-        # 5. 상태 검증
-        self._validate_component_states()
-    
-    def _validate_component_states(self) -> None:
-        """
-        구성 요소들의 상태가 유효한 범위 내에 있는지 검증합니다.
-        경고 메시지를 출력하지만 예외는 발생시키지 않습니다.
-        """
-        # 온도 검증
-        for component, name in [
-            (self.air, "공기"),
-            (self.air_Top, "상부 공기"),
-            (self.canopy, "작물"),
-            (self.cover, "외피"),
-            (self.floor, "바닥"),
-            (self.thScreen, "보온 스크린")
-        ]:
-            if component.T < MIN_TEMPERATURE or component.T > MAX_TEMPERATURE:
-                print(f"경고: {name} 온도가 범위를 벗어났습니다: {component.T - 273.15:.1f}°C")
-        
-        # 수증기압 검증
-        for component, name in [
-            (self.air.massPort, "공기"),
-            (self.air_Top.massPort, "상부 공기"),
-            (self.cover.massPort, "외피"),
-            (self.thScreen.massPort, "보온 스크린"),
-            (self.canopy.massPort, "작물")
-        ]:
-            if component.VP < 0:
-                print(f"경고: {name} 수증기압이 음수입니다: {component.VP:.1f} Pa")
-        
-        # CO2 농도 검증
-        if self.CO2_air.CO2 < 0:
-            print(f"경고: CO2 농도가 음수입니다: {self.CO2_air.CO2:.1f} mg/m³")
-        
-        # 스크린 개도 검증
-        if self.thScreen.SC < 0 or self.thScreen.SC > 1:
-            print(f"경고: 스크린 개도가 범위를 벗어났습니다: {self.thScreen.SC:.2f}")
 
     def _update_port_connections_ports_only(self, dt: float) -> None:
         """
@@ -1123,35 +1064,27 @@ class Greenhouse_1:
             self.illu.R_IluCan_Glob          # 조명 → 작물
         ]
         
-        # 난방 파이프 연결 (중요!)
-        # Modelica 원본: connect(sourceMdot_1ry.flangeB, pipe_low.pipe_in)
-        # Modelica 원본: connect(pipe_low.pipe_out, pipe_up.pipe_in)
-        # Modelica 원본: connect(pipe_up.pipe_out, sinkP_2ry.flangeB)
-        # Modelica 원본: connect(PID_Mdot.CS, sourceMdot_1ry.in_Mdot)
+        # 난방 파이프 연결
         
         # 1. PID 제어 → 소스 유량 (Modelica: connect(PID_Mdot.CS, sourceMdot_1ry.in_Mdot))
         self.sourceMdot_1ry.Mdot = self.PID_Mdot.CS
         
         # 2. 소스 → 하부 파이프 (Modelica: connect(sourceMdot_1ry.flangeB, pipe_low.pipe_in))
-        # 소스가 하부 파이프에게 주는 값들
         self.pipe_low.pipe_in.p = self.sourceMdot_1ry.flangeB.p
         self.pipe_low.pipe_in.m_flow = self.sourceMdot_1ry.flangeB.m_flow
         self.pipe_low.pipe_in.h_outflow = self.sourceMdot_1ry.flangeB.h_outflow
         
         # 3. 하부 파이프 → 상부 파이프 (Modelica: connect(pipe_low.pipe_out, pipe_up.pipe_in))
-        # 하부 파이프가 상부 파이프에게 주는 값들
         self.pipe_up.pipe_in.p = self.pipe_low.pipe_out.p
         self.pipe_up.pipe_in.m_flow = self.pipe_low.pipe_out.m_flow
         self.pipe_up.pipe_in.h_outflow = self.pipe_low.pipe_out.h_outflow
         
         # 4. 상부 파이프 → 싱크 (Modelica: connect(pipe_up.pipe_out, sinkP_2ry.flangeB))
-        # 상부 파이프가 싱크에게 주는 값들
         self.sinkP_2ry.flangeB.p = self.pipe_up.pipe_out.p
         self.sinkP_2ry.flangeB.m_flow = self.pipe_up.pipe_out.m_flow
         self.sinkP_2ry.flangeB.h_outflow = self.pipe_up.pipe_out.h_outflow
         
-        # 난방 파이프 대류 열전달 포트 연결 (중요!)
-        # 하부 파이프 ↔ 공기 대류 (5개 파이프 모두)
+        # 난방 파이프 대류 열전달 포트 연결
         for i in range(self.pipe_low.N):
             self.Q_cnv_LowAir.heatPorts_a.ports[i].T = self.pipe_low.T
         self.Q_cnv_LowAir.port_b.T = self.air.T
@@ -1266,12 +1199,6 @@ class Greenhouse_1:
         self.Q_rad_UpCov.port_b.T = self.cover.T
             
     def _update_heat_transfer(self, dt: float) -> None:
-        """
-        모든 열전달 과정을 계산합니다.
-        
-        Args:
-            dt (float): 시간 간격 [s]
-        """
         # 1. 대류 열전달 계산
         self._calculate_convection()
         
@@ -1281,14 +1208,10 @@ class Greenhouse_1:
         # 3. 전도 열전달 계산
         self._calculate_conduction()
         
-        # 4. 잠열 계산
-        self._calculate_latent_heat()
-        
-        # 5. 구성 요소별 열 균형 계산
+        # 4. 구성 요소별 열 균형 계산
         self._calculate_component_heat_balance()
     
     def _calculate_convection(self) -> None:
-        """대류 열전달을 계산합니다."""
         # Air ↔ Screen 대류
         self.Q_cnv_AirScr.step()
         
@@ -1317,7 +1240,6 @@ class Greenhouse_1:
         self.Q_ven_AirTop.step()
     
     def _calculate_radiation(self) -> None:
-        """복사 열전달을 계산합니다."""
         # 작물과 외피 사이의 복사
         self.Q_rad_CanCov.step()
         
@@ -1340,7 +1262,6 @@ class Greenhouse_1:
         self._calculate_pipe_radiation()
     
     def _calculate_pipe_radiation(self) -> None:
-        """난방 파이프 관련 복사 열전달을 계산합니다."""
         # 하부 파이프 복사
         self.Q_rad_LowFlr.step()
         self.Q_rad_LowCan.step()
@@ -1357,22 +1278,13 @@ class Greenhouse_1:
         self.Q_rad_FlrScr.step()
     
     def _calculate_conduction(self) -> None:
-        """전도 열전달을 계산합니다."""
         # 바닥과 토양 사이의 전도
         self.Q_cd_Soil.step(dt=self.dt)  # dt 인자 추가
     
-    def _calculate_latent_heat(self) -> None:
-        """잠열을 계산합니다."""
-        # 작물 증산에 의한 잠열은 이미 _calculate_component_heat_balance에서 계산됨
-        # 여기서는 추가 계산이 필요하지 않음
-        pass
-    
     def _calculate_component_heat_balance(self) -> None:
-        """각 구성 요소의 열 균형을 계산합니다 (Modelica 방식)."""
         
         # HeatFluxOutput 객체에서 실제 값을 가져오는 헬퍼 함수
         def get_heat_flow_value(component):
-            """컴포넌트의 Q_flow 값을 안전하게 가져옵니다."""
             if hasattr(component, 'Q_flow'):
                 q_flow = component.Q_flow
                 # HeatFluxOutput 객체인 경우 실제 값 추출
@@ -1393,11 +1305,7 @@ class Greenhouse_1:
             
             return 0.0
         
-        # 공기 열 균형 (Modelica 원본과 일치)
-        # MV_CanAir은 질량 포트만 연결되어 있고, 공기 열 균형에는 포함되지 않음
-        # 작물 증산으로 인한 잠열은 작물 열 균형에서만 계산됨
-        # 태양광/조명 복사열은 Air 컴포넌트의 R_Air_Glob을 통해 P_Air로 처리됨
-        
+        # 공기 열 균형
         self.air.Q_flow = (
             get_heat_flow_value(self.Q_cnv_AirScr) +
             get_heat_flow_value(self.Q_cnv_AirCov) +
@@ -1418,7 +1326,7 @@ class Greenhouse_1:
             get_heat_flow_value(self.Q_ven_AirTop)      # 하부공기 → 상부공기 (상부공기가 받음, 양수)
         )
         
-        # 외피 열 균형 (Modelica 원본과 일치)
+        # 외피 열 균형
         self.cover.Q_flow = (
             get_heat_flow_value(self.Q_rad_CanCov) +      # 작물 → 외피 복사 (외피가 받음, 양수)
             get_heat_flow_value(self.Q_rad_FlrCov) +      # 바닥 → 외피 복사 (외피가 받음, 양수)
@@ -1440,7 +1348,7 @@ class Greenhouse_1:
             -get_heat_flow_value(self.Q_rad_FlrCan)       # 작물 → 바닥 복사 (작물이 줌, 음수)
         )
         
-        # 바닥 열 균형 (Modelica 원본과 일치)
+        # 바닥 열 균형
         self.floor.Q_flow = (
             -get_heat_flow_value(self.Q_cnv_FlrAir) +      # 바닥 → 공기 대류 (바닥이 줌, 음수)
             -get_heat_flow_value(self.Q_cd_Soil) +         # 바닥 → 토양 전도 (바닥이 줌, 음수)
@@ -1497,15 +1405,6 @@ class Greenhouse_1:
             print("=" * 50)
     
     def _update_control_systems(self, dt: float, weather: List[float], setpoint: List[float], sc_usable: Union[float, List[float]]) -> None:
-        """
-        모든 제어 시스템을 업데이트합니다.
-        
-        Args:
-            dt (float): 시간 간격 [s]
-            weather (List[float]): 기상 데이터 [온도, 습도, 풍속, 일사량 등]
-            setpoint (List[float]): 설정값 데이터 [온도, CO2 등]
-            sc_usable (List[float]): 보온 스크린 사용 가능 시간 데이터
-        """
         # 1. 보온 스크린 제어 업데이트
         self._update_thermal_screen_control(weather, setpoint, sc_usable)
         
@@ -1522,8 +1421,7 @@ class Greenhouse_1:
         self._update_illumination_control(weather)
     
     def _update_thermal_screen_control(self, weather: List[float], setpoint: List[float], sc_usable: Union[float, List[float]]) -> None:
-        """보온 스크린 제어를 업데이트합니다."""
-        # 보온 스크린 제어 입력값 업데이트 (Modelica 원본과 일치)
+        # 보온 스크린 제어 입력값 업데이트
         self.SC.T_air_sp = setpoint[0] + 273.15  # 온도 설정값 (K)
         self.SC.Tout_Kelvin = self.Tout  # 외부 온도 (이미 켈빈 단위)
         self.SC.RH_air = self.air.RH             # 실내 상대습도
@@ -1546,10 +1444,6 @@ class Greenhouse_1:
         self._synchronize_screen_components()
     
     def _synchronize_screen_components(self) -> None:
-        """
-        스크린 상태(SC)가 변경된 후 모든 관련 컴포넌트에 동기화합니다 (순환 참조 해결).
-        이 메서드는 스크린 제어 업데이트 후 호출되어야 합니다.
-        """
         current_sc = self.thScreen.SC
         
         # 1. 대류 열전달 컴포넌트 동기화
@@ -1577,7 +1471,6 @@ class Greenhouse_1:
         self._update_radiation_coefficients()
     
     def _update_view_factors(self) -> None:
-        """View Factor를 업데이트합니다 (순환 참조 해결)."""
         # Q_rad_CanCov View Factor 업데이트
         self.Q_rad_CanCov.FFab1 = self.pipe_up.FF
         self.Q_rad_CanCov.FFab2 = self.thScreen.FF_ij
@@ -1654,7 +1547,6 @@ class Greenhouse_1:
         self.Q_rad_UpScr._update_REC_ab()
     
     def _update_ventilation_control(self, setpoint: List[float]) -> None:
-        """환기 제어 시스템 업데이트"""
         # 환기 제어 입력값 업데이트 (Modelica 원본과 일치)
         self.U_vents.T_air = self.air.T  # 현재 온실 내부 온도
         self.U_vents.T_air_sp = setpoint[0] + 273.15  # 설정 온도 (K)
@@ -1669,7 +1561,6 @@ class Greenhouse_1:
         self.Q_ven_TopOut.U_vents = self.U_vents.y
     
     def _update_heating_control(self, setpoint: List[float]) -> None:
-        """난방 제어를 업데이트합니다."""
         # 난방 PID 제어 입력값 업데이트 (Modelica 원본과 일치)
         self.PID_Mdot.PV = self.air.T                  # 현재 온도
         self.PID_Mdot.SP = setpoint[0] + 273.15        # 온도 설정값 [K]
@@ -1681,7 +1572,6 @@ class Greenhouse_1:
         self.sourceMdot_1ry.Mdot = self.PID_Mdot.CS
     
     def _update_co2_control(self, setpoint: List[float]) -> None:
-        """CO2 제어를 업데이트합니다."""
         # CO2 PID 제어 업데이트 (Modelica 원본과 일치)
         self.PID_CO2.PV = self.CO2_air.CO2           # [mg/m³]
         self.PID_CO2.SP = setpoint[1] * 1.94         # ppm → mg/m³ 변환
@@ -1690,7 +1580,6 @@ class Greenhouse_1:
         self.MC_AirCan.U_MCext = self.PID_CO2.CS
     
     def _update_illumination_control(self, weather: List[float]) -> None:
-        """조명 제어를 업데이트합니다."""
         # 조명 스위치 상태 업데이트 (nan 값 처리)
         ilu_value = weather[8] if len(weather) > 8 else 0.0
         if np.isnan(ilu_value):
@@ -1698,12 +1587,6 @@ class Greenhouse_1:
         self.illu.switch = ilu_value  # 조명 ON/OFF 상태 [0-1]
 
     def _calculate_energy_flows(self, dt: float) -> None:
-        """
-        온실의 에너지 흐름을 계산하고 누적합니다.
-        
-        Args:
-            dt (float): 시간 간격 [s]
-        """
         # 1. 난방 에너지 계산
         self._calculate_heating_energy(dt)
         
@@ -1714,7 +1597,6 @@ class Greenhouse_1:
         self._calculate_energy_per_area()
     
     def _calculate_heating_energy(self, dt: float) -> None:
-        """난방 에너지를 계산하고 누적합니다."""
         # 하부 파이프 열량
         q_low = -self.pipe_low.flow1DimInc.Q_tot / surface
         
@@ -1733,7 +1615,6 @@ class Greenhouse_1:
             self.E_th_tot = self.E_th_tot_kWhm2 * surface
     
     def _calculate_electrical_energy(self, dt: float) -> None:
-        """전기 에너지를 계산하고 누적합니다."""
         # 조명 전력 (W/m²)
         W_el_illu_instant = self.illu.W_el / surface
         
@@ -1745,7 +1626,6 @@ class Greenhouse_1:
         self.E_el_tot = self.E_el_tot_kWhm2 * surface
     
     def _calculate_energy_per_area(self) -> None:
-        """단위 면적당 에너지 사용량을 계산합니다."""
         # 난방 에너지 (W/m²)
         self.q_low = -self.pipe_low.flow1DimInc.Q_tot / surface
         self.q_up = -self.pipe_up.flow1DimInc.Q_tot / surface
@@ -1768,17 +1648,6 @@ class Greenhouse_1:
             print("=" * 50)
     
     def _get_state(self) -> Dict[str, Any]:
-        """
-        온실의 현재 상태를 수집하여 반환합니다.
-        
-        Returns:
-            Dict[str, Any]: 온실의 현재 상태 정보를 담은 딕셔너리
-                - temperatures: 온도 관련 상태
-                - humidity: 습도 관련 상태
-                - energy: 에너지 관련 상태
-                - control: 제어 관련 상태
-                - crop: 작물 관련 상태
-        """
         return {
             'temperatures': self._get_temperature_states(),
             'humidity': self._get_humidity_states(),
@@ -1788,7 +1657,6 @@ class Greenhouse_1:
         }
     
     def _get_temperature_states(self) -> Dict[str, float]:
-        """온도 관련 상태를 수집합니다."""
         return {
             'air': self.air.T - 273.15,           # 실내 공기 온도 [°C]
             'air_top': self.air_Top.T - 273.15,   # 상부 공기 온도 [°C]
@@ -1804,7 +1672,6 @@ class Greenhouse_1:
         }
     
     def _get_humidity_states(self) -> Dict[str, float]:
-        """습도 관련 상태를 수집합니다."""
         return {
             'air_rh': self.air.RH * 100,                # 실내 상대습도 [%]
             'air_top_rh': self.air_Top.RH * 100,        # 상부 공기 상대습도 [%]
@@ -1817,7 +1684,6 @@ class Greenhouse_1:
     
     
     def _get_energy_states(self) -> Dict[str, float]:
-        """에너지 관련 상태를 수집합니다."""
         # 디버깅 출력
         if hasattr(self, '_debug_step') and self._debug_step:
             print(f"\n=== 에너지 상태 디버깅 ===")
@@ -1850,7 +1716,6 @@ class Greenhouse_1:
         }
     
     def _get_control_states(self) -> Dict[str, float]:
-        """제어 관련 상태를 수집합니다."""
         return {
             'screen': {
                 'SC': self.thScreen.SC,           # 보온 스크린 폐쇄율 [0-1]
@@ -1875,7 +1740,6 @@ class Greenhouse_1:
         }
     
     def _get_crop_states(self) -> Dict[str, float]:
-        """작물 관련 상태를 수집합니다."""
         return {
             'LAI': self.TYM.LAI,                  # 엽면적지수 [m²/m²]
             'DM_Har': self.TYM.DM_Har,            # 수확 건물중 [mg/m²]
@@ -1886,20 +1750,6 @@ class Greenhouse_1:
         }
 
     def _verify_state(self) -> None:
-        """
-        온실의 현재 상태가 유효한지 검증합니다.
-        
-        검증 항목:
-        1. 온도 범위 검증
-        2. 습도 범위 검증
-        3. 에너지 균형 검증
-        4. 수증기 균형 검증
-        5. CO2 농도 검증
-        6. 제어 시스템 상태 검증
-        
-        Raises:
-            ValueError: 상태 검증에 실패한 경우
-        """
         try:
             print("온도 범위 검증 중...")
             self._verify_temperature_ranges()
@@ -1919,7 +1769,6 @@ class Greenhouse_1:
             raise ValueError(f"상태 검증 실패: {str(e)}")
     
     def _verify_temperature_ranges(self) -> None:
-        """온도 범위가 유효한지 검증합니다."""
         state = self._get_state()
         temps = state['temperatures']
         
@@ -1943,7 +1792,6 @@ class Greenhouse_1:
             raise ValueError(f"상하부 공기 온도차({abs(temps['air'] - temps['air_top']):.1f}°C)가 너무 큽니다")
     
     def _verify_humidity_ranges(self) -> None:
-        """습도 범위가 유효한지 검증합니다."""
         state = self._get_state()
         humidity = state['humidity']
         
@@ -1959,7 +1807,6 @@ class Greenhouse_1:
                 raise ValueError(f"{name} 수증기압({vp:.1f} Pa)이 음수입니다")
     
     def _verify_energy_balance(self) -> None:
-        """에너지 균형이 유효한지 검증합니다."""
         state = self._get_state()
         energy = state['energy']
         
@@ -1976,7 +1823,6 @@ class Greenhouse_1:
             raise ValueError(f"누적 전기 에너지({energy['electrical']['E_el_tot_kWhm2']:.1f} kWh/m²)가 음수입니다")
     
     def _verify_vapor_balance(self) -> None:
-        """수증기 균형이 유효한지 검증합니다."""
         state = self._get_state()
         humidity = state['humidity']
         
@@ -1995,7 +1841,6 @@ class Greenhouse_1:
             print(f"경고: 상하부 공기 수증기압 차이가 큽니다: {vp_diff:.1f} Pa")
     
     def _verify_co2_concentration(self) -> None:
-        """CO2 농도가 유효한지 검증합니다."""
         state = self._get_state()
         control = state['control']
         
@@ -2009,7 +1854,6 @@ class Greenhouse_1:
             raise ValueError(f"CO2 주입량({control['co2']['CO2_injection']:.1f} mg/s)이 음수입니다")
     
     def _verify_control_systems(self) -> None:
-        """제어 시스템 상태가 유효한지 검증합니다."""
         state = self._get_state()
         control = state['control']
         
@@ -2030,7 +1874,6 @@ class Greenhouse_1:
             raise ValueError(f"조명 상태({control['illumination']['switch']:.2f})가 허용 범위를 벗어났습니다")
 
     def _update_radiation_coefficients(self) -> None:
-        """View Factor 기반 복사 열전달 계수를 업데이트합니다 (순환 참조 해결)."""
         # 바닥→작물 복사 열전달 계수 업데이트
         self.Q_rad_FlrCan.FFa = 1.0
         self.Q_rad_FlrCan.FFb = self.canopy.FF
@@ -2066,7 +1909,6 @@ class Greenhouse_1:
         # Radiation_N 컴포넌트들은 _update_view_factors()에서 처리됨
 
     def _update_component_connections(self) -> None:
-        """컴포넌트 간 연결을 업데이트합니다 (순환 참조 해결)."""
         # 1. TYM 모델의 환경 조건 업데이트
         self.TYM.set_environmental_conditions(
             R_PAR_can=self.solar_model.R_PAR_Can_umol + self.illu.R_PAR_Can_umol,
@@ -2107,6 +1949,5 @@ class Greenhouse_1:
         self._update_radiation_coefficients()
 
     def _calculate_conduction(self) -> None:
-        """전도 열전달을 계산합니다."""
         # 바닥과 토양 사이의 전도
         self.Q_cd_Soil.step(dt=self.dt)  # dt 인자 추가
