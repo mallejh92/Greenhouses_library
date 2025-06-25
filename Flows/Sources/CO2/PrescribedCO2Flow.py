@@ -39,7 +39,7 @@ class PrescribedCO2Flow:
         self.MC_flow = 0.0  # CO2 flow rate at port in mg/(m2.s)
         
         # Connections
-        self.port: CO2Port_b = None  # CO2Port_b connection
+        self.port = CO2Port_b()  # CO2Port_b connection - 자동 초기화
         self.U_MCext: float = None  # RealInput connection
         
     def connect_port(self, port: CO2Port_b) -> None:

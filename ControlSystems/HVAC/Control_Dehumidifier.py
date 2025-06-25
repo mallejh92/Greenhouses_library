@@ -20,7 +20,8 @@ class Control_Dehumidifier:
         self.CS = 0.5  # Control signal
         
         # PID controller for humidity control
-        pid_params = PID(
+     
+        self.PID_HR = PID(
             Kp=-0.9,
             Ti=100,
             Td=0,
@@ -30,16 +31,14 @@ class Control_Dehumidifier:
             PVmin=0,
             PVmax=1,
             CSmax=1,
-            PVstart=0.85
-        )
-        self.PID_HR = PID(pid_params)
+            PVstart=0.85)
         
         # Humidity setpoint
         self.RH_setpoint = 0.85
         
-    def update(self, T_air: float, air_RH: float, T_air_sp: float, dt: float):
+    def step(self, T_air: float, air_RH: float, T_air_sp: float, dt: float):
         """
-        Update control system state and outputs
+        Step control system state and outputs
         
         Parameters:
             T_air (float): Air temperature [K]
@@ -65,8 +64,10 @@ class Control_Dehumidifier:
         
         # Update PID controller for humidity control
         if self.Dehum:
-            self.CS = self.PID_HR.update(air_RH, self.RH_setpoint, dt)
+            self.PID_HR.PV = air_RH
+            self.PID_HR.SP = self.RH_setpoint
+            self.CS = self.PID_HR.step(dt)
         else:
-            self.CS = 0.5  # Default control signal when dehumidifier is off
-        
+            self.CS = 0  # Default control signal when dehumidifier is off
+    
         return self.Dehum, self.CS

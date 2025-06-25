@@ -28,9 +28,9 @@ class Control_2:
         self.hysteresis_high = self.T_max - 5
         self.hysteresis_state = False
         
-    def update(self, T_tank: float, T_low_TES: float, T_su_hx: float, dt: float):
+    def step(self, T_tank: float, T_low_TES: float, T_su_hx: float, dt: float):
         """
-        Update control system state and outputs
+        Step control system state and outputs
         
         Parameters:
             T_tank (float): Tank temperature [K]

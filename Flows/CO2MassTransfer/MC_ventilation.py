@@ -1,6 +1,7 @@
+from Interfaces.CO2.Element1D import Element1D
 from HeatAndVapourTransfer.VentilationRates.NaturalVentilationRate_2 import NaturalVentilationRate_2
 
-class MC_ventilation:
+class MC_ventilation(Element1D):
     """
     CO2 mass flow exchange accompanying an air ventilation process.
     Distinguishes from the two different air zones on the presence of a thermal screen.
@@ -14,6 +15,7 @@ class MC_ventilation:
             thermalScreen (bool): Presence of a thermal screen in the greenhouse
             topAir (bool): False for Main air zone, True for Top air zone
         """
+        super().__init__()
         # Parameters
         self.thermalScreen = thermalScreen
         self.topAir = topAir
@@ -93,5 +95,7 @@ class MC_ventilation:
             
         # Calculate CO2 mass flow
         self.MC_flow = self.f_vent * self.dC
+        
+        super().update()  # dC, port_a, port_b 동기화
         
         return self.MC_flow

@@ -1,6 +1,15 @@
+from Interfaces.CO2.CO2Port_a import CO2Port_a
+from Flows.Sources.CO2.PrescribedConcentration import PrescribedConcentration
+
 class CO2_Air:
     """
     CO2 mass balance of an air volume
+    
+    Modelica 원본과 일치하는 구현:
+    - port.MC_flow = MC_flow
+    - der(CO2) = 1/cap_CO2 * MC_flow
+    - CO2_ppm = CO2/1.94
+    - PrescribedConcentration과 RealExpression 연결
     """
     
     def __init__(self, cap_CO2: float = 4.0, CO2_start: float = 1940.0, steadystate: bool = True):
@@ -25,7 +34,10 @@ class CO2_Air:
         self.CO2_ppm = CO2_start / 1.94  # CO2 concentration in ppm
         
         # Port variables
-        self.port_CO2 = CO2_start  # Port CO2 concentration
+        self.port = CO2Port_a()  # CO2 port (Modelica 원본과 일치)
+        
+        # Modelica 원본의 연결된 컴포넌트들
+        self.prescribedPressure = PrescribedConcentration()
         
         # Initialize the system
         self.initialize()
@@ -43,23 +55,42 @@ class CO2_Air:
             
         # Update derived values
         self.CO2_ppm = self.CO2 / 1.94
-        self.port_CO2 = self.CO2
+        
+        # Modelica 원본 연결 설정
+        self._setup_connections()
+        
+    def _setup_connections(self):
+        """Modelica 원본의 connect 문들을 구현"""
+        # connect(prescribedPressure.port, port)
+        self.prescribedPressure.connect_port(self.port)
+        
+        # connect(portCO2.y, prescribedPressure.CO2) - RealExpression은 CO2 값을 직접 전달
+        self.prescribedPressure.connect_CO2(self.CO2)
         
     def step(self, dt: float):
         """
-        Update CO2 concentration
+        Update CO2 concentration (Modelica 방정식 구현)
+        
+        Modelica 방정식:
+        - port.MC_flow = MC_flow
+        - der(CO2) = 1/cap_CO2 * MC_flow
+        - CO2_ppm = CO2/1.94
         
         Parameters:
             dt (float): Time step [s]
         """
-        # Update CO2 concentration
+        # Modelica: port.MC_flow = MC_flow
+        self.port.MC_flow = self.MC_flow
+        
+        # Modelica: der(CO2) = 1/cap_CO2 * MC_flow
         if not self.steadystate:
             self.CO2 += (1.0 / self.cap_CO2) * self.MC_flow * dt
             
-        # Update CO2 in ppm
+        # Modelica: CO2_ppm = CO2/1.94
         self.CO2_ppm = self.CO2 / 1.94
         
-        # Update port CO2
-        self.port_CO2 = self.CO2
+        # RealExpression 업데이트: portCO2.y = CO2
+        self.prescribedPressure.connect_CO2(self.CO2)
+        self.prescribedPressure.calculate()
         
         return self.CO2, self.CO2_ppm

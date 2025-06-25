@@ -235,7 +235,7 @@ class Greenhouse_1:
         self.OnOff = 0.0        # 조명 ON/OFF 신호 (Modelica: OnOff)
         
         # CO2 관련 변수 (Modelica 원본과 일치)
-        self.CO2out_ppm_to_mgm3 = 430 * 1.94  # 외부 CO2 농도 [mg/m³] (Modelica: CO2out_ppm_to_mgm3)
+        self.CO2out_ppm_to_mgm3 = 430 * 1.94  # 외부 CO2 농도 [mg/m³] 
         self.CO2_SP_var = 0.0   # CO2 설정값 [mg/m³] (Modelica: CO2_SP_var)
         
         # 컴포넌트 초기화
@@ -883,8 +883,9 @@ class Greenhouse_1:
         self.solar_model.I_glob = self.I_glob
         
         # 외부 CO2 농도 [mg/m³]
-        self.CO2out_ppm_to_mgm3 = 430 * 1.94  # 430 ppm을 mg/m³로 변환
-
+        # self.CO2out_ppm_to_mgm3 = 430 * 1.94  # 외부 CO2 농도 [mg/m³] 
+        # self.CO2_SP_var = 0.0   # CO2 설정값 [mg/m³] (Modelica: CO2_SP_var)
+        
     def _update_setpoints(self, setpoint: List[float]) -> None:
         """
         설정값을 업데이트합니다.
@@ -920,8 +921,8 @@ class Greenhouse_1:
         self._set_environmental_conditions(weather)
         self._update_setpoints(setpoint)
         
-        # 1. 구성 요소 업데이트
-        self._update_components(dt, weather, setpoint)
+        # 1. 제어 시스템 업데이트 (스크린 동기화 포함)
+        self._update_control_systems(dt, weather, setpoint, sc_usable)
         
         # 2. 컴포넌트 간 연결 업데이트
         self._update_component_connections()
@@ -932,74 +933,37 @@ class Greenhouse_1:
         # 4. 열전달 계산
         self._update_heat_transfer(dt)
         
-        # 5. 제어 시스템 업데이트 (스크린 동기화 포함)
-        self._update_control_systems(dt, weather, setpoint, sc_usable)
-        
-        # 6. 구성 요소 상태 업데이트
-        # 6.1 공기 상태 업데이트
-        self.air.step(dt)
-        self.air_Top.step(dt)
-        
-        # 6.2 외피 상태 업데이트
-        self.cover.step(dt)
-        
-        # 6.3 작물 상태 업데이트
-        self.canopy.step(dt)
-        
-        # 6.4 바닥 상태 업데이트
-        self.floor.step(dt)
-        
-        # 6.5 보온 스크린 상태 업데이트
-        self.thScreen.step(dt)
-        
-        # 6.6 CO2 상태 업데이트
-        self.CO2_air.step(dt)
-        
-        # 6.7 난방 파이프 상태 업데이트
-        self.pipe_low.step(dt)
-        self.pipe_up.step(dt)
-        
-        # 6.8 조명 상태 업데이트
-        self.illu.step(dt)
-        
-        # 6.9 태양광 모델 업데이트
-        self.solar_model.step(dt)
-        
-        # 6.10 토마토 생장 모델 업데이트
-        self.TYM.step(dt)
-        
-        # 7. 에너지 흐름 계산
+        # 5. 구성 요소 상태 업데이트
+        self._update_components(dt)
+       
+        # 6. 에너지 흐름 계산
         self._calculate_energy_flows(dt)
         
-        # 8. 상태 검증 (첫 번째 스텝에서는 건너뛰기)
+        # 7. 상태 검증 (첫 번째 스텝에서는 건너뛰기)
         if time_idx > 0:
             try:
                 self._verify_state()
             except ValueError as e:
                 raise ValueError(f"상태 검증 실패: {str(e)}")
     
-    def _update_components(self, dt: float, weather: List[float], setpoint: List[float]) -> None:
+    def _update_components(self, dt: float) -> None:
         """컴포넌트 상태를 업데이트합니다."""
-        # 1. 환경 조건 설정
-        self._set_environmental_conditions(weather)
+
         
-        # 2. 설정점 업데이트
-        self._update_setpoints(setpoint)
-        
-        # 3. 컴포넌트 스텝 실행
+        # 1. 컴포넌트 스텝 실행
         self.air.step(dt)
-        self.air_Top.step(dt)  
+        self.air_Top.step(dt)
         self.cover.step(dt)
         self.floor.step(dt)
-        self.canopy.step(dt)  
-        self.thScreen.step(dt)  
+        self.canopy.step(dt)
+        self.thScreen.step(dt)
         self.pipe_low.step(dt)
         self.pipe_up.step(dt)
         self.illu.step(dt)
         self.solar_model.step(dt)
         self.TYM.step(dt)
         
-        # 4. View Factor 기반 복사 열전달 계수 업데이트
+        # 2. View Factor 기반 복사 열전달 계수 업데이트
         self._update_radiation_coefficients()
 
     def _update_port_connections_ports_only(self, dt: float) -> None:
@@ -1045,6 +1009,23 @@ class Greenhouse_1:
         # 외부 토양 온도 설정 (Modelica: connect(Tsoil7.y, Q_cd_Soil.T_layer_Nplus1))
         self.Q_cd_Soil.T_soil_sp = self.T_soil7  # 외부 토양 온도(K) - 이미 Kelvin 단위
         
+        # RH 센서 연결 (Modelica 원본과 일치)
+        self.RH_air_sensor.heatPort.T = self.air.T
+        self.RH_air_sensor.massPort.VP = self.air.massPort.VP
+        
+        # 외부 환경 포트 연결 (Modelica 원본과 일치)
+        # 외부 온도 포트
+        self.Q_ven_AirOut.HeatPort_b.T = self.Tout
+        self.Q_ven_TopOut.HeatPort_b.T = self.Tout
+        self.Q_cnv_CovOut.port_b.T = self.Tout
+        
+        # 외부 수증기압 포트
+        self.Q_ven_AirOut.MassPort_b.VP = self.VPout
+        self.Q_ven_TopOut.MassPort_b.VP = self.VPout
+        
+        # 외부 CO2 포트
+        self.MC_AirOut.port_b.CO2 = self.CO2out_ppm_to_mgm3
+        self.MC_TopOut.port_b.CO2 = self.CO2out_ppm_to_mgm3
 
         # 태양광 열원 연결
         self.air.R_Air_Glob = [
@@ -1125,6 +1106,38 @@ class Greenhouse_1:
         
         self.Q_ven_AirTop.MassPort_a.VP = self.air.massPort.VP
         self.Q_ven_AirTop.MassPort_b.VP = self.air_Top.massPort.VP
+        
+        # CO2 관련 포트 연결 (Modelica 원본과 일치)
+        self.MC_AirOut.port_a.CO2 = self.CO2_air.CO2
+        self.MC_AirOut.port_b.CO2 = self.CO2out_ppm_to_mgm3
+        
+        self.MC_AirTop.port_a.CO2 = self.CO2_air.CO2
+        self.MC_AirTop.port_b.CO2 = self.CO2_top.CO2
+        
+        self.MC_TopOut.port_a.CO2 = self.CO2_top.CO2
+        self.MC_TopOut.port_b.CO2 = self.CO2out_ppm_to_mgm3
+        
+        self.MC_AirCan.port.CO2 = self.CO2_air.CO2
+        # MC_ExtAir는 CO2를 주입하는 소스이므로 CO2 속성 대신 MC_flow를 설정
+        # self.MC_ExtAir.port.CO2 = self.CO2_air.CO2  # 이 줄 제거
+        
+        # MC_ExtAir.port와 CO2_air.port 연결 (Modelica 원본과 일치)
+        self.MC_ExtAir.connect_port(self.CO2_air.port)
+        
+        # CO2 질량 유량 설정 (Modelica 원본과 일치)
+        # CO2_air의 MC_flow는 들어오는 모든 CO2 유량의 합
+        self.CO2_air.MC_flow = (
+            self.MC_AirOut.port_a.MC_flow +  # 환기로 나가는 CO2
+            self.MC_AirTop.port_a.MC_flow +  # 상부공기로 가는 CO2
+            self.MC_AirCan.port.MC_flow +    # 작물이 흡수하는 CO2
+            self.MC_ExtAir.port.MC_flow      # 외부에서 주입하는 CO2
+        )
+        
+        # CO2_top의 MC_flow는 들어오는 모든 CO2 유량의 합
+        self.CO2_top.MC_flow = (
+            self.MC_TopOut.port_a.MC_flow +  # 환기로 나가는 CO2
+            self.MC_AirTop.port_b.MC_flow    # 하부공기에서 오는 CO2
+        )
     
     def _update_radiation_ports(self) -> None:
         """복사 포트 연결을 업데이트합니다."""
@@ -1138,7 +1151,7 @@ class Greenhouse_1:
         
         # 외피와 하늘 사이의 복사
         self.Q_rad_CovSky.port_a.T = self.cover.T
-        self.Q_rad_CovSky.port_b.T = self.Tsky + 273.15  # Celsius → Kelvin
+        self.Q_rad_CovSky.port_b.T = self.Tsky  # Celsius → Kelvin
 
         # 바닥 → 스크린 복사
         self.Q_rad_FlrScr.port_a.T = self.floor.T      # 바닥 온도
@@ -1223,6 +1236,9 @@ class Greenhouse_1:
         
         # Air ↔ Cover 대류
         self.Q_cnv_AirCov.step()
+        
+        # Cover ↔ Outside 대류 (외피 ↔ 외부)
+        self.Q_cnv_CovOut.step()
         
         # Floor ↔ Air 대류 (FreeConvection)
         self.Q_cnv_FlrAir.step()
@@ -1424,7 +1440,10 @@ class Greenhouse_1:
         # 보온 스크린 제어 입력값 업데이트
         self.SC.T_air_sp = setpoint[0] + 273.15  # 온도 설정값 (K)
         self.SC.Tout_Kelvin = self.Tout  # 외부 온도 (이미 켈빈 단위)
-        self.SC.RH_air = self.air.RH             # 실내 상대습도
+        
+        # RH 센서 계산 및 연결 (Modelica 원본과 일치)
+        self.RH_air_sensor.calculate()
+        self.SC.RH_air = self.RH_air_sensor.RH / 100.0  # % → 소수점으로 변환
         
         # sc_usable이 리스트인지 스칼라인지 확인하여 안전하게 처리
         if isinstance(sc_usable, list):
@@ -1633,7 +1652,7 @@ class Greenhouse_1:
         
         # 전기 에너지 (W/m²)
         self.W_el_illu_instant = self.illu.W_el / surface
-        
+    
         # 디버깅 출력
         if hasattr(self, '_debug_step') and self._debug_step:
             print(f"\n=== 에너지 단위면적 계산 디버깅 ===")
@@ -1939,15 +1958,20 @@ class Greenhouse_1:
         self.MC_AirOut.f_vent = self.Q_ven_AirOut.f_vent_total
         self.MC_TopOut.f_vent = self.Q_ven_TopOut.f_vent_total
         
-        # 8. 스크린 관련 컴포넌트 연결 업데이트
+        # 8. CO2 질량 전달 계산 (MC_ventilation2 컴포넌트들)
+        self.MC_AirTop.step()
+        self.MC_AirOut.step()
+        self.MC_TopOut.step()
+        
+        # 9. CO2 관련 컴포넌트 계산
+        self.MC_AirCan.step()
+        self.MC_ExtAir.calculate()
+        
+        # 10. 스크린 관련 컴포넌트 연결 업데이트
         self.Q_cnv_ScrTop.MV_AirScr = self.Q_cnv_AirScr.MV_flow
         
-        # 9. View Factor 업데이트 (순환 참조 해결)
+        # 11. View Factor 업데이트 (순환 참조 해결)
         self._update_view_factors()
         
-        # 10. 복사 열전달 계수 업데이트
+        # 12. 복사 열전달 계수 업데이트
         self._update_radiation_coefficients()
-
-    def _calculate_conduction(self) -> None:
-        # 바닥과 토양 사이의 전도
-        self.Q_cd_Soil.step(dt=self.dt)  # dt 인자 추가

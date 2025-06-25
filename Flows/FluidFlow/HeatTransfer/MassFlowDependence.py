@@ -18,6 +18,7 @@ class MassFlowDependence(PartialHeatTransferZones):
         M_dot (float): Mass flow rate [kg/s]
         x (float): Vapor quality
         T_fluid (List[float]): Fluid temperature at each node [K]
+        FluidState (List[dict]): Fluid thermodynamic state at each node
         Unom (float): Average nominal heat transfer coefficient [W/(m²·K)]
         U (List[float]): Heat transfer coefficients for each node [W/(m²·K)]
     """
@@ -25,7 +26,7 @@ class MassFlowDependence(PartialHeatTransferZones):
     def __init__(self, n: int = 1, Mdotnom: float = 0.0, 
                  Unom_l: float = 0.0, Unom_tp: float = 0.0, Unom_v: float = 0.0,
                  M_dot: float = 0.0, x: float = 0.0, 
-                 T_fluid: List[float] = None):
+                 T_fluid: List[float] = None, FluidState: List[dict] = None):
         """
         Initialize mass flow dependent heat transfer model
         
@@ -38,12 +39,19 @@ class MassFlowDependence(PartialHeatTransferZones):
             M_dot (float): Mass flow rate [kg/s]
             x (float): Vapor quality
             T_fluid (List[float]): Fluid temperature at each node [K]
+            FluidState (List[dict]): Fluid thermodynamic state at each node
         """
         super().__init__(n, Mdotnom, Unom_l, Unom_tp, Unom_v, M_dot, x, T_fluid)
         
         # Initialize heat transfer coefficients array
         self.U = [0.0] * n
         self.Unom = (Unom_l + Unom_tp + Unom_v) / 3
+        
+        # Initialize fluid state
+        if FluidState is None:
+            self.FluidState = [{} for _ in range(n)]
+        else:
+            self.FluidState = FluidState
     
     def calculate(self) -> None:
         """
@@ -54,7 +62,9 @@ class MassFlowDependence(PartialHeatTransferZones):
         """
         for i in range(self.n):
             # Calculate heat transfer coefficient based on mass flow rate
-            self.U[i] = self.Unom * (0.00001 + abs(self.M_dot / self.Mdotnom) ** 0.8)
+            # Use noEvent equivalent (simple calculation without event handling)
+            mass_flow_ratio = abs(self.M_dot / self.Mdotnom) if self.Mdotnom != 0 else 0
+            self.U[i] = self.Unom * (0.00001 + mass_flow_ratio ** 0.8)
             
             # Calculate heat flux
             self.q_dot[i] = self.U[i] * (self.thermalPortL[i].T - self.T_fluid[i])

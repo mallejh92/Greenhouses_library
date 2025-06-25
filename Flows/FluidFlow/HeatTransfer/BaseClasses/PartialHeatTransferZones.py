@@ -15,12 +15,14 @@ class PartialHeatTransferZones(PartialHeatTransfer):
         Unom_v (float): Nominal heat transfer coefficient vapor side [W/(m²·K)]
         M_dot (float): Mass flow rate [kg/s]
         x (float): Vapor quality
+        T_fluid (List[float]): Fluid temperature at each node [K]
+        FluidState (List[dict]): Fluid thermodynamic state at each node
     """
     
     def __init__(self, n: int = 1, Mdotnom: float = 0.0, 
                  Unom_l: float = 0.0, Unom_tp: float = 0.0, Unom_v: float = 0.0,
                  M_dot: float = 0.0, x: float = 0.0, 
-                 T_fluid: List[float] = None):
+                 T_fluid: List[float] = None, FluidState: List[dict] = None):
         """
         Initialize heat transfer zones model
         
@@ -33,6 +35,7 @@ class PartialHeatTransferZones(PartialHeatTransfer):
             M_dot (float): Mass flow rate [kg/s]
             x (float): Vapor quality
             T_fluid (List[float]): Fluid temperature at each node [K]
+            FluidState (List[dict]): Fluid thermodynamic state at each node
         """
         super().__init__(n)
         
@@ -47,6 +50,14 @@ class PartialHeatTransferZones(PartialHeatTransfer):
         # Initialize fluid temperature if provided
         if T_fluid is not None:
             self.T_fluid = T_fluid
+        else:
+            self.T_fluid = [293.15] * n  # Default temperature
+            
+        # Initialize fluid state if provided
+        if FluidState is not None:
+            self.FluidState = FluidState
+        else:
+            self.FluidState = [{} for _ in range(n)]
     
     def calculate(self) -> None:
         """
