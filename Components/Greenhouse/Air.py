@@ -167,9 +167,6 @@ class Air:
         
         # Integrate vapour pressure
         self.airVP.step(dt)
-        
-        # Update air component
-        self.airVP.step(dt)
 
         # Synchronize local VP variable and update humidity
         self._VP = self.airVP.VP

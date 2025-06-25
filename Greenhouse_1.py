@@ -1,8 +1,7 @@
 """
 Greenhouse_1.py
-aa
 온실 시뮬레이션 모델 (Modelica Greenhouse_1.mo의 Python 구현)
-- Venlo-taaype 온실의 기후 시뮬레이션
+- Venlo-type 온실의 기후 시뮬레이션
 - 토마토 작물 재배 (12월 10일 ~ 11월 22일)
 - 날씨 데이터: TMY (Typical Meteorological Year) for Brussels
 """
@@ -1120,9 +1119,6 @@ class Greenhouse_1:
         
         # 3. 전도 열전달 계산
         self._calculate_conduction()
-        
-        # 4. 구성 요소별 열 균형 계산
-        self._calculate_component_heat_balance()
     
     def _calculate_convection(self) -> None:
         # Air ↔ Screen 대류

@@ -241,7 +241,7 @@ def plot_results(results: SimulationResults, save_path: Optional[str] = None) ->
     ax6.set_ylabel('Opening Rate [0-1]')
     ax6.legend()
     ax6.grid(True)
-    aa
+    
     # 7. 작물 그래프
     ax7 = plt.subplot(4, 2, 7)
     ax7.plot(results.times, results.data['crop']['DM_Har'])
