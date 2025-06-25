@@ -25,9 +25,12 @@ class SinkP:
         self.flangeB = FluidPort_b(p_start=p0, h_start=h)
         self.p = p0  # Current pressure
 
-    def step(self):
+    def step(self, dt: float):
         """
         Update the output port based on current input signals or parameters.
+        
+        Args:
+            dt (float): Time step [s]
         """
         # Use input signals if provided, otherwise use default parameters
         p = self.in_p0 if self.in_p0 is not None else self.p0

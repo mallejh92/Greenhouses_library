@@ -1,5 +1,4 @@
-#1
-double tab(8280,10)   # time T_out RH_out P_out I_glob u_wind T_sky T_air_sp CO2_air_sp ilu_sp
+time	T_out	RH_out	P_out	I_glob	u_wind	T_sky	T_air_sp	CO2_air_sp	ilu_sp
 0	4.9	95	100700	0	3	-5.03143573	16	800	0
 3600	5	96	100700	0	3.5	-5.03143573	16	800	0
 7200	5.1	97	100600	0	4	-5.490151806	16	800	0

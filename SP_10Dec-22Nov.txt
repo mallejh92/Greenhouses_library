@@ -1,5 +1,4 @@
-#1
-double tab(8279,3)   # time T_sp CO2_sp (Climate set points 10Dec-22Nov: daily setpoints based on maximizing photosynthesis rate, minimum night temperature of 16, 24h mean temperature of 20)
+time	T_sp	CO2_sp
 0	21	1000
 3600	20	400
 7200	20	400

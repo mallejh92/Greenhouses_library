@@ -81,6 +81,15 @@ class PrescribedCO2Flow:
         if self.port is not None:
             self.port.MC_flow = -self.MC_flow
             
+    def step(self, dt: float) -> None:
+        """
+        Update the component state for one time step.
+        
+        Args:
+            dt (float): Time step [s]
+        """
+        self.calculate()
+            
     def __str__(self) -> str:
         """String representation of the PrescribedCO2Flow model"""
         return (f"PrescribedCO2Flow\n"

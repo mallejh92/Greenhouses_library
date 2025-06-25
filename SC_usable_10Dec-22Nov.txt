@@ -1,5 +1,4 @@
-#1
-double tab(16560,2)   # comment line
+time	SC
 0	1
 1800	1
 3600	1
@@ -16559,4 +16558,3 @@ double tab(16560,2)   # comment line
 29800800	1
 29802600	1
 29804400	1
-29806200	1

@@ -22,7 +22,7 @@ logging.basicConfig(
 class SimulationConfig:
     """시뮬레이션 설정값을 관리하는 클래스"""
     dt: float = 1.0                    # 시간 간격 [s] (1초로 변경)
-    sim_time: float = 24 * 3600.0     # 시뮬레이션 시간 [s] (24시간으로 확장)
+    sim_time: float = 24 * 3600.0 * 30  # 시뮬레이션 시간 [s] (24시간으로 확장)
     time_unit_scaling: float = 1.0     # 시간 단위 스케일링
     debug_interval: int = 3600         # 디버그 출력 간격 (스텝, 1시간마다)
     
@@ -241,7 +241,7 @@ def plot_results(results: SimulationResults, save_path: Optional[str] = None) ->
     ax6.set_ylabel('Opening Rate [0-1]')
     ax6.legend()
     ax6.grid(True)
-    
+    aa
     # 7. 작물 그래프
     ax7 = plt.subplot(4, 2, 7)
     ax7.plot(results.times, results.data['crop']['DM_Har'])

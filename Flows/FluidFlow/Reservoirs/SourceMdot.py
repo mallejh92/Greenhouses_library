@@ -21,9 +21,12 @@ class SourceMdot:
         self.flangeB = FluidPort_b(Medium=self.Medium, p_start=p, h_start=h_0)
         self.h = 0.0  # Calculated specific enthalpy
 
-    def step(self):
+    def step(self, dt: float) -> float:
         """
         Update the output port based on current input signals or parameters.
+        
+        Args:
+            dt (float): Time step [s]
         """
         # Use input signals if provided, otherwise use default parameters
         m_flow = self.in_Mdot if self.in_Mdot is not None else self.Mdot_0

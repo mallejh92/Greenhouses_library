@@ -82,8 +82,12 @@ class RHSensor:
         # Calculate vapor pressure
         vapor_pressure = p * w / (self.R_a/self.R_s + w)
         
-        # Calculate relative humidity
-        RH = vapor_pressure / saturation_vapor_pressure * 100
+        # Calculate relative humidity with safety check
+        if saturation_vapor_pressure > 1e-6:  # 포화수증기압이 너무 작지 않은 경우
+            RH = vapor_pressure / saturation_vapor_pressure * 100
+        else:
+            # 포화수증기압이 너무 작으면 RH를 0으로 설정
+            RH = 0.0
         
         return RH
         

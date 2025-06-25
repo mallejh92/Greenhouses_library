@@ -21,6 +21,14 @@ class HeatFlux:
     
     def __repr__(self) -> str:
         return f"HeatFlux({self.value})"
+    
+    def __format__(self, format_spec: str) -> str:
+        """Format the heat flux value according to the format specification"""
+        return format(self.value, format_spec)
+    
+    def __float__(self) -> float:
+        """Convert to float by returning the heat flux value"""
+        return self.value
 
 class HeatFluxInput:
     """
@@ -53,6 +61,14 @@ class HeatFluxInput:
     def __str__(self) -> str:
         """String representation of the connector"""
         return f"{self.name}: {self.value}"
+    
+    def __format__(self, format_spec: str) -> str:
+        """Format the heat flux value according to the format specification"""
+        return format(self.value, format_spec)
+    
+    def __float__(self) -> float:
+        """Convert to float by returning the heat flux value"""
+        return float(self.value)
     
     def connect(self, other: 'HeatFluxInput') -> None:
         """

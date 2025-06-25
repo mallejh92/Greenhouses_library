@@ -34,6 +34,14 @@ class HeatFluxOutput:
         """String representation of the connector"""
         return f"{self.name}: {self.value}"
     
+    def __format__(self, format_spec: str) -> str:
+        """Format the heat flux value according to the format specification"""
+        return format(self.value, format_spec)
+    
+    def __float__(self) -> float:
+        """Convert to float by returning the heat flux value"""
+        return float(self.value)
+    
     def connect(self, other: HeatFluxInput) -> None:  # Remove quotes around HeatFluxInput since it's now imported
         """
         Connect this output connector to a HeatFluxInput connector
