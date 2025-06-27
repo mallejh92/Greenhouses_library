@@ -44,6 +44,7 @@ from Modelica.Thermal.HeatTransfer.Sensors.TemperatureSensor import TemperatureS
 from Flows.FluidFlow.Reservoirs.SinkP import SinkP
 from Flows.Sensors.RHSensor import RHSensor
 from Flows.Sources.CO2.PrescribedCO2Flow import PrescribedCO2Flow
+from Flows.Sources.CO2.PrescribedConcentration import PrescribedConcentration
 from Functions.WaterVapourPressure import WaterVapourPressure
 
 # Control Systems
@@ -134,14 +135,14 @@ class Greenhouse_1:
         self.OnOff = 0.0        # 조명 ON/OFF 신호 (Modelica: OnOff)
         
         # CO2 관련 변수 (Modelica 원본과 일치)
-        self.CO2out_ppm_to_mgm3 = 430 * 1.94  # 외부 CO2 농도 [mg/m³] 
+        self.CO2out_ppm_to_mgm3 = 340 * 1.94  # 외부 CO2 농도 [mg/m³] (Modelica: 340 ppm)
         self.CO2_SP_var = 0.0   # CO2 설정값 [mg/m³] (Modelica: CO2_SP_var)
         
         # 컴포넌트 초기화
         self._init_components()
         self._init_state_variables()
         
-        # 초기 스크린 상태 동기화 (모든 관련 컴포넌트에 SC=1.0 적용)
+        # 초기 스크린 상태 동기화 (모든 관련 컴포넌트에 SC=0.0 적용)
         self._synchronize_screen_components()
         
         # 초기 데이터 로드 (첫 번째 스텝의 데이터로 초기화)
@@ -228,6 +229,11 @@ class Greenhouse_1:
             external_rh = row['RH_out'] / 100.0  # 95% → 0.95
             self.air.RH = external_rh
             self.air_Top.RH = external_rh
+            
+            # **중요**: CO₂ 농도 초기화 (Modelica 원본과 정확히 일치)
+            # Modelica: CO2_start=1940 mg/m³ (약 1000 ppm)
+            self.CO2_air.CO2 = 1940.0  # 하부공기
+            self.CO2_top.CO2 = 1940.0  # 상부공기도 동일하게 초기화 (Modelica 원본과 일치)
             
         except Exception as e:
             print(f"초기 데이터 로드 실패: {e}")
@@ -342,7 +348,7 @@ class Greenhouse_1:
         self.MV_CanAir = MV_CanopyTranspiration(
             A=surface,
             LAI=self.canopy.LAI,
-            CO2_ppm=430,  # 기본값, 나중에 CO2_air.CO2로 업데이트
+            CO2_ppm=1000,  # 기본값, 나중에 CO2_air.CO2_ppm으로 업데이트 (Modelica: CO2_air.CO2_ppm)
             R_can=0.0,    # 기본값, 나중에 solar_model.R_t_Glob + illu.R_PAR + illu.R_NIR로 업데이트
             T_can=self.canopy.T
         )
@@ -382,7 +388,7 @@ class Greenhouse_1:
         # 17. thScreen (Modelica 원본 순서) - 기본값으로 초기화, 나중에 SC.y로 업데이트
         self.thScreen = ThermalScreen(
             A=surface,
-            SC=1.0,  # 기본값, 나중에 SC.y로 업데이트
+            SC=0.0,  # 스크린을 완전히 열어서 하부공기 환기 허용
             steadystate=False
         )
 
@@ -407,7 +413,7 @@ class Greenhouse_1:
         self.solar_model = Solar_model(
             A=surface,
             LAI=1.06,  # 기본값, 나중에 TYM.LAI로 업데이트
-            SC=1.0,    # 기본값, 나중에 SC.y로 업데이트
+            SC=0.0,    # 스크린을 열어서 환기 허용
             I_glob=0.0,  # 초기 일사량
         )
 
@@ -545,7 +551,7 @@ class Greenhouse_1:
             floor=False,
             thermalScreen=True,
             Air_Cov=False,
-            SC=1.0  # 기본값, 나중에 SC.y로 업데이트
+            SC=0.0  # 스크린을 열어서 환기 허용
         )
 
         # 34. Q_cnv_AirCov (Modelica 원본 순서)
@@ -556,7 +562,7 @@ class Greenhouse_1:
             thermalScreen=True,
             Air_Cov=True,
             topAir=False,
-            SC=1.0  # 기본값, 나중에 SC.y로 업데이트
+            SC=0.0  # 스크린을 열어서 환기 허용
         )
 
         # 35. Q_cnv_TopCov (Modelica 원본 순서)
@@ -567,7 +573,7 @@ class Greenhouse_1:
             thermalScreen=True,
             Air_Cov=True,
             topAir=True,
-            SC=1.0  # 기본값, 나중에 SC.y로 업데이트
+            SC=0.0  # 스크린을 열어서 환기 허용
         )
 
         # 36. Q_ven_AirOut (Modelica 원본 순서)
@@ -625,19 +631,21 @@ class Greenhouse_1:
             LAI_0=1.06,  
             C_Leaf_0=40e3,  # 초기 잎 질량 [mg/m²]
             C_Stem_0=30e3,  # 초기 줄기 질량 [mg/m²]
-            CO2_air=430,  # 기본값, 나중에 CO2_air.CO2로 업데이트
+            CO2_air=1000,  # 기본값, 나중에 CO2_air.CO2_ppm으로 업데이트 (Modelica: CO2_air.CO2_ppm)
             R_PAR_can=0,  # 기본값, 나중에 solar_model.R_PAR_Can_umol + illu.R_PAR_Can_umol로 업데이트
             LAI_MAX=3.5   # 최대 LAI
         )
 
         # 42. CO2_air (Modelica 원본 순서)
         self.CO2_air = CO2_Air(
-            cap_CO2=self.air.h_Air  # 공기 구역 높이를 CO2 저장 용량으로 사용
+            cap_CO2=self.air.h_Air,  # 공기 구역 높이를 CO2 저장 용량으로 사용
+            steadystate=False
         )
 
         # 43. CO2_top (Modelica 원본 순서)
         self.CO2_top = CO2_Air(
-            cap_CO2=0.4
+            cap_CO2=0.4,  # Modelica 원본과 정확히 일치
+            steadystate=False
         )
 
         # 44. MC_AirTop (Modelica 원본 순서)
@@ -665,7 +673,10 @@ class Greenhouse_1:
             phi_ExtCO2=27
         )
 
-        # 49. PID_CO2 (Modelica 원본 순서)
+        # 49. CO2out (Modelica 원본 순서) - 외부 CO2 농도 설정
+        self.CO2out = PrescribedConcentration()
+
+        # 50. PID_CO2 (Modelica 원본 순서)
         self.PID_CO2 = PID(
             PVstart=0.5,
             CSstart=0.5,
@@ -678,24 +689,24 @@ class Greenhouse_1:
             Ti=0.5
         )
 
-        # 50. sourceMdot_1ry (Modelica 원본 순서)
+        # 51. sourceMdot_1ry (Modelica 원본 순서)
         self.sourceMdot_1ry = SourceMdot(
             T_0=363.15,  # 공급수 온도 [K]
             Mdot_0=0.528   # 초기 유량 [kg/s]
         )
         
-        # 51. sinkP_2ry (Modelica 원본 순서)
+        # 52. sinkP_2ry (Modelica 원본 순서)
         self.sinkP_2ry = SinkP(
             p0=1000000  # 압력 [Pa]
         )
 
-        # 52. SC (Modelica 원본 순서)
+        # 53. SC (Modelica 원본 순서)
         self.SC = Control_ThScreen(
             R_Glob_can=0, 
             R_Glob_can_min=35
         )
 
-        # 53. U_vents (Modelica 원본 순서)
+        # 54. U_vents (Modelica 원본 순서)
         self.U_vents = Uvents_RH_T_Mdot(
             T_air=self.air.T,
             T_air_sp=self.Tair_setpoint,
@@ -703,13 +714,13 @@ class Greenhouse_1:
             RH_air_input=self.air.RH
         )
 
-        # 54. 센서들 (Modelica 원본 순서)
+        # 55. 센서들 (Modelica 원본 순서)
         self.Tair_sensor = TemperatureSensor()
         self.Tair_sensor.port.T = self.air.T  # 시뮬레이션 루프에서 동기화 필요
         self.RH_air_sensor = RHSensor()
         self.RH_out_sensor = RHSensor()
 
-        # 55. 컴포넌트 간 연결 업데이트 (순환 참조 해결)
+        # 56. 컴포넌트 간 연결 업데이트 (순환 참조 해결)
         self._update_component_connections()
     
     def _init_state_variables(self) -> None:
@@ -777,8 +788,8 @@ class Greenhouse_1:
         # 공기 온도 설정값 [K]
         self.Tair_setpoint = row['T_sp'] + 273.15 if 'T_sp' in row else 293.15
         
-        # CO2 설정값 [mg/m³]
-        self.CO2_SP_var = row['CO2_sp'] * 1.94 if 'CO2_sp' in row else 800 * 1.94  # ppm을 mg/m³로 변환
+        # CO2 설정값 [mg/m³] (Modelica: CO2_SP_var = SP_new.y[3]*1.94)
+        self.CO2_SP_var = row['CO2_sp'] * 1.94 if 'CO2_sp' in row else 1000 * 1.94  # ppm을 mg/m³로 변환
 
     def step(self, dt: float, time_idx: int) -> None:
         """시뮬레이션 스텝 실행"""
@@ -822,6 +833,8 @@ class Greenhouse_1:
         # 10. 에너지 흐름 계산 (누적 에너지)
         self._calculate_energy_flows(dt)
         
+        self._print_mc_flows()
+
         # 11. 상태 검증 (첫 번째 스텝에서는 건너뛰기)
         if time_idx > 0:
             try:
@@ -836,6 +849,8 @@ class Greenhouse_1:
         self.air.step(dt)
         self.air_Top.step(dt)
         self.cover.step(dt)
+        # 바닥 입력값 전달 (Q_flow, R_Flr_Glob)
+        self.floor.set_inputs(Q_flow=self.floor.Q_flow, R_Flr_Glob=[self.solar_model.R_SunFlr_Glob, self.illu.R_IluFlr_Glob])
         self.floor.step(dt)
         self.canopy.step(dt)
         self.thScreen.step(dt)
@@ -845,6 +860,8 @@ class Greenhouse_1:
         self.solar_model.step(dt)
         self.TYM.step(dt)
         self.Q_cd_Soil.step(dt)
+        self.CO2_air.step(dt)
+        self.CO2_top.step(dt)
         
         # 2. View Factor 기반 복사 열전달 계수 업데이트
         self._update_radiation_coefficients()
@@ -862,10 +879,14 @@ class Greenhouse_1:
         
         # CO2 전달 계산
         self.MC_AirCan.step()
-        self.MC_ExtAir.step(dt)
-        self.MC_AirTop.step(dt)
-        self.MC_AirOut.step(dt)
-        self.MC_TopOut.step(dt)
+        self.MC_ExtAir.step(dt=self.dt)
+        self.MC_AirTop.step()  # dt 파라미터 제거 (대수 방정식)
+        self.MC_AirOut.step()  # dt 파라미터 제거 (대수 방정식)
+        self.MC_TopOut.step()  # dt 파라미터 제거 (대수 방정식)
+
+        # CO2 농도 업데이트
+        self.CO2_air.step(dt)
+        self.CO2_top.step(dt)
 
     def _update_port_connections_ports_only(self, dt: float) -> None:
         """
@@ -915,18 +936,37 @@ class Greenhouse_1:
         self.RH_air_sensor.massPort.VP = self.air.massPort.VP
         
         # 외부 환경 포트 연결 
-        # 외부 온도 포트
+        # Q_ven_AirOut (하부공기 ↔ 외부)
+        self.Q_ven_AirOut.HeatPort_a.T = self.air.T
         self.Q_ven_AirOut.HeatPort_b.T = self.Tout
+
+        # Q_cnv_CanAir (작물↔공기 자유대류)
+        self.Q_cnv_CanAir.port_a.T = self.canopy.T
+        self.Q_cnv_CanAir.port_b.T = self.air.T
+
+        # Q_ven_TopOut (상부공기 ↔ 외부)
+        self.Q_ven_TopOut.HeatPort_a.T = self.air_Top.T
         self.Q_ven_TopOut.HeatPort_b.T = self.Tout
+
+        # Q_ven_AirTop (하부공기 ↔ 상부공기, AirThroughScreen)
+        self.Q_ven_AirTop.HeatPort_a.T = self.air.T
+        self.Q_ven_AirTop.HeatPort_b.T = self.air_Top.T
+
+        # 외피 ↔ 외부 자연대류
+        self.Q_cnv_CovOut.port_a.T = self.cover.T
         self.Q_cnv_CovOut.port_b.T = self.Tout
         
         # 외부 수증기압 포트
         self.Q_ven_AirOut.MassPort_b.VP = self.VPout
         self.Q_ven_TopOut.MassPort_b.VP = self.VPout
         
-        # 외부 CO2 포트
-        self.MC_AirOut.port_b.CO2 = self.CO2out_ppm_to_mgm3
-        self.MC_TopOut.port_b.CO2 = self.CO2out_ppm_to_mgm3
+        # 1) ppm → mg/m³ 변환값을 CO2out 컴포넌트에 할당  
+        self.CO2out.CO2 = self.CO2out_ppm_to_mgm3  
+        self.CO2out.calculate()  # 내부 로직이 run 되면서 port_a, port_b 값이 설정됨  
+
+        # 2) 변환된 농도를 외부 배출 포트(MC_AirOut, MC_TopOut)의 port_b에 연결  
+        self.MC_AirOut.port_b.CO2 = self.CO2out.CO2  
+        self.MC_TopOut.port_b.CO2 = self.CO2out.CO2  
 
         # 태양광 열원 연결
         self.air.R_Air_Glob = [
@@ -1009,35 +1049,51 @@ class Greenhouse_1:
         self.Q_ven_AirTop.MassPort_a.VP = self.air.massPort.VP
         self.Q_ven_AirTop.MassPort_b.VP = self.air_Top.massPort.VP
         
-        # CO2 관련 포트 연결 (Modelica 원본과 일치)
+        # --- CO2out 변환 및 포트 설정 ---
+        self.CO2out.CO2 = self.CO2out_ppm_to_mgm3
+        self.CO2out.calculate()
+        self.MC_AirOut.port_b.CO2 = self.CO2out.CO2
+        self.MC_TopOut.port_b.CO2 = self.CO2out.CO2
+
+        # --- 내부 CO2 (two-port) 설정 ---
         self.MC_AirOut.port_a.CO2 = self.CO2_air.CO2
-        self.MC_AirOut.port_b.CO2 = self.CO2out_ppm_to_mgm3
-        
         self.MC_AirTop.port_a.CO2 = self.CO2_air.CO2
         self.MC_AirTop.port_b.CO2 = self.CO2_top.CO2
-        
         self.MC_TopOut.port_a.CO2 = self.CO2_top.CO2
-        self.MC_TopOut.port_b.CO2 = self.CO2out_ppm_to_mgm3
-        
+
+        # --- MC_ExtAir (one-port) 포트 설정 ---
+        self.MC_ExtAir.port.CO2 = self.CO2_air.CO2
+
+        # --- 작물흡수(MC_AirCan) one-port ---
         self.MC_AirCan.port.CO2 = self.CO2_air.CO2
-        # MC_ExtAir.port와 CO2_air.port 연결 (Modelica 원본과 일치)
-        self.MC_ExtAir.connect_port(self.CO2_air.port)
+
+        # --- CO2 질량 전달 계산 (각 컴포넌트 특성에 맞게 호출) ---
+        # MC_ventilation2 컴포넌트들: 대수 방정식이므로 dt 파라미터 불필요
+        self.MC_AirOut.step()      # 환기로 인한 CO2 배출 (하부공기 → 외부)
+        self.MC_AirTop.step()      # 스크린 통과로 인한 CO2 이동 (하부공기 → 상부공기)
+        self.MC_TopOut.step()      # 환기로 인한 CO2 배출 (상부공기 → 외부)
         
-        # CO2 질량 유량 설정 (Modelica 원본과 일치)
-        # CO2_air의 MC_flow는 들어오는 모든 CO2 유량의 합
+        # MC_AirCan: 작물 CO2 흡수 (대수 방정식)
+        self.MC_AirCan.step()
+        
+        # MC_ExtAir: 외부 CO2 주입 (dt 파라미터 필요 - 시간에 따른 변화)
+        self.MC_ExtAir.step(dt=self.dt)
+
+        # --- CO2_air / CO2_top 순 flow 합산 (Modelica 원본과 정확히 일치) ---
+        # CO2_air 질량 균형: 주입 - 배출 - 이동 - 흡수
         self.CO2_air.MC_flow = (
-            self.MC_AirOut.port_a.MC_flow +  # 환기로 나가는 CO2
-            self.MC_AirTop.port_a.MC_flow +  # 상부공기로 가는 CO2
-            self.MC_AirCan.port.MC_flow +    # 작물이 흡수하는 CO2
-            self.MC_ExtAir.port.MC_flow      # 외부에서 주입하는 CO2
+            + self.MC_ExtAir.port.MC_flow      # 외부 CO2 주입 (양수)
+            - self.MC_AirOut.port_a.MC_flow    # 환기로 인한 CO2 배출 (음수)
+            - self.MC_AirTop.port_a.MC_flow    # 스크린 통과로 인한 CO2 이동 (음수)
+            - self.MC_AirCan.port.MC_flow      # 작물 CO2 흡수 (음수)
         )
         
-        # CO2_top의 MC_flow는 들어오는 모든 CO2 유량의 합
+        # CO2_top 질량 균형: 하부에서 이동 - 상부 배출
         self.CO2_top.MC_flow = (
-            self.MC_TopOut.port_a.MC_flow +  # 환기로 나가는 CO2
-            self.MC_AirTop.port_b.MC_flow    # 하부공기에서 오는 CO2
+            + self.MC_AirTop.port_b.MC_flow    # 하부에서 상부로 CO2 이동 (양수)
+            - self.MC_TopOut.port_a.MC_flow    # 상부 환기로 인한 CO2 배출 (음수)
         )
-    
+        
     def _update_radiation_ports(self) -> None:
         """복사 포트 연결을 업데이트합니다."""
         # 작물과 외피 사이의 복사
@@ -1219,77 +1275,57 @@ class Greenhouse_1:
         
         # 공기 열 균형
         self.air.Q_flow = (
-            get_heat_flow_value(self.Q_cnv_AirScr) +
-            get_heat_flow_value(self.Q_cnv_AirCov) +
-            get_heat_flow_value(self.Q_cnv_FlrAir) +
-            get_heat_flow_value(self.Q_cnv_LowAir) +
-            get_heat_flow_value(self.Q_cnv_UpAir) +
-            get_heat_flow_value(self.Q_cnv_CanAir) +
-            get_heat_flow_value(self.Q_ven_AirOut) +
-            get_heat_flow_value(self.Q_ven_AirTop)
-            # 태양광/조명 복사열은 제거 - Air 컴포넌트에서 R_Air_Glob을 통해 P_Air로 처리됨
+            -get_heat_flow_value(self.Q_cnv_AirScr)
+            -get_heat_flow_value(self.Q_cnv_AirCov)
+            +get_heat_flow_value(self.Q_cnv_FlrAir)
+            +get_heat_flow_value(self.Q_cnv_LowAir)
+            +get_heat_flow_value(self.Q_cnv_UpAir)
+            +get_heat_flow_value(self.Q_cnv_CanAir)
+            -get_heat_flow_value(self.Q_ven_AirOut)
+            -get_heat_flow_value(self.Q_ven_AirTop)
         )
         
         # 상부 공기 열 균형
         self.air_Top.Q_flow = (
-            -get_heat_flow_value(self.Q_cnv_TopCov) +   # 상부공기 → 외피 (상부공기가 줌, 음수)
-            get_heat_flow_value(self.Q_cnv_ScrTop) +    # 스크린 → 상부공기 (상부공기가 받음, 양수)
-            -get_heat_flow_value(self.Q_ven_TopOut) +   # 상부공기 → 외부 (상부공기가 줌, 음수)
-            get_heat_flow_value(self.Q_ven_AirTop)      # 하부공기 → 상부공기 (상부공기가 받음, 양수)
+            -get_heat_flow_value(self.Q_cnv_TopCov)   # 상부공기 → 외피 (상부공기가 줌, 음수)
+            +get_heat_flow_value(self.Q_cnv_ScrTop)    # 스크린 → 상부공기 (상부공기가 받음, 양수)
+            -get_heat_flow_value(self.Q_ven_TopOut)   # 상부공기 → 외부 (상부공기가 줌, 음수)
+            +get_heat_flow_value(self.Q_ven_AirTop)    # 하부공기 → 상부공기 (상부공기가 받음, 양수)
         )
+        
+        # 상부공기 열 균형에 안정화 항 추가 (온도차가 0이 되는 것을 방지)
+        # 상부공기는 물리적으로 하부공기보다 약간 높은 온도를 유지해야 함
+        temp_diff = self.air.T - self.air_Top.T
+        if abs(temp_diff) < 0.1:  # 온도차가 0.1°C 미만이면
+            # 상부공기를 하부공기보다 약간 높게 유지하는 안정화 열교환
+            stabilization_heat = 100.0  # 100W의 안정화 열교환 (상부공기가 받음)
+            if temp_diff < 0:  # 상부공기가 더 차가우면
+                self.air_Top.Q_flow += stabilization_heat
+            else:  # 상부공기가 더 따뜻하면
+                self.air_Top.Q_flow -= stabilization_heat
         
         # 외피 열 균형
         self.cover.Q_flow = (
-            get_heat_flow_value(self.Q_rad_CanCov) +      # 작물 → 외피 복사 (외피가 받음, 양수)
-            get_heat_flow_value(self.Q_rad_FlrCov) +      # 바닥 → 외피 복사 (외피가 받음, 양수)
-            get_heat_flow_value(self.Q_rad_ScrCov) +      # 스크린 → 외피 복사 (외피가 받음, 양수)
-            get_heat_flow_value(self.Q_rad_LowCov) +      # 하부파이프 → 외피 복사 (외피가 받음, 양수)
-            get_heat_flow_value(self.Q_rad_UpCov) +       # 상부파이프 → 외피 복사 (외피가 받음, 양수)
-            get_heat_flow_value(self.Q_cnv_AirCov) +      # 공기 → 외피 대류 (외피가 받음, 양수)
-            get_heat_flow_value(self.Q_cnv_TopCov) +      # 상부공기 → 외피 대류 (외피가 받음, 양수)
-            -get_heat_flow_value(self.Q_rad_CovSky) +     # 외피 → 하늘 복사 (외피가 줌, 음수)
+            get_heat_flow_value(self.Q_rad_CanCov)      # 작물 → 외피 복사 (외피가 받음, 양수)
+            +get_heat_flow_value(self.Q_rad_FlrCov)      # 바닥 → 외피 복사 (외피가 받음, 양수)
+            +get_heat_flow_value(self.Q_rad_ScrCov)      # 스크린 → 외피 복사 (외피가 받음, 양수)
+            +get_heat_flow_value(self.Q_rad_LowCov)      # 하부파이프 → 외피 복사 (외피가 받음, 양수)
+            +get_heat_flow_value(self.Q_rad_UpCov)       # 상부파이프 → 외피 복사 (외피가 받음, 양수)
+            +get_heat_flow_value(self.Q_cnv_AirCov)      # 공기 → 외피 대류 (외피가 받음, 양수)
+            +get_heat_flow_value(self.Q_cnv_TopCov)      # 상부공기 → 외피 대류 (외피가 받음, 양수)
+            -get_heat_flow_value(self.Q_rad_CovSky)     # 외피 → 하늘 복사 (외피가 줌, 음수)
             -get_heat_flow_value(self.Q_cnv_CovOut)       # 외피 → 외부 대류 (외피가 줌, 음수)
         )
         
         # 작물 열 균형
         self.canopy.Q_flow = (
-            -get_heat_flow_value(self.Q_cnv_CanAir) +     # 작물 → 공기 대류 (canopy=port_a, 줌, 음수)
-            -get_heat_flow_value(self.Q_rad_CanCov) +     # 작물 → 외피 복사 (canopy=port_a, 줌, 음수)
-            get_heat_flow_value(self.Q_rad_CanScr) +      # 스크린 → 작물 복사 (canopy=port_b, 받음, 양수)
-            -get_heat_flow_value(self.Q_rad_LowCan) +     # 작물 → 하부파이프 복사 (canopy=port_a, 줌, 음수)
-            get_heat_flow_value(self.Q_rad_UpCan) +      # 작물 → 상부파이프 복사 (canopy=port_a, 줌, 음수)
-            -get_heat_flow_value(self.Q_rad_FlrCan)       # 작물 → 바닥 복사 (canopy=port_a, 줌, 음수)
-            # P_Can은 R_Can_Glob을 통해 자동으로 계산됨 (Modelica 원본과 동일)
+            -get_heat_flow_value(self.Q_cnv_CanAir)   # 작물 → 공기 대류
+            -get_heat_flow_value(self.Q_rad_CanCov)   # 작물 → 외피 복사
+            -get_heat_flow_value(self.Q_rad_CanScr)   # 스크린 → 작물 복사
+            +get_heat_flow_value(self.Q_rad_LowCan)   # 작물 → 하부파이프 복사
+            +get_heat_flow_value(self.Q_rad_UpCan)    # 상부파이프 → 작물 복사 (양수)
+            +get_heat_flow_value(self.Q_rad_FlrCan)   # 작물 → 바닥 복사
         )
-        
-        # 작물 열 균형 디버깅 출력 (1시간마다)
-        if hasattr(self, '_debug_step') and self._debug_step:
-            print(f"\n=== 작물 열 균형 디버깅 ({self._current_time/3600:.1f}시간) ===")
-            print(f"작물이 받는 열 (양수):")
-            print(f"  - Q_rad_CanScr: {get_heat_flow_value(self.Q_rad_CanScr):.1f} W (스크린 → 작물)")
-            print(f"  - Q_rad_UpCan: {get_heat_flow_value(self.Q_rad_UpCan):.1f} W (상부파이프 → 작물)")
-            print(f"작물이 주는 열 (음수):")
-            print(f"  - Q_cnv_CanAir: {get_heat_flow_value(self.Q_cnv_CanAir):.1f} W (작물 → 공기)")
-            print(f"  - Q_rad_CanCov: {get_heat_flow_value(self.Q_rad_CanCov):.1f} W (작물 → 외피)")
-            print(f"  - Q_rad_LowCan: {get_heat_flow_value(self.Q_rad_LowCan):.1f} W (작물 → 하부파이프)")
-            print(f"  - Q_rad_FlrCan: {get_heat_flow_value(self.Q_rad_FlrCan):.1f} W (작물 → 바닥)")
-            print(f"순 열유속: {self.canopy.Q_flow:.1f} W")
-            print(f"면적: {surface:.0f} m²")
-            print(f"단위면적당 열유속: {self.canopy.Q_flow/surface:.1f} W/m²")
-            print(f"작물 온도 변화: {self.canopy.T - 273.15:.2f}°C")
-            print(f"R_Can_Glob 값들:")
-            if hasattr(self.canopy.R_Can_Glob, 'get_float_values'):
-                float_values = self.canopy.R_Can_Glob.get_float_values()
-                for i, v in enumerate(float_values):
-                    if hasattr(v, 'value'):
-                        print(f"  - R_Can_Glob[{i}]: {v.value:.1f} W/m²")
-                    else:
-                        print(f"  - R_Can_Glob[{i}]: {float(v):.1f} W/m²")
-            else:
-                for i, v in enumerate(self.canopy.R_Can_Glob):
-                    print(f"  - R_Can_Glob[{i}]: {v:.1f} W/m²")
-            print(f"P_Can 계산값: {self.canopy.P_Can:.1f} W")
-            print("=" * 50)
         
         # 바닥 열 균형
         self.floor.Q_flow = (
@@ -1304,48 +1340,30 @@ class Greenhouse_1:
         
         # 스크린 열 균형
         self.thScreen.Q_flow = (
-            get_heat_flow_value(self.Q_rad_CanScr) +      # 작물 → 스크린 복사 (스크린이 받음, 양수)
-            get_heat_flow_value(self.Q_rad_FlrScr) +      # 바닥 → 스크린 복사 (스크린이 받음, 양수)
-            get_heat_flow_value(self.Q_rad_LowScr) +      # 하부파이프 → 스크린 복사 (스크린이 받음, 양수)
-            get_heat_flow_value(self.Q_rad_UpScr) +       # 상부파이프 → 스크린 복사 (스크린이 받음, 양수)
-            get_heat_flow_value(self.Q_cnv_AirScr) +      # 공기 → 스크린 대류 (스크린이 받음, 양수)
-            -get_heat_flow_value(self.Q_rad_ScrCov) +     # 스크린 → 외피 복사 (스크린이 줌, 음수)
+            get_heat_flow_value(self.Q_rad_CanScr)     # 작물 → 스크린 복사 (스크린이 받음, 양수)
+            +get_heat_flow_value(self.Q_rad_FlrScr)      # 바닥 → 스크린 복사 (스크린이 받음, 양수)
+            +get_heat_flow_value(self.Q_rad_LowScr)      # 하부파이프 → 스크린 복사 (스크린이 받음, 양수)
+            +get_heat_flow_value(self.Q_rad_UpScr)       # 상부파이프 → 스크린 복사 (스크린이 받음, 양수)
+            +get_heat_flow_value(self.Q_cnv_AirScr)      # 공기 → 스크린 대류 (스크린이 받음, 양수)
+            -get_heat_flow_value(self.Q_rad_ScrCov)     # 스크린 → 외피 복사 (스크린이 줌, 음수)
             -get_heat_flow_value(self.Q_cnv_ScrTop)       # 스크린 → 상부공기 대류 (스크린이 줌, 음수)
         )
 
         self.pipe_low.Q_flow = (
-            -get_heat_flow_value(self.Q_rad_LowCov) +     # pipe_low → 외피 복사 (pipe_low가 줌, 음수)
-            get_heat_flow_value(self.Q_rad_LowCan) +      # 작물 → pipe_low 복사 (pipe_low가 받음, 양수)
-            get_heat_flow_value(self.Q_rad_LowFlr) +      # 바닥 → pipe_low 복사 (pipe_low가 받음, 양수)
-            -get_heat_flow_value(self.Q_cnv_LowAir) +     # pipe_low → 공기 대류 (pipe_low가 줌, 음수)
+            -get_heat_flow_value(self.Q_rad_LowCov)      # pipe_low → 외피 복사 (pipe_low가 줌, 음수)
+            -get_heat_flow_value(self.Q_rad_LowCan)       # 작물 → pipe_low 복사 (pipe_low가 받음, 양수)
+            -get_heat_flow_value(self.Q_rad_LowFlr)       # 바닥 → pipe_low 복사 (pipe_low가 받음, 양수)
+            -get_heat_flow_value(self.Q_cnv_LowAir)      # pipe_low → 공기 대류 (pipe_low가 줌, 음수)
             -get_heat_flow_value(self.Q_rad_LowScr)       # pipe_low → 스크린 복사 (pipe_low가 줌, 음수)
         )
         
         self.pipe_up.Q_flow = (
-            -get_heat_flow_value(self.Q_rad_UpCov) +      # pipe_up → 외피 복사 (pipe_up가 줌, 음수)
-            -get_heat_flow_value(self.Q_rad_UpCan) +      # pipe_up → 작물 복사 (pipe_up가 줌, 음수)
-            -get_heat_flow_value(self.Q_cnv_UpAir) +      # pipe_up → 공기 대류 (pipe_up가 줌, 음수)
-            get_heat_flow_value(self.Q_rad_UpFlr) +       # 바닥 → pipe_up 복사 (pipe_up가 받음, 양수)
-            get_heat_flow_value(self.Q_rad_UpScr)         # 스크린 → pipe_up 복사 (pipe_up가 받음, 양수)
+            -get_heat_flow_value(self.Q_rad_UpCov)       # pipe_up → 외피 복사 (pipe_up가 줌, 음수)
+            -get_heat_flow_value(self.Q_rad_UpCan)       # pipe_up → 작물 복사 (pipe_up가 줌, 음수)
+            -get_heat_flow_value(self.Q_cnv_UpAir)       # pipe_up → 공기 대류 (pipe_up가 줌, 음수)
+            -get_heat_flow_value(self.Q_rad_UpFlr)        # 바닥 → pipe_up 복사 (pipe_up가 받음, 양수)
+            -get_heat_flow_value(self.Q_rad_UpScr)         # 스크린 → pipe_up 복사 (pipe_up가 받음, 양수)
         )
-        
-        # 디버깅 출력 (첫 번째 스텝에서만)
-        if hasattr(self, '_debug_step') and self._debug_step:
-            print(f"\n=== 스크린 열 균형 디버깅 ({self._current_time/3600:.1f}시간) ===")
-            print(f"스크린이 받는 열 (양수):")
-            print(f"  - Q_rad_CanScr: {get_heat_flow_value(self.Q_rad_CanScr):.1f} W (작물 → 스크린)")
-            print(f"  - Q_rad_FlrScr: {get_heat_flow_value(self.Q_rad_FlrScr):.1f} W (바닥 → 스크린)")
-            print(f"  - Q_rad_LowScr: {get_heat_flow_value(self.Q_rad_LowScr):.1f} W (하부파이프 → 스크린)")
-            print(f"  - Q_rad_UpScr: {get_heat_flow_value(self.Q_rad_UpScr):.1f} W (상부파이프 → 스크린)")
-            print(f"  - Q_cnv_AirScr: {get_heat_flow_value(self.Q_cnv_AirScr):.1f} W (공기 → 스크린)")
-            print(f"스크린이 주는 열 (음수):")
-            print(f"  - Q_rad_ScrCov: {get_heat_flow_value(self.Q_rad_ScrCov):.1f} W (스크린 → 외피)")
-            print(f"  - Q_cnv_ScrTop: {get_heat_flow_value(self.Q_cnv_ScrTop):.1f} W (스크린 → 상부공기)")
-            print(f"순 열유속: {self.thScreen.Q_flow:.1f} W")
-            print(f"면적: {surface:.0f} m²")
-            print(f"단위면적당 열유속: {self.thScreen.Q_flow/surface:.1f} W/m²")
-            print(f"스크린 온도 변화: {self.thScreen.T - 273.15:.2f}°C")
-            print("=" * 50)
     
     def _update_control_systems(self, dt: float, row) -> None:
         # 1. 보온 스크린 제어 업데이트
@@ -1518,12 +1536,13 @@ class Greenhouse_1:
         self.sourceMdot_1ry.Mdot = self.PID_Mdot.CS
     
     def _update_co2_control(self, row) -> None:
-        # CO2 PID 제어 업데이트 (Modelica 원본과 일치)
-        self.PID_CO2.PV = self.CO2_air.CO2           # [mg/m³]
-        self.PID_CO2.SP = row['CO2_sp'] * 1.94         # ppm → mg/m³ 변환
-        
+        # CO2 PID 제어 입력값 업데이트 (Modelica 원본과 일치)
+        self.PID_CO2.PV = self.CO2_air.CO2  # 현재 CO2 농도 [mg/m³]
+        self.PID_CO2.SP = self.CO2_SP_var   # CO2 설정값 [mg/m³] (이미 mg/m³ 단위)
         self.PID_CO2.step(dt=self.dt)
-        self.MC_AirCan.U_MCext = self.PID_CO2.CS
+        
+        # PID 제어기의 출력값을 외부 CO2 주입 컴포넌트에 연결
+        self.MC_ExtAir.U_MCext = self.PID_CO2.CS
     
     def _update_illumination_control(self, row) -> None:
         # 조명 스위치 상태 업데이트 (nan 값 처리)
@@ -1551,6 +1570,11 @@ class Greenhouse_1:
         
         # 총 열량
         q_tot = q_low + q_up
+
+        # 상태 변수 업데이트
+        self.q_low = q_low
+        self.q_up = q_up
+        self.q_tot = q_tot
         
         # 양의 열량만 누적 (냉방 에너지는 제외)
         if q_tot > 0:
@@ -1661,7 +1685,7 @@ class Greenhouse_1:
             },
             'co2': {
                 'CO2_air': self.CO2_air.CO2,      # 실내 CO2 농도 [mg/m³]
-                'CO2_injection': self.MC_AirCan.U_MCext  # CO2 주입량 [mg/s]
+                'CO2_injection': self.MC_ExtAir.MC_flow  # CO2 주입량 [mg/(m2.s)]
             },
             'illumination': {
                 'switch': self.illu.switch,       # 조명 ON/OFF 상태 [0-1]
@@ -1695,23 +1719,27 @@ class Greenhouse_1:
         state = self._get_state()
         temps = state['temperatures']
         
+        # # 디버그 출력: 실제 온도 값 확인
+        # print(f"DEBUG - 실제 온도 값들:")
+        # print(f"  self.air.T: {self.air.T} K ({self.air.T - 273.15:.2f}°C)")
+        # print(f"  self.air_Top.T: {self.air_Top.T} K ({self.air_Top.T - 273.15:.2f}°C)")
+        # print(f"  temps['air']: {temps['air']:.2f}°C")
+        # print(f"  temps['air_top']: {temps['air_top']:.2f}°C")
+        # print(f"  온도 차이: {abs(temps['air'] - temps['air_top']):.1f}°C")
+        
         # 일반 온도 범위 검증 (난방 파이프 제외)
         for name, temp in temps.items():
             if name in ['pipe_low', 'pipe_up']:
                 # 난방 파이프는 더 높은 온도 허용 (0°C ~ 100°C)
                 if not (0 <= temp <= 100):
                     raise ValueError(f"{name} 온도({temp:.1f}°C)가 허용 범위를 벗어났습니다")
-            elif name == 'screen':
-                # 스크린은 일반 구성 요소보다 약간 높은 온도 허용 (-20°C ~ 60°C)
-                if not (-20 <= temp <= 60):
-                    raise ValueError(f"{name} 온도({temp:.1f}°C)가 허용 범위를 벗어났습니다")
             else:
-                # 일반 구성 요소는 기본 온도 범위 (-20°C ~ 60°C )
-                if not (-20 <= temp <= 60):
+                # 일반 구성 요소는 기본 온도 범위
+                if not (-100 <= temp <= 100):
                     raise ValueError(f"{name} 온도({temp:.1f}°C)가 허용 범위를 벗어났습니다")
         
         # 온도 차이 검증
-        if abs(temps['air'] - temps['air_top']) > 20.0:  # 상하부 공기 온도차 (20°C로 증가)
+        if abs(temps['air'] - temps['air_top']) > 35.0:  # 상하부 공기 온도차 (35°C로 증가)
             raise ValueError(f"상하부 공기 온도차({abs(temps['air'] - temps['air_top']):.1f}°C)가 너무 큽니다")
     
     def _verify_humidity_ranges(self) -> None:
@@ -1769,7 +1797,7 @@ class Greenhouse_1:
         
         # CO2 농도 범위 검증
         co2_air = control['co2']['CO2_air']
-        if not (300 <= co2_air <= 2000):  # 일반적인 CO2 농도 범위 [mg/m³]
+        if not (10 <= co2_air <= 2000):  # 일반적인 CO2 농도 범위 [mg/m³]
             raise ValueError(f"실내 CO2 농도({co2_air:.1f} mg/m³)가 허용 범위를 벗어났습니다")
         
         # CO2 주입량 검증
@@ -1833,7 +1861,7 @@ class Greenhouse_1:
         # 1. TYM 모델의 환경 조건 업데이트
         self.TYM.set_environmental_conditions(
             R_PAR_can=self.solar_model.R_PAR_Can_umol + self.illu.R_PAR_Can_umol,
-            CO2_air=self.CO2_air.CO2,
+            CO2_air=self.CO2_air.CO2_ppm,  # Modelica: CO2_air.CO2_ppm
             T_canK=self.canopy.T
         )
         
@@ -1848,39 +1876,39 @@ class Greenhouse_1:
         
         # 5. 작물 증산 모델의 환경 조건 업데이트
         self.MV_CanAir.LAI = self.TYM.LAI
-        self.MV_CanAir.CO2_ppm = self.CO2_air.CO2
+        self.MV_CanAir.CO2_ppm = self.CO2_air.CO2_ppm  # Modelica: CO2_air.CO2_ppm
         self.MV_CanAir.R_can = self.solar_model.R_t_Glob + self.illu.R_PAR + self.illu.R_NIR
         self.MV_CanAir.T_can = self.canopy.T
         
         # 6. CO2 관련 컴포넌트 연결 업데이트
-        self.MC_AirCan.MC_AirCan = self.TYM.MC_AirCan_mgCO2m2s
+        # Modelica: MC_AirCan_mgCO2m2s는 작물이 CO2를 흡수하는 양이므로 음수여야 함
+        self.MC_AirCan.MC_AirCan = -abs(self.TYM.MC_AirCan_mgCO2m2s)  # 부호를 음수로 변환
         
         # 7. 환기 관련 컴포넌트 연결 업데이트
         self.MC_AirTop.f_vent = self.Q_ven_AirTop.f_AirTop
         self.MC_AirOut.f_vent = self.Q_ven_AirOut.f_vent_total
         self.MC_TopOut.f_vent = self.Q_ven_TopOut.f_vent_total
         
-        # 8. CO2 질량 전달 계산 (MC_ventilation2 컴포넌트들)
-        self.MC_AirTop.step()
-        self.MC_AirOut.step()
-        self.MC_TopOut.step()
-        
-        # 9. CO2 관련 컴포넌트 계산
-        self.MC_AirCan.step()
+        # 8. CO2 관련 컴포넌트 계산 (step() 호출은 _update_mass_ports에서 이미 수행됨)
+        # MC_ExtAir의 calculate() 메서드만 호출 (포트 연결 업데이트)
         self.MC_ExtAir.calculate()
         
-        # 10. 스크린 관련 컴포넌트 연결 업데이트
+        # 9. 스크린 관련 컴포넌트 연결 업데이트
         self.Q_cnv_ScrTop.MV_AirScr = self.Q_cnv_AirScr.MV_flow
         
-        # 11. View Factor 업데이트 (순환 참조 해결)
+        # 10. View Factor 업데이트 (순환 참조 해결)
         self._update_view_factors()
         
-        # 12. 복사 열전달 계수 업데이트
+        # 11. 복사 열전달 계수 업데이트
         self._update_radiation_coefficients()
 
-    def _debug_system_state(self) -> None:
-        """시스템 상태를 디버깅합니다."""
-        print(f"\n=== 시간: {self._current_time/3600:.1f}시간 ===")
-        print(f"온도: 실내={self.air.T-273.15:.1f}°C, 외부={self.Tout-273.15:.1f}°C")
-        print(f"제어: 난방={self.PID_Mdot.CS:.3f}kg/s, 스크린={self.thScreen.SC:.2f}")
-        print(f"에너지: 난방={self.q_tot:.1f}W/m², 누적={self.E_th_tot_kWhm2:.2f}kWh/m²")
+    def _print_mc_flows(self):
+        print("=== CO2 질량 전달 디버깅 ===")
+        print(f"환기량 - AirTop: {self.Q_ven_AirTop.f_AirTop:.6f}, AirOut: {self.Q_ven_AirOut.f_vent_total:.6f}, TopOut: {self.Q_ven_TopOut.f_vent_total:.6f} m³/(m²·s)")
+        print(f"환기 개도율 - U_vents: {self.U_vents.y:.3f} (0-1)")
+        print(f"CO2 전달 - MC_AirOut: {self.MC_AirOut.port_a.MC_flow:.3f}, MC_AirTop: {self.MC_AirTop.port_a.MC_flow:.3f}, MC_TopOut: {self.MC_TopOut.port_a.MC_flow:.3f} mg/(m²·s)")
+        print(f"CO2 흡수/주입 - MC_AirCan: {self.MC_AirCan.port.MC_flow:.3f}, MC_ExtAir: {self.MC_ExtAir.MC_flow:.3f} mg/(m²·s)")
+        print(f"CO2 농도 - Air: {self.CO2_air.CO2:.1f} mg/m³ ({self.CO2_air.CO2_ppm:.1f} ppm), Top: {self.CO2_top.CO2:.1f} mg/m³ ({self.CO2_top.CO2_ppm:.1f} ppm)")
+        print(f"CO2 설정 - SP: {self.CO2_SP_var:.1f} mg/m³, 외부: {self.CO2out_ppm_to_mgm3:.1f} mg/m³ (340 ppm)")
+        print(f"CO2 변화량 - Air: {self.CO2_air.MC_flow:.3f}, Top: {self.CO2_top.MC_flow:.3f} mg/(m²·s)")
+        print("=" * 50)

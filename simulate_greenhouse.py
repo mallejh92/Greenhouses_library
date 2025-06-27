@@ -7,6 +7,9 @@ import logging
 from pathlib import Path
 import json
 from Greenhouse_1 import Greenhouse_1
+import time
+import signal
+import sys
 
 # 로깅 설정
 logging.basicConfig(
@@ -18,11 +21,24 @@ logging.basicConfig(
     ]
 )
 
+# 전역 변수로 시뮬레이션 중단 플래그 설정
+simulation_interrupted = False
+
+def signal_handler(signum, frame):
+    """Ctrl+C 시그널 핸들러"""
+    global simulation_interrupted
+    print("\n\n시뮬레이션을 중단합니다... (Ctrl+C 감지됨)")
+    logging.info("사용자에 의해 시뮬레이션이 중단되었습니다 (Ctrl+C)")
+    simulation_interrupted = True
+
+# 시그널 핸들러 등록
+signal.signal(signal.SIGINT, signal_handler)
+
 @dataclass
 class SimulationConfig:
     """시뮬레이션 설정값을 관리하는 클래스"""
     dt: float = 1.0                    # 시간 간격 [s] (1초로 변경)
-    sim_time: float = 24 * 3600.0 * 30  # 시뮬레이션 시간 [s] (24시간으로 확장)
+    sim_time: float = 24 * 3600.0      # 시뮬레이션 시간 [s] (24시간)
     time_unit_scaling: float = 1.0     # 시간 단위 스케일링
     debug_interval: int = 3600         # 디버그 출력 간격 (스텝, 1시간마다)
     
@@ -181,7 +197,7 @@ def plot_results(results: SimulationResults, save_path: Optional[str] = None) ->
     # 1. 온도 그래프
     ax1 = plt.subplot(4, 2, 1)
     for name, data in results.data['temperatures'].items():
-        if name in ['air', 'canopy', 'cover', 'floor', 'outdoor']:
+        if name in ['air', 'air_top', 'canopy', 'cover', 'floor', 'outdoor']:
             ax1.plot(results.times, data, label=name.replace('_', ' ').title())
     ax1.set_title('Temperature Changes')
     ax1.set_xlabel('Time [h]')
@@ -241,7 +257,7 @@ def plot_results(results: SimulationResults, save_path: Optional[str] = None) ->
     ax6.set_ylabel('Opening Rate [0-1]')
     ax6.legend()
     ax6.grid(True)
-    
+
     # 7. 작물 그래프
     ax7 = plt.subplot(4, 2, 7)
     ax7.plot(results.times, results.data['crop']['DM_Har'])
@@ -275,8 +291,14 @@ def simulate_greenhouse(config: Optional[SimulationConfig] = None) -> Simulation
     
     Raises:
         ValueError: 시뮬레이션 중 오류 발생 시
+        KeyboardInterrupt: 사용자가 Ctrl+C로 중단한 경우
     """
+    global simulation_interrupted
+    
     try:
+        # 시뮬레이션 중단 플래그 초기화
+        simulation_interrupted = False
+        
         # 설정값 로드 또는 기본값 사용
         if config is None:
             config = SimulationConfig()
@@ -288,6 +310,7 @@ def simulate_greenhouse(config: Optional[SimulationConfig] = None) -> Simulation
         logging.info(f"시뮬레이션 시작: {n_steps}시간 ({n_steps} 스텝)")
         logging.info(f"시간 간격: {config.dt}초")
         logging.info(f"총 시뮬레이션 시간: {config.sim_time/3600:.1f}시간")
+        logging.info("시뮬레이션을 중단하려면 Ctrl+C를 누르세요.")
         
         # 결과 저장소 초기화
         results = SimulationResults(n_steps)
@@ -295,6 +318,23 @@ def simulate_greenhouse(config: Optional[SimulationConfig] = None) -> Simulation
         # 시뮬레이션 루프
         for i in range(n_steps):
             try:
+                # 시뮬레이션 중단 확인
+                if simulation_interrupted:
+                    logging.info(f"시뮬레이션이 {i} 스텝에서 중단되었습니다 (t={i*config.dt/3600:.1f}h)")
+                    # 현재까지의 결과만 반환
+                    results.times = results.times[:i]
+                    for category, subcategories in results.data.items():
+                        if isinstance(subcategories, dict):
+                            for subcategory, data in subcategories.items():
+                                if isinstance(data, dict):
+                                    for key, array in data.items():
+                                        results.data[category][subcategory][key] = array[:i]
+                                else:
+                                    results.data[category][subcategory] = data[:i]
+                        else:
+                            results.data[category] = subcategories[:i]
+                    return results
+                
                 # 시뮬레이션 스텝 실행
                 greenhouse.step(config.dt, i)
                 state = greenhouse._get_state()
@@ -306,6 +346,7 @@ def simulate_greenhouse(config: Optional[SimulationConfig] = None) -> Simulation
                     logging.info(f"\n=== Step {i} | t={state['time']:.1f} h ===")
                     logging.info(
                         f" T_air={state['temperatures']['air']:.2f}°C, "
+                        f"T_air_top={state['temperatures']['air_top']:.2f}°C, "
                         f"T_out={state['temperatures']['outdoor']:.2f}°C, "
                         f"RH_air={state['humidity']['air_rh']:.1f}%, "
                         f"CO2={state['control']['co2']['CO2_air']:.1f} mg/m³"
@@ -318,9 +359,25 @@ def simulate_greenhouse(config: Optional[SimulationConfig] = None) -> Simulation
                     logging.info(
                         f" SC={state['control']['screen']['SC']:.2f}, "
                         f"vent={state['control']['ventilation']['U_vents']:.2f}, "
+                        f"illumination={state['control']['illumination']['switch']:.1f}, "
                         f"DM_Har={state['crop']['DM_Har']:.2f} mg/m²"
                     )
             
+            except KeyboardInterrupt:
+                logging.info(f"시뮬레이션이 {i} 스텝에서 중단되었습니다 (t={i*config.dt/3600:.1f}h)")
+                # 현재까지의 결과만 반환
+                results.times = results.times[:i]
+                for category, subcategories in results.data.items():
+                    if isinstance(subcategories, dict):
+                        for subcategory, data in subcategories.items():
+                            if isinstance(data, dict):
+                                for key, array in data.items():
+                                    results.data[category][subcategory][key] = array[:i]
+                            else:
+                                results.data[category][subcategory] = data[:i]
+                    else:
+                        results.data[category] = subcategories[:i]
+                return results
             except Exception as e:
                 logging.error(f"스텝 {i} (t={i*config.dt/3600:.1f}h) 실행 중 오류 발생: {str(e)}")
                 raise
@@ -347,8 +404,19 @@ def main():
             config.save(str(config_path))
             logging.info("기본 설정을 사용하고 설정 파일을 저장했습니다.")
         
+        # 시뮬레이션 시작 시간 기록
+        start_time = time.time()
+        logging.info("시뮬레이션을 시작합니다...")
+        print("시뮬레이션을 시작합니다... (중단하려면 Ctrl+C를 누르세요)")
+        
         # 시뮬레이션 실행
         results = simulate_greenhouse(config)
+        
+        # 시뮬레이션 종료 시간 기록
+        end_time = time.time()
+        elapsed = end_time - start_time
+        logging.info(f"시뮬레이션 소요 시간: {elapsed:.2f}초 ({elapsed/60:.2f}분)")
+        print(f"시뮬레이션 소요 시간: {elapsed:.2f}초 ({elapsed/60:.2f}분)")
         
         # 결과 저장
         results_path = Path('simulation_results.npz')
@@ -360,6 +428,10 @@ def main():
         plot_results(results, str(plot_path))
         logging.info(f"시뮬레이션 결과 그래프를 {plot_path}에 저장했습니다.")
         
+    except KeyboardInterrupt:
+        print("\n프로그램이 사용자에 의해 중단되었습니다.")
+        logging.info("프로그램이 사용자에 의해 중단되었습니다.")
+        sys.exit(0)
     except Exception as e:
         logging.error(f"프로그램 실행 중 오류 발생: {str(e)}")
         raise

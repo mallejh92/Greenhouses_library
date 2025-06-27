@@ -111,8 +111,14 @@ class Air_Top:
         # 온도 업데이트
         if not self.steadystate:
             dT = self.compute_derivatives()
-            self.T += dT * dt
-            self.T = np.clip(self.T, 273.15, 323.15)  # 0°C ~ 50°C 범위 제한
+            
+            # 수치적 안정성을 위한 온도 변화율 제한 (한 스텝당 최대 5°C 변화)
+            max_dT_per_step = 5.0  # K
+            dT_limited = np.clip(dT * dt, -max_dT_per_step, max_dT_per_step)
+            
+            self.T += dT_limited
+            # 온도 범위 제한 (0°C ~ 60°C)
+            self.T = np.clip(self.T, 253.15, 333.15)
         
         # 포트 온도 업데이트
         self.heatPort.T = self.T

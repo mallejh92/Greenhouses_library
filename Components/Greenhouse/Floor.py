@@ -88,7 +88,7 @@ class Floor:
             zero_list = [0.0] * self.N_rad
             self.R_Flr_Glob = HeatFluxVectorInput(zero_list)
 
-    def step(self, dt):
+    def step(self, dt: float) -> None:
         """
         Update floor state
         
@@ -97,13 +97,18 @@ class Floor:
         dt : float
             Time step [s]
         """
+        # HeatFlux 객체 또는 float 모두 지원 (중첩도 처리)
+        def get_float_value(obj):
+            if hasattr(obj, 'value'):
+                return get_float_value(obj.value)
+            return float(obj)
+
         # Calculate total short-wave power
         # HeatFluxVectorInput의 values가 비어있을 수 있으므로 안전하게 처리
         if not hasattr(self.R_Flr_Glob, 'values') or not self.R_Flr_Glob.values:
             self.P_Flr = 0.0
         else:
-            # HeatFlux 객체의 value 속성에 접근
-            self.P_Flr = sum(flux.value for flux in self.R_Flr_Glob.values if hasattr(flux, 'value')) * self.A
+            self.P_Flr = sum(get_float_value(flux) for flux in self.R_Flr_Glob.values) * self.A
         
         # Update temperature (der(T) = 1/(rho*c_p*V)*(Q_flow + P_Flr))
         if not self.steadystate:

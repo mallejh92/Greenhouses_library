@@ -43,54 +43,44 @@ class CO2_Air:
         self.initialize()
         
     def initialize(self):
-        """
-        Initialize the system according to initial equations
-        """
-        # Set initial CO2 value
+        """Initialize the CO2 air model (Modelica initial equation)"""
         self.CO2 = self.CO2_start
-        
-        # If in steady state, ensure MC_flow is zero
         if self.steadystate:
-            self.MC_flow = 0.0
-            
-        # Update derived values
+            self.MC_flow = 0.0  # Modelica: der(CO2) = 0 during initialization
         self.CO2_ppm = self.CO2 / 1.94
-        
-        # Modelica 원본 연결 설정
-        self._setup_connections()
-        
-    def _setup_connections(self):
-        """Modelica 원본의 connect 문들을 구현"""
-        # connect(prescribedPressure.port, port)
+
+        # Port 초기화
+        self.port.CO2 = self.CO2
+
+        # PrescribedConcentration 연결 (Modelica 원본과 일치)
         self.prescribedPressure.connect_port(self.port)
-        
-        # connect(portCO2.y, prescribedPressure.CO2) - RealExpression은 CO2 값을 직접 전달
-        self.prescribedPressure.connect_CO2(self.CO2)
-        
-    def step(self, dt: float):
-        """
-        Update CO2 concentration (Modelica 방정식 구현)
-        
-        Modelica 방정식:
-        - port.MC_flow = MC_flow
-        - der(CO2) = 1/cap_CO2 * MC_flow
-        - CO2_ppm = CO2/1.94
-        
-        Parameters:
-            dt (float): Time step [s]
-        """
-        # Modelica: port.MC_flow = MC_flow
-        self.port.MC_flow = self.MC_flow
-        
-        # Modelica: der(CO2) = 1/cap_CO2 * MC_flow
-        if not self.steadystate:
-            self.CO2 += (1.0 / self.cap_CO2) * self.MC_flow * dt
-            
-        # Modelica: CO2_ppm = CO2/1.94
-        self.CO2_ppm = self.CO2 / 1.94
-        
-        # RealExpression 업데이트: portCO2.y = CO2
         self.prescribedPressure.connect_CO2(self.CO2)
         self.prescribedPressure.calculate()
         
-        return self.CO2, self.CO2_ppm
+    def step(self, dt: float):
+        """
+        Update CO2 concentration for one time step (Modelica equation: der(CO2) = 1/cap_CO2 * MC_flow)
+        
+        Args:
+            dt (float): Time step [s]
+        """
+        # Modelica 원본 방정식: port.MC_flow = MC_flow
+        self.port.MC_flow = self.MC_flow
+
+        # Modelica 원본 방정식: der(CO2) = 1/cap_CO2 * MC_flow
+        if not self.steadystate:
+            # Forward Euler integration: CO2(t+dt) = CO2(t) + dt * der(CO2)
+            self.CO2 += (1.0 / self.cap_CO2) * self.MC_flow * dt
+            # **중요**: Modelica 원본에는 농도 하한 제한이 없음 - 제거
+
+        # Modelica 원본 방정식: CO2_ppm = CO2/1.94
+        self.CO2_ppm = self.CO2 / 1.94
+
+        # Port 업데이트
+        self.port.CO2 = self.CO2
+        
+        # PrescribedConcentration 업데이트
+        self.prescribedPressure.connect_CO2(self.CO2)
+        self.prescribedPressure.calculate()
+
+        return self.CO2, self.CO2_ppm, self.MC_flow

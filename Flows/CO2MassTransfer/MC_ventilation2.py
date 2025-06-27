@@ -21,20 +21,13 @@ class MC_ventilation2(Element1D):
         # Input variable
         self.f_vent = f_vent  # Air exchange rate [m3/(m2.s)]
         
-    def step(self, f_vent: float = None) -> float:
+    def step(self) -> float:
         """
         Update CO2 mass flow (Modelica equation: MC_flow = f_vent * dC)
         
-        Parameters:
-            f_vent (float, optional): Air exchange rate [m3/(m2.s)]
-            
         Returns:
             float: Updated CO2 mass flow rate [mg/(m2.s)]
         """
-        # Update input variable if provided
-        if f_vent is not None:
-            self.f_vent = f_vent
-            
         # Update concentration difference from ports
         self.update()
         
