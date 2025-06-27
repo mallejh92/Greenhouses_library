@@ -88,7 +88,7 @@ class Ventilation(Element1D):
             )
     
     def update(self, SC: float, u: float, U_vents: float, T_a: float, T_b: float,
-              VP_a: float, VP_b: float, U_VentForced: float = None) -> tuple:
+              VP_a: float, VP_b: float, U_VentForced: float = None) -> None:
         """
         환기 시스템 상태 업데이트
         
@@ -101,9 +101,6 @@ class Ventilation(Element1D):
             VP_a: 내부 수증기압 [Pa]
             VP_b: 외부 수증기압 [Pa]
             U_VentForced: 강제 환기 제어 (0~1, forcedVentilation이 True일 때만 사용)
-            
-        Returns:
-            tuple: (Q_flow, MV_flow, f_vent_total) - 열 흐름 [W], 수증기 질량 흐름 [kg/s], 총 환기율 [m³/(m²·s)]
         """
         # 입력값 업데이트
         self.SC = SC
@@ -152,9 +149,7 @@ class Ventilation(Element1D):
         self.HeatPort_b.Q_flow = -Q_flow
         self.MassPort_a.MV_flow = MV_flow
         self.MassPort_b.MV_flow = -MV_flow
-        
-        return Q_flow, MV_flow
-        
+    
     def _calculate_natural_ventilation_air(self) -> float:
         """주 공기 구역의 자연 환기율 계산 [m³/(m²·s)]"""
         _, f_vent_air = self.natural_vent.update(
@@ -202,7 +197,7 @@ class Ventilation(Element1D):
         VP_b = self.MassPort_b.VP
         
         # 환기 시스템 상태 업데이트
-        Q_flow, MV_flow = self.update(
+        self.update(
             SC=self.SC,
             u=self.u,
             U_vents=self.U_vents,
@@ -212,4 +207,4 @@ class Ventilation(Element1D):
             VP_b=VP_b
         )
         
-        return Q_flow, MV_flow, self.f_vent_total
+        return self.HeatPort_a.Q_flow, self.MassPort_a.MV_flow, self.f_vent_total

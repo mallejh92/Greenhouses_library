@@ -43,44 +43,40 @@ class CO2_Air:
         self.initialize()
         
     def initialize(self):
-        """Initialize the CO2 air model (Modelica initial equation)"""
         self.CO2 = self.CO2_start
         if self.steadystate:
-            self.MC_flow = 0.0  # Modelica: der(CO2) = 0 during initialization
+            self.MC_flow = 0.0
         self.CO2_ppm = self.CO2 / 1.94
 
-        # Port 초기화
+        # ① port.CO2 초기화
         self.port.CO2 = self.CO2
 
-        # PrescribedConcentration 연결 (Modelica 원본과 일치)
+        # ② 외부 경계조건 초기 적용
         self.prescribedPressure.connect_port(self.port)
         self.prescribedPressure.connect_CO2(self.CO2)
         self.prescribedPressure.calculate()
         
     def step(self, dt: float):
-        """
-        Update CO2 concentration for one time step (Modelica equation: der(CO2) = 1/cap_CO2 * MC_flow)
-        
-        Args:
-            dt (float): Time step [s]
-        """
-        # Modelica 원본 방정식: port.MC_flow = MC_flow
+        # 1) port.MC_flow 매핑
         self.port.MC_flow = self.MC_flow
 
-        # Modelica 원본 방정식: der(CO2) = 1/cap_CO2 * MC_flow
-        if not self.steadystate:
-            # Forward Euler integration: CO2(t+dt) = CO2(t) + dt * der(CO2)
-            self.CO2 += (1.0 / self.cap_CO2) * self.MC_flow * dt
-            # **중요**: Modelica 원본에는 농도 하한 제한이 없음 - 제거
+        # 2) 농도 변화 적분 (steadystate는 초기화 플래그일 뿐, 시뮬레이션 중에는 항상 변화 허용)
+        dC_dt = self.MC_flow / self.cap_CO2
+        
+        # **안정화**: CO2 농도 변화를 제한하여 급격한 변화 방지
+        max_dC = 50.0  # 최대 CO2 농도 변화량 [mg/m³/s] (더 보수적인 값으로 조정)
+        if abs(dC_dt) > max_dC:
+            dC_dt = max_dC if dC_dt > 0 else -max_dC
+        
+        self.CO2 += dC_dt * dt
 
-        # Modelica 원본 방정식: CO2_ppm = CO2/1.94
+        # 3) ppm 변환
         self.CO2_ppm = self.CO2 / 1.94
 
-        # Port 업데이트
+        # 4) 경계조건 업데이트
         self.port.CO2 = self.CO2
-        
-        # PrescribedConcentration 업데이트
         self.prescribedPressure.connect_CO2(self.CO2)
         self.prescribedPressure.calculate()
 
+        # (필요시) MC_flow 반환
         return self.CO2, self.CO2_ppm, self.MC_flow

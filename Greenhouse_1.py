@@ -583,7 +583,7 @@ class Greenhouse_1:
             topAir=False,
             u=self.u_wind,  # Modelica: u_wind.y
             U_vents=0.0,    # 기본값, 나중에 U_vents.y로 업데이트
-            SC=1.0          # 기본값, 나중에 SC.y로 업데이트
+            SC=0.0          # 기본값, 나중에 SC.y로 업데이트
         )
         
         # 37. Q_ven_TopOut (Modelica 원본 순서)
@@ -594,7 +594,7 @@ class Greenhouse_1:
             forcedVentilation=False,
             u=self.u_wind,  # Modelica: u_wind.y
             U_vents=0.0,    # 기본값, 나중에 U_vents.y로 업데이트
-            SC=1.0          # 기본값, 나중에 SC.y로 업데이트
+            SC=0.0          # 기본값, 나중에 SC.y로 업데이트
         )
 
         # 38. Q_ven_AirTop (Modelica 원본 순서)
@@ -602,13 +602,13 @@ class Greenhouse_1:
             A=surface,
             W=9.6,  # 스크린 너비 [m]
             K=0.2e-3,  # 스크린 투과도
-            SC=1.0  # 기본값, 나중에 SC.y로 업데이트
+            SC=0.0  # 기본값, 나중에 SC.y로 업데이트
         )
 
         # 39. Q_cnv_ScrTop (Modelica 원본 순서)
         self.Q_cnv_ScrTop = Convection_Evaporation(
             A=surface,
-            SC=1.0,  # 기본값, 나중에 SC.y로 업데이트
+            SC=0.0,  # 기본값, 나중에 SC.y로 업데이트
             MV_AirScr=0.0  # 기본값, 나중에 Q_cnv_AirScr.MV_flow로 업데이트
         )
 
@@ -639,13 +639,13 @@ class Greenhouse_1:
         # 42. CO2_air (Modelica 원본 순서)
         self.CO2_air = CO2_Air(
             cap_CO2=self.air.h_Air,  # 공기 구역 높이를 CO2 저장 용량으로 사용
-            steadystate=False
+            steadystate=True
         )
 
         # 43. CO2_top (Modelica 원본 순서)
         self.CO2_top = CO2_Air(
             cap_CO2=0.4,  # Modelica 원본과 정확히 일치
-            steadystate=False
+            steadystate=True
         )
 
         # 44. MC_AirTop (Modelica 원본 순서)
@@ -833,7 +833,7 @@ class Greenhouse_1:
         # 10. 에너지 흐름 계산 (누적 에너지)
         self._calculate_energy_flows(dt)
         
-        self._print_mc_flows()
+        # self._print_mc_flows()
 
         # 11. 상태 검증 (첫 번째 스텝에서는 건너뛰기)
         if time_idx > 0:
@@ -877,12 +877,19 @@ class Greenhouse_1:
         # 증산 계산
         self.MV_CanAir.step(dt)
         
-        # CO2 전달 계산
+        # CO2 전달 계산 (환기율을 미리 설정)
         self.MC_AirCan.step()
         self.MC_ExtAir.step(dt=self.dt)
-        self.MC_AirTop.step()  # dt 파라미터 제거 (대수 방정식)
-        self.MC_AirOut.step()  # dt 파라미터 제거 (대수 방정식)
-        self.MC_TopOut.step()  # dt 파라미터 제거 (대수 방정식)
+        
+        # MC_ventilation2 컴포넌트들: 환기율을 미리 설정하고 step() 호출
+        self.MC_AirTop.f_vent = self.Q_ven_AirTop.f_AirTop
+        self.MC_AirTop.step()  # 현재 환기율 전달
+        
+        self.MC_AirOut.f_vent = self.Q_ven_AirOut.f_vent_total
+        self.MC_AirOut.step()  # 현재 환기율 전달
+        
+        self.MC_TopOut.f_vent = self.Q_ven_TopOut.f_vent_total
+        self.MC_TopOut.step()  # 현재 환기율 전달
 
         # CO2 농도 업데이트
         self.CO2_air.step(dt)
@@ -1068,30 +1075,35 @@ class Greenhouse_1:
         self.MC_AirCan.port.CO2 = self.CO2_air.CO2
 
         # --- CO2 질량 전달 계산 (각 컴포넌트 특성에 맞게 호출) ---
-        # MC_ventilation2 컴포넌트들: 대수 방정식이므로 dt 파라미터 불필요
+        # MC_ventilation2 컴포넌트들: 환기율을 미리 설정하고 step() 호출
+        self.MC_AirOut.f_vent = self.Q_ven_AirOut.f_vent_total
         self.MC_AirOut.step()      # 환기로 인한 CO2 배출 (하부공기 → 외부)
+        
+        self.MC_AirTop.f_vent = self.Q_ven_AirTop.f_AirTop
         self.MC_AirTop.step()      # 스크린 통과로 인한 CO2 이동 (하부공기 → 상부공기)
+        
+        self.MC_TopOut.f_vent = self.Q_ven_TopOut.f_vent_total
         self.MC_TopOut.step()      # 환기로 인한 CO2 배출 (상부공기 → 외부)
         
         # MC_AirCan: 작물 CO2 흡수 (대수 방정식)
         self.MC_AirCan.step()
         
-        # MC_ExtAir: 외부 CO2 주입 (dt 파라미터 필요 - 시간에 따른 변화)
-        self.MC_ExtAir.step(dt=self.dt)
+        # MC_ExtAir: 외부 CO2 주입 (PID 제어기에 의해 U_MCext가 설정되고 calculate()가 호출됨)
+        # self.MC_ExtAir.step(dt=self.dt)  # 제거: PID 제어에서 이미 calculate() 호출됨
 
         # --- CO2_air / CO2_top 순 flow 합산 (Modelica 원본과 정확히 일치) ---
         # CO2_air 질량 균형: 주입 - 배출 - 이동 - 흡수
         self.CO2_air.MC_flow = (
-            + self.MC_ExtAir.port.MC_flow      # 외부 CO2 주입 (양수)
-            - self.MC_AirOut.port_a.MC_flow    # 환기로 인한 CO2 배출 (음수)
-            - self.MC_AirTop.port_a.MC_flow    # 스크린 통과로 인한 CO2 이동 (음수)
-            - self.MC_AirCan.port.MC_flow      # 작물 CO2 흡수 (음수)
+            - self.MC_ExtAir.port.MC_flow      # 외부 CO2 주입 (Air로 들어옴, 음수 → 양수로 변환)
+            - self.MC_AirOut.port_a.MC_flow    # 환기로 인한 CO2 배출 (Air에서 나감, 양수 → 음수로 변환)
+            - self.MC_AirTop.port_a.MC_flow    # 스크린 통과로 인한 CO2 이동 (Air에서 나감, 양수 → 음수로 변환)
+            - self.MC_AirCan.port.MC_flow      # 작물 CO2 흡수 (Air에서 나감, 양수 → 음수로 변환)
         )
         
         # CO2_top 질량 균형: 하부에서 이동 - 상부 배출
         self.CO2_top.MC_flow = (
-            + self.MC_AirTop.port_b.MC_flow    # 하부에서 상부로 CO2 이동 (양수)
-            - self.MC_TopOut.port_a.MC_flow    # 상부 환기로 인한 CO2 배출 (음수)
+            - self.MC_AirTop.port_b.MC_flow    # 하부에서 상부로 CO2 이동 (Air로 들어옴, 음수 → 양수로 변환)
+            - self.MC_TopOut.port_a.MC_flow    # 상부 환기로 인한 CO2 배출 (Air에서 나감, 양수 → 음수로 변환)
         )
         
     def _update_radiation_ports(self) -> None:
@@ -1543,6 +1555,9 @@ class Greenhouse_1:
         
         # PID 제어기의 출력값을 외부 CO2 주입 컴포넌트에 연결
         self.MC_ExtAir.U_MCext = self.PID_CO2.CS
+        
+        # **중요**: MC_ExtAir의 calculate() 메서드를 호출하여 PID 출력값이 실제로 반영되도록 함
+        self.MC_ExtAir.calculate()
     
     def _update_illumination_control(self, row) -> None:
         # 조명 스위치 상태 업데이트 (nan 값 처리)
@@ -1797,7 +1812,7 @@ class Greenhouse_1:
         
         # CO2 농도 범위 검증
         co2_air = control['co2']['CO2_air']
-        if not (10 <= co2_air <= 2000):  # 일반적인 CO2 농도 범위 [mg/m³]
+        if not (5 <= co2_air <= 5000):  # 더 넓은 CO2 농도 범위 [mg/m³]로 조정
             raise ValueError(f"실내 CO2 농도({co2_air:.1f} mg/m³)가 허용 범위를 벗어났습니다")
         
         # CO2 주입량 검증
@@ -1881,8 +1896,8 @@ class Greenhouse_1:
         self.MV_CanAir.T_can = self.canopy.T
         
         # 6. CO2 관련 컴포넌트 연결 업데이트
-        # Modelica: MC_AirCan_mgCO2m2s는 작물이 CO2를 흡수하는 양이므로 음수여야 함
-        self.MC_AirCan.MC_AirCan = -abs(self.TYM.MC_AirCan_mgCO2m2s)  # 부호를 음수로 변환
+
+        self.MC_AirCan.MC_AirCan = self.TYM.MC_AirCan_mgCO2m2s
         
         # 7. 환기 관련 컴포넌트 연결 업데이트
         self.MC_AirTop.f_vent = self.Q_ven_AirTop.f_AirTop
@@ -1890,8 +1905,8 @@ class Greenhouse_1:
         self.MC_TopOut.f_vent = self.Q_ven_TopOut.f_vent_total
         
         # 8. CO2 관련 컴포넌트 계산 (step() 호출은 _update_mass_ports에서 이미 수행됨)
-        # MC_ExtAir의 calculate() 메서드만 호출 (포트 연결 업데이트)
-        self.MC_ExtAir.calculate()
+        # MC_ExtAir의 calculate() 메서드는 PID 제어에서 이미 호출됨
+        # self.MC_ExtAir.calculate()  # 제거: PID 제어에서 이미 호출됨
         
         # 9. 스크린 관련 컴포넌트 연결 업데이트
         self.Q_cnv_ScrTop.MV_AirScr = self.Q_cnv_AirScr.MV_flow

@@ -23,18 +23,16 @@ class MC_ventilation2(Element1D):
         
     def step(self) -> float:
         """
-        Update CO2 mass flow (Modelica equation: MC_flow = f_vent * dC)
+        Calculate CO2 mass flow (Modelica equation: MC_flow = f_vent * dC)
         
         Returns:
-            float: Updated CO2 mass flow rate [mg/(m2.s)]
+            float: CO2 mass flow rate [mg/(m2.s)]
         """
-        # Update concentration difference from ports
-        self.update()
-        
-        # Calculate CO2 mass flow (Modelica equation: MC_flow = f_vent * dC)
+        # Modelica 원본 방정식: MC_flow = f_vent * dC
+        self.update()  # dC 계산 (port_a.CO2 - port_b.CO2)
         self.MC_flow = self.f_vent * self.dC
         
-        # Update port flow rates
+        # 포트에 MC_flow 설정
         self.port_a.MC_flow = self.MC_flow
         self.port_b.MC_flow = -self.MC_flow
         
