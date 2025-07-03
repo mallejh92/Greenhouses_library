@@ -38,24 +38,24 @@ class Control_ThScreen:
         """
         prev_state = self.state
         
-        # 디버깅 출력 (매 1000스텝마다)
-        if hasattr(self, '_debug_counter'):
-            self._debug_counter += 1
-        else:
-            self._debug_counter = 0
+        # # 디버깅 출력 (매 1000스텝마다)
+        # if hasattr(self, '_debug_counter'):
+        #     self._debug_counter += 1
+        # else:
+        #     self._debug_counter = 0
             
-        if self._debug_counter % 1000 == 0:
-            print(f"\n=== Control_ThScreen 디버깅 ===")
-            print(f"현재 상태: {self.state}")
-            print(f"R_Glob_can: {self.R_Glob_can:.1f} W/m² (min: {self.R_Glob_can_min})")
-            print(f"T_out: {self.Tout:.1f} K ({self.Tout-273.15:.1f}°C)")
-            print(f"T_air_sp: {self.T_air_sp:.1f} K ({self.T_air_sp-273.15:.1f}°C)")
-            print(f"T_out <= T_air_sp-7: {self.Tout <= (self.T_air_sp - 7)}")
-            print(f"T_out > T_air_sp-7: {self.Tout > (self.T_air_sp - 7)}")
-            print(f"RH_air: {self.RH_air:.3f}")
-            print(f"SC_usable: {self.SC_usable}")
-            print(f"타이머: {self.timer:.1f}s")
-            print("=" * 30)
+        # if self._debug_counter % 1000 == 0:
+        #     print(f"\n=== Control_ThScreen 디버깅 ===")
+        #     print(f"현재 상태: {self.state}")
+        #     print(f"R_Glob_can: {self.R_Glob_can:.1f} W/m² (min: {self.R_Glob_can_min})")
+        #     print(f"T_out: {self.Tout:.1f} K ({self.Tout-273.15:.1f}°C)")
+        #     print(f"T_air_sp: {self.T_air_sp:.1f} K ({self.T_air_sp-273.15:.1f}°C)")
+        #     print(f"T_out <= T_air_sp-7: {self.Tout <= (self.T_air_sp - 7)}")
+        #     print(f"T_out > T_air_sp-7: {self.Tout > (self.T_air_sp - 7)}")
+        #     print(f"RH_air: {self.RH_air:.3f}")
+        #     print(f"SC_usable: {self.SC_usable}")
+        #     print(f"타이머: {self.timer:.1f}s")
+        #     print("=" * 30)
         
         # 1. 타이머 업데이트 (상태별)
         if self.state in ("opening_ColdDay", "opening_WarmDay", "open"):
