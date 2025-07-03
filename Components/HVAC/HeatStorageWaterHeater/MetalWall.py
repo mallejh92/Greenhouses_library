@@ -35,4 +35,3 @@ class MetalWall:
             "Q_tot_ext": Q_tot_ext,
             "Q_tot_int": Q_tot_int
         }
-

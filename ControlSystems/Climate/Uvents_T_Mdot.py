@@ -3,21 +3,19 @@ import numpy as np
 
 class Uvents_T_Mdot:
     """
-    환기 제어 시스템 (온도, 질량유량 기반)
-    온도와 질량유량을 기반으로 창문 개폐를 제어하는 시스템
+    Modelica의 Uvents_T_Mdot 모델을 Python으로 1:1로 구현한 클래스
+    (온실 환기 제어, 온도 및 질량유량 기반)
     """
     
     def __init__(self):
-        # Varying inputs
+        # 입력 변수 초기화 (Modelica와 동일)
         self.T_air = 293.15  # 공기 온도 [K]
         self.T_air_sp = 293.15  # 공기 온도 설정값 [K]
         self.Mdot = 0.528  # 질량 유량 [kg/s]
-        
-        # Parameters
         self.Tmax_tomato = 299.15  # 토마토 최대 허용 온도 [K]
         self.U_max = 1.0  # 최대 제어 신호
         
-        # PID controllers
+        # PID 컨트롤러 2개 (파라미터, 초기값 모두 Modelica와 동일)
         self.PIDT = PID(
             Kp=-0.5,
             Ti=500,
@@ -44,48 +42,30 @@ class Uvents_T_Mdot:
             PVstart=0.5
         )
         
-        # Output signal
-        self._y = 0.0
-        
-    @property
-    def y(self):
-        """환기 제어 신호 (0-1)"""
-        return self._y
+        # 출력 신호
+        self.y = 0.0
         
     def step(self, dt: float) -> float:
         """
-        환기 제어 시스템 업데이트
-        
-        Parameters:
-        -----------
-        dt : float
-            Time step [s]
-            
-        Returns:
-        --------
-        float
-            Ventilation control signal (0-1)
+        한 타임스텝(dt)마다 제어 신호 계산 (Modelica와 동일한 논리)
         """
-        # 온도 PID 제어 (최대 온도 기준)
+        # PIDT: 입력값 연결 (PV, SP)
         self.PIDT.PV = self.T_air
         self.PIDT.SP = self.Tmax_tomato
         self.PIDT.step(dt)
         
-        # 온도 PID 제어 (설정 온도 + 2K 기준)
+        # PIDT_noH: 입력값 연결 (PV, SP)
         self.PIDT_noH.PV = self.T_air
         self.PIDT_noH.SP = self.T_air_sp + 2.0
         self.PIDT_noH.step(dt)
         
-        # 시그모이드 함수 계산 (질량유량에 따른 가중치)
+        # 시그모이드 함수 계산 (질량유량에 따른 가중치, 수치 안정성 위해 clip)
         x = 200.0 * (self.Mdot - 0.05)
-        x = np.clip(x, -500.0, 500.0)  # 수치 안정성을 위한 클리핑
+        x = np.clip(x, -500.0, 500.0)  # exp 오버플로 방지
         sigmoid1 = 1.0 / (1.0 + np.exp(-x))
         sigmoid2 = 1.0 / (1.0 + np.exp(x))
         
-        # PID 출력 결합
-        self._y = (
-            sigmoid1 * self.PIDT.CS +
-            sigmoid2 * self.PIDT_noH.CS
-        )
+        # PID 출력 결합 (Modelica와 동일)
+        self.y = sigmoid1 * self.PIDT.CS + sigmoid2 * self.PIDT_noH.CS
         
-        return self._y
+        return self.y

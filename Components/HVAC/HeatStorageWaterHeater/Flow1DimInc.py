@@ -104,68 +104,68 @@ class Flow1DimInc:
         self.compute_total_mass()
         self.update_summary()
 
-# 시뮬레이션 실행 코드
-if __name__ == "__main__":
-    # 시뮬레이션 파라미터
-    dt = 10              # 시간 간격 (초)
-    T_total = 3600 * 24 * 8  # 8일 시뮬레이션
-    steps = T_total // dt
+# # 시뮬레이션 실행 코드
+# if __name__ == "__main__":
+#     # 시뮬레이션 파라미터
+#     dt = 10              # 시간 간격 (초)
+#     T_total = 3600 * 24 * 8  # 8일 시뮬레이션
+#     steps = T_total // dt
     
-    # 모델 생성
-    model = Flow1DimInc(
-        N=10,                        # 셀 개수
-        V=0.03781,                  # 전체 체적 (m³)
-        A=16.18,                    # 열교환 면적 (m²)
-        Mdotnom=0.2588,             # 유량 (kg/s)
-        Unom=1000,                  # 열전달 계수 (W/m²·K)
-        pstart=101325,              # 초기 압력 (Pa)
-        Tstart_inlet=293.15,        # 입구 온도 시작값 (K)
-        Tstart_outlet=313.15        # 출구 온도 시작값 (K)
-    )
+#     # 모델 생성
+#     model = Flow1DimInc(
+#         N=10,                        # 셀 개수
+#         V=0.03781,                  # 전체 체적 (m³)
+#         A=16.18,                    # 열교환 면적 (m²)
+#         Mdotnom=0.2588,             # 유량 (kg/s)
+#         Unom=1000,                  # 열전달 계수 (W/m²·K)
+#         pstart=101325,              # 초기 압력 (Pa)
+#         Tstart_inlet=293.15,        # 입구 온도 시작값 (K)
+#         Tstart_outlet=313.15        # 출구 온도 시작값 (K)
+#     )
     
-    # 결과 저장
-    T_profile = []
-    h_profile = []
-    time_points = []
+#     # 결과 저장
+#     T_profile = []
+#     h_profile = []
+#     time_points = []
     
-    # 시간 루프
-    for step in range(steps):
-        model.simulate_step()
+#     # 시간 루프
+#     for step in range(steps):
+#         model.simulate_step()
         
-        # 결과 저장
-        T_profile.append(model.Summary.T.copy())
-        h_profile.append(model.Summary.h.copy())
-        time_points.append(step * dt / 3600)  # 시간을 시간 단위로 변환
+#         # 결과 저장
+#         T_profile.append(model.Summary.T.copy())
+#         h_profile.append(model.Summary.h.copy())
+#         time_points.append(step * dt / 3600)  # 시간을 시간 단위로 변환
         
-        # 진행상황 출력 (10% 간격)
-        if step % (steps // 10) == 0:
-            print(f"시뮬레이션 진행률: {step/steps*100:.1f}%")
+#         # 진행상황 출력 (10% 간격)
+#         if step % (steps // 10) == 0:
+#             print(f"시뮬레이션 진행률: {step/steps*100:.1f}%")
     
-    # 결과 시각화
-    plt.figure(figsize=(12, 6))
+#     # 결과 시각화
+#     plt.figure(figsize=(12, 6))
     
-    # 온도 프로파일
-    plt.subplot(1, 2, 1)
-    for i in range(model.N):
-        T_cell = [T[i] for T in T_profile]
-        plt.plot(time_points, T_cell, label=f'Cell {i+1}')
-    plt.xlabel('Time (hours)')
-    plt.ylabel('Temperature (K)')
-    plt.title('Temperature Profile')
-    plt.grid(True)
-    plt.legend()
+#     # 온도 프로파일
+#     plt.subplot(1, 2, 1)
+#     for i in range(model.N):
+#         T_cell = [T[i] for T in T_profile]
+#         plt.plot(time_points, T_cell, label=f'Cell {i+1}')
+#     plt.xlabel('Time (hours)')
+#     plt.ylabel('Temperature (K)')
+#     plt.title('Temperature Profile')
+#     plt.grid(True)
+#     plt.legend()
     
-    # 엔탈피 프로파일
-    plt.subplot(1, 2, 2)
-    for i in range(model.N):
-        h_cell = [h[i] for h in h_profile]
-        plt.plot(time_points, h_cell, label=f'Cell {i+1}')
-    plt.xlabel('Time (hours)')
-    plt.ylabel('Enthalpy (J/kg)')
-    plt.title('Enthalpy Profile')
-    plt.grid(True)
-    plt.legend()
+#     # 엔탈피 프로파일
+#     plt.subplot(1, 2, 2)
+#     for i in range(model.N):
+#         h_cell = [h[i] for h in h_profile]
+#         plt.plot(time_points, h_cell, label=f'Cell {i+1}')
+#     plt.xlabel('Time (hours)')
+#     plt.ylabel('Enthalpy (J/kg)')
+#     plt.title('Enthalpy Profile')
+#     plt.grid(True)
+#     plt.legend()
     
-    plt.tight_layout()
-    plt.show()
+#     plt.tight_layout()
+#     plt.show()
 

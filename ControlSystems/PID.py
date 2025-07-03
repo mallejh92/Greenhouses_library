@@ -65,7 +65,7 @@ class PID:
         self.CSbs = CSstart  # Control signal scaled in per unit before saturation
         
         # Time step for numerical integration
-        self.dt = 0.01  # Default time step
+        self.dt = 1  # Default time step
         
         # Process variable and setpoint
         self.PV = PVstart
@@ -119,5 +119,9 @@ class PID:
         
         # Convert to actual control signal
         self.CS = self.CSmin + self.CSs * (self.CSmax - self.CSmin)
+        
+        max_I = 1e6
+        min_I = -1e6
+        self.I = np.clip(self.I, min_I, max_I)
         
         return self.CS

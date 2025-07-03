@@ -392,42 +392,39 @@ def simulate_greenhouse(config: Optional[SimulationConfig] = None) -> Simulation
 def main():
     """메인 실행 함수"""
     try:
-        # 설정 파일 경로
-        config_path = Path('simulation_config.json')
-        
-        # 설정 로드 또는 기본값 사용
-        if config_path.exists():
-            config = SimulationConfig.from_file(str(config_path))
-            logging.info("설정 파일을 로드했습니다.")
-        else:
-            config = SimulationConfig()
-            config.save(str(config_path))
-            logging.info("기본 설정을 사용하고 설정 파일을 저장했습니다.")
-        
+        # === 여기서 직접 환경설정! ===
+        config = SimulationConfig(
+            dt=1.0,                # 시간 간격 [s]
+            sim_time=3600.0 * 24 * 1,    # 초 * 시간 * 일
+            time_unit_scaling=1.0, # 시간 단위 스케일링
+            debug_interval=3600    # 디버그 출력 간격 (스텝)
+        )
+        # =========================
+
         # 시뮬레이션 시작 시간 기록
         start_time = time.time()
         logging.info("시뮬레이션을 시작합니다...")
         print("시뮬레이션을 시작합니다... (중단하려면 Ctrl+C를 누르세요)")
-        
+
         # 시뮬레이션 실행
         results = simulate_greenhouse(config)
-        
+
         # 시뮬레이션 종료 시간 기록
         end_time = time.time()
         elapsed = end_time - start_time
         logging.info(f"시뮬레이션 소요 시간: {elapsed:.2f}초 ({elapsed/60:.2f}분)")
         print(f"시뮬레이션 소요 시간: {elapsed:.2f}초 ({elapsed/60:.2f}분)")
-        
+
         # 결과 저장
         results_path = Path('simulation_results.npz')
         results.save(str(results_path))
         logging.info(f"시뮬레이션 결과를 {results_path}에 저장했습니다.")
-        
+
         # 결과 시각화
         plot_path = Path('simulation_results.png')
         plot_results(results, str(plot_path))
         logging.info(f"시뮬레이션 결과 그래프를 {plot_path}에 저장했습니다.")
-        
+
     except KeyboardInterrupt:
         print("\n프로그램이 사용자에 의해 중단되었습니다.")
         logging.info("프로그램이 사용자에 의해 중단되었습니다.")

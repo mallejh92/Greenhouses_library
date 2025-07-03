@@ -201,7 +201,7 @@ class Greenhouse_1:
             # 5. 보온 스크린 온도: 공기와 외피 사이의 중간값
             self.thScreen.T = (self.air.T + self.cover.T) / 2
             
-            # 6. 난방 파이프 온도 설정 (Modelica 원본과 일치)
+            # 6. 난방 파이프 온도 설정
             # Modelica: Tstart_inlet=353.15 (80°C), Tstart_outlet=323.15 (50°C)
             self.pipe_low.flow1DimInc.Tstart_inlet = 353.15  # 80°C
             self.pipe_low.flow1DimInc.Tstart_outlet = 323.15  # 50°C
@@ -224,16 +224,14 @@ class Greenhouse_1:
             # 보온 스크린 수증기압 설정
             self.thScreen.massPort.VP = initial_vp
             
-            # **중요**: 공기 RH를 외부 RH와 동일하게 설정 (100% 고정 방지)
             # 외부 RH 계산 (txt 파일의 2번째 열)
             external_rh = row['RH_out'] / 100.0  # 95% → 0.95
             self.air.RH = external_rh
             self.air_Top.RH = external_rh
             
-            # **중요**: CO₂ 농도 초기화 (Modelica 원본과 정확히 일치)
-            # Modelica: CO2_start=1940 mg/m³ (약 1000 ppm)
+            # CO₂ 농도 초기화
             self.CO2_air.CO2 = 1940.0  # 하부공기
-            self.CO2_top.CO2 = 1940.0  # 상부공기도 동일하게 초기화 (Modelica 원본과 일치)
+            self.CO2_top.CO2 = 1940.0  # 상부공기도 동일하게 초기화
             
         except Exception as e:
             print(f"초기 데이터 로드 실패: {e}")
@@ -810,32 +808,35 @@ class Greenhouse_1:
         self._update_control_systems(dt, row)
         
         # 3. 난방 시스템 업데이트 (소스/싱크)
-        self._update_heating_system(dt)
+        # self._update_heating_system(dt)  # 제거
         
         # 4. 컴포넌트 간 연결 업데이트
         self._update_component_connections()
         
-        # 5. 포트 연결 업데이트
+        # 5. 포트 연결 업데이트 (여기서 in_Mdot 설정)
         self._update_port_connections_ports_only(dt)
         
-        # 6. 열전달 계산
+        # 6. 난방 시스템 업데이트 (in_Mdot 설정 후에 호출)
+        self._update_heating_system(dt)  # 추가
+        
+        # 7. 열전달 계산
         self._update_heat_transfer(dt)
         
-        # 7. 질량 전달 계산 (증산, CO2)
+        # 8. 질량 전달 계산 (증산, CO2)
         self._update_mass_transfer(dt)
         
-        # 8. 열 균형 계산 (6번과 7번의 결과를 사용)
+        # 9. 열 균형 계산 (6번과 7번의 결과를 사용)
         self._calculate_component_heat_balance()
         
-        # 9. 구성 요소 상태 업데이트 (열균형을 반영한 온도 변화)
+        # 10. 구성 요소 상태 업데이트 (열균형을 반영한 온도 변화)
         self._update_components(dt)
         
-        # 10. 에너지 흐름 계산 (누적 에너지)
+        # 11. 에너지 흐름 계산 (누적 에너지)
         self._calculate_energy_flows(dt)
         
         # self._print_mc_flows()
 
-        # 11. 상태 검증 (첫 번째 스텝에서는 건너뛰기)
+        # 12. 상태 검증 (첫 번째 스텝에서는 건너뛰기)
         if time_idx > 0:
             try:
                 self._verify_state()
@@ -854,8 +855,8 @@ class Greenhouse_1:
         self.floor.step(dt)
         self.canopy.step(dt)
         self.thScreen.step(dt)
-        self.pipe_low.step(dt)
-        self.pipe_up.step(dt)
+        # self.pipe_low.step(dt)
+        # self.pipe_up.step(dt)
         self.illu.step(dt)
         self.solar_model.step(dt)
         self.TYM.step(dt)
@@ -997,7 +998,7 @@ class Greenhouse_1:
         # 난방 파이프 연결
         
         # 1. PID 제어 → 소스 유량 (Modelica: connect(PID_Mdot.CS, sourceMdot_1ry.in_Mdot))
-        self.sourceMdot_1ry.Mdot = self.PID_Mdot.CS
+        self.sourceMdot_1ry.in_Mdot = self.PID_Mdot.CS
         
         # 2. 소스 → 하부 파이프 (Modelica: connect(sourceMdot_1ry.flangeB, pipe_low.pipe_in))
         self.pipe_low.pipe_in.p = self.sourceMdot_1ry.flangeB.p
@@ -1014,16 +1015,40 @@ class Greenhouse_1:
         self.sinkP_2ry.flangeB.m_flow = self.pipe_up.pipe_out.m_flow
         self.sinkP_2ry.flangeB.h_outflow = self.pipe_up.pipe_out.h_outflow
         
-        # 난방 파이프 대류 열전달 포트 연결
-        for i in range(self.pipe_low.N):
-            self.Q_cnv_LowAir.heatPorts_a.ports[i].T = self.pipe_low.T
-        self.Q_cnv_LowAir.port_b.T = self.air.T
+        # # 난방 파이프 대류 열전달 포트 연결
+        # for i in range(self.pipe_low.N):
+        #     self.Q_cnv_LowAir.heatPorts_a.ports[i].T = self.pipe_low.T
+        # self.Q_cnv_LowAir.port_b.T = self.air.T
         
-        # 상부 파이프 ↔ 공기 대류 (5개 파이프 모두)
-        for i in range(self.pipe_up.N):
-            self.Q_cnv_UpAir.heatPorts_a.ports[i].T = self.pipe_up.T
-        self.Q_cnv_UpAir.port_b.T = self.air.T
-    
+        # # 상부 파이프 ↔ 공기 대류 (5개 파이프 모두)
+        # for i in range(self.pipe_up.N):
+        #     self.Q_cnv_UpAir.heatPorts_a.ports[i].T = self.pipe_up.T
+        # self.Q_cnv_UpAir.port_b.T = self.air.T
+
+        # # Flow1DimInc의 thermalPortL에 공기 온도 연결 (추가)
+        # for i in range(self.pipe_low.N):
+        #     self.pipe_low.flow1DimInc.Cells[i].Wall_int.T = self.air.T
+        # for i in range(self.pipe_up.N):
+        #     self.pipe_up.flow1DimInc.Cells[i].Wall_int.T = self.air.T
+    # 난방 파이프 대류 열전달 포트 연결 (수정)
+        for pipe, q_cnv in ((self.pipe_low, self.Q_cnv_LowAir),
+                            (self.pipe_up,  self.Q_cnv_UpAir)):
+            # 1) 파이프 외피 온도 → 대류 포트
+            for i, port in enumerate(q_cnv.heatPorts_a.ports):
+                port.T = pipe.T
+
+            # 2) flow1DimInc 각 셀에 유량(M_dot)·유체온도 셋업
+            m_dot_per_cell = abs(self.sourceMdot_1ry.flangeB.m_flow) / pipe.N
+            for cell in pipe.flow1DimInc.Cells:
+                cell.M_dot = m_dot_per_cell
+                cell.heatTransfer.M_dot = m_dot_per_cell
+                cell.heatTransfer.T_fluid = [self.sourceMdot_1ry.T_0]  # 공급수 온도 사용
+                # 3) 셀별 열전달 계산 (T는 읽기 전용이므로 계산만 수행)
+                cell.heatTransfer.calculate()
+
+            # 4) 공기측 포트 온도
+            q_cnv.port_b.T = self.air.T
+
     def _update_mass_ports(self) -> None:
         """질량 포트 연결을 업데이트합니다."""
         # Air ↔ Screen 대류
@@ -1074,7 +1099,6 @@ class Greenhouse_1:
         # --- 작물흡수(MC_AirCan) one-port ---
         self.MC_AirCan.port.CO2 = self.CO2_air.CO2
 
-        # --- CO2 질량 전달 계산 (각 컴포넌트 특성에 맞게 호출) ---
         # MC_ventilation2 컴포넌트들: 환기율을 미리 설정하고 step() 호출
         self.MC_AirOut.f_vent = self.Q_ven_AirOut.f_vent_total
         self.MC_AirOut.step()      # 환기로 인한 CO2 배출 (하부공기 → 외부)
@@ -1088,10 +1112,6 @@ class Greenhouse_1:
         # MC_AirCan: 작물 CO2 흡수 (대수 방정식)
         self.MC_AirCan.step()
         
-        # MC_ExtAir: 외부 CO2 주입 (PID 제어기에 의해 U_MCext가 설정되고 calculate()가 호출됨)
-        # self.MC_ExtAir.step(dt=self.dt)  # 제거: PID 제어에서 이미 calculate() 호출됨
-
-        # --- CO2_air / CO2_top 순 flow 합산 (Modelica 원본과 정확히 일치) ---
         # CO2_air 질량 균형: 주입 - 배출 - 이동 - 흡수
         self.CO2_air.MC_flow = (
             - self.MC_ExtAir.port.MC_flow      # 외부 CO2 주입 (Air로 들어옴, 음수 → 양수로 변환)
@@ -1211,6 +1231,19 @@ class Greenhouse_1:
         self.Q_cnv_CanAir.step()
         
         # 난방 파이프와 공기 사이의 대류
+        self.pipe_low.step(dt=self.dt)  # 추가
+        self.pipe_up.step(dt=self.dt)
+
+        # 하부 파이프 셀에 유량 분배
+        for cell in self.pipe_low.flow1DimInc.Cells:
+            cell.M_dot = abs(self.pipe_low.pipe_in.m_flow) / self.pipe_low.N
+            cell.heatTransfer.M_dot = cell.M_dot
+
+        # 상부 파이프 셀에 유량 분배
+        for cell in self.pipe_up.flow1DimInc.Cells:
+            cell.M_dot = abs(self.pipe_up.pipe_in.m_flow) / self.pipe_up.N
+            cell.heatTransfer.M_dot = cell.M_dot
+
         self.Q_cnv_LowAir.step()
         self.Q_cnv_UpAir.step()
         
@@ -1579,10 +1612,8 @@ class Greenhouse_1:
     def _calculate_heating_energy(self, dt: float) -> None:
         # 하부 파이프 열량
         q_low = -self.pipe_low.flow1DimInc.Q_tot / surface
-        
         # 상부 파이프 열량
         q_up = -self.pipe_up.flow1DimInc.Q_tot / surface
-        
         # 총 열량
         q_tot = q_low + q_up
 
@@ -1595,7 +1626,6 @@ class Greenhouse_1:
         if q_tot > 0:
             # kWh/m²로 변환 (J → kWh)
             self.E_th_tot_kWhm2 += q_tot * dt / (1000 * 3600)
-            
             # 총 난방 에너지 계산 (kWh)
             self.E_th_tot = self.E_th_tot_kWhm2 * surface
     
@@ -1733,14 +1763,6 @@ class Greenhouse_1:
     def _verify_temperature_ranges(self) -> None:
         state = self._get_state()
         temps = state['temperatures']
-        
-        # # 디버그 출력: 실제 온도 값 확인
-        # print(f"DEBUG - 실제 온도 값들:")
-        # print(f"  self.air.T: {self.air.T} K ({self.air.T - 273.15:.2f}°C)")
-        # print(f"  self.air_Top.T: {self.air_Top.T} K ({self.air_Top.T - 273.15:.2f}°C)")
-        # print(f"  temps['air']: {temps['air']:.2f}°C")
-        # print(f"  temps['air_top']: {temps['air_top']:.2f}°C")
-        # print(f"  온도 차이: {abs(temps['air'] - temps['air_top']):.1f}°C")
         
         # 일반 온도 범위 검증 (난방 파이프 제외)
         for name, temp in temps.items():

@@ -5,6 +5,7 @@ from Interfaces.Vapour.WaterMassPort_a import WaterMassPort_a
 from Interfaces.Heat.HeatFluxVectorInput import HeatFluxVectorInput
 from Interfaces.Heat.HeatFluxInput import HeatFlux
 from Modelica.Thermal.HeatTransfer.Sources.PrescribedTemperature import PrescribedTemperature
+from Modelica.Media.MoistAir.relativeHumidity_pTX import relativeHumidity_pTX
 
 class Air:
     def __init__(self, A, h_Air=4.0, rho=1.2, c_p=1000.0, T_start=298.0, N_rad=2, steadystate=False, steadystateVP=True):
@@ -131,15 +132,16 @@ class Air:
         """Update humidity calculations"""
         if self._VP is None:
             return
-            
+
         # Calculate humidity ratio (Modelica equation)
         self.w_air = self._VP * self.R_a / ((self.P_atm - self._VP) * self.R_s)
-        
-        # Calculate relative humidity using Modelica's MoistAir model
-        T_C = self.T - 273.15
-        Psat = 610.78 * np.exp(T_C / (T_C + 238.3) * 17.2694)
-        self.RH = self._VP / Psat if Psat > 0 else 0.0
-        self.RH = np.clip(self.RH, 0, 1)
+
+        # Modelica와 동일하게 조성 벡터 생성 (물의 질량분율만 사용)
+        X_water = self.w_air / (1 + self.w_air)
+        X = [X_water]
+
+        # Modelica의 relativeHumidity_pTX 함수 사용
+        self.RH = relativeHumidity_pTX(self.P_atm, self.T, X)
             
     def step(self, dt):
         """

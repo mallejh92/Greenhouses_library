@@ -1,0 +1,211 @@
+# 포트 연결 설정 파일
+# Greenhouse 시뮬레이션 모델의 포트 연결 정보
+
+heat_connections:
+  - source: "Q_cnv_AirScr"
+    source_port: "heatPort_a"
+    target: "air"
+    target_attr: "T"
+    description: "Air to Screen convection heat port A"
+    
+  - source: "Q_cnv_AirScr"
+    source_port: "heatPort_b"
+    target: "thScreen"
+    target_attr: "T"
+    description: "Air to Screen convection heat port B"
+    
+  - source: "Q_cnv_TopCov"
+    source_port: "heatPort_a"
+    target: "air_Top"
+    target_attr: "T"
+    description: "Top Air to Cover convection heat port A"
+    
+  - source: "Q_cnv_TopCov"
+    source_port: "heatPort_b"
+    target: "cover"
+    target_attr: "T"
+    description: "Top Air to Cover convection heat port B"
+    
+  - source: "Q_cnv_ScrTop"
+    source_port: "heatPort_a"
+    target: "thScreen"
+    target_attr: "T"
+    description: "Screen to Top Air convection heat port A"
+    
+  - source: "Q_cnv_ScrTop"
+    source_port: "heatPort_b"
+    target: "air_Top"
+    target_attr: "T"
+    description: "Screen to Top Air convection heat port B"
+    
+  - source: "Q_cnv_AirCov"
+    source_port: "heatPort_a"
+    target: "air"
+    target_attr: "T"
+    description: "Air to Cover convection heat port A"
+    
+  - source: "Q_cnv_AirCov"
+    source_port: "heatPort_b"
+    target: "cover"
+    target_attr: "T"
+    description: "Air to Cover convection heat port B"
+    
+  - source: "Q_cnv_FlrAir"
+    source_port: "port_a"
+    target: "floor"
+    target_attr: "T"
+    description: "Floor to Air convection port A"
+    
+  - source: "Q_cnv_FlrAir"
+    source_port: "port_b"
+    target: "air"
+    target_attr: "T"
+    description: "Floor to Air convection port B"
+    
+  - source: "Q_cnv_CanAir"
+    source_port: "port_a"
+    target: "canopy"
+    target_attr: "T"
+    description: "Canopy to Air free convection port A"
+    
+  - source: "Q_cnv_CanAir"
+    source_port: "port_b"
+    target: "air"
+    target_attr: "T"
+    description: "Canopy to Air free convection port B"
+    
+  - source: "Q_cnv_CovOut"
+    source_port: "port_a"
+    target: "cover"
+    target_attr: "T"
+    description: "Cover to Outside convection port A"
+    
+  - source: "Q_cnv_CovOut"
+    source_port: "port_b"
+    target: "Tout"
+    target_attr: ""
+    description: "Cover to Outside convection port B"
+
+mass_connections:
+  - source: "Q_cnv_AirScr"
+    source_port: "massPort_a"
+    target: "air"
+    target_attr: "massPort.VP"
+    description: "Air to Screen mass port A"
+    
+  - source: "Q_cnv_AirScr"
+    source_port: "massPort_b"
+    target: "thScreen"
+    target_attr: "massPort.VP"
+    description: "Air to Screen mass port B"
+    
+  - source: "Q_cnv_TopCov"
+    source_port: "massPort_a"
+    target: "air_Top"
+    target_attr: "massPort.VP"
+    description: "Top Air to Cover mass port A"
+    
+  - source: "Q_cnv_TopCov"
+    source_port: "massPort_b"
+    target: "cover"
+    target_attr: "massPort.VP"
+    description: "Top Air to Cover mass port B"
+    
+  - source: "MV_CanAir"
+    source_port: "port_a"
+    target: "canopy"
+    target_attr: "massPort.VP"
+    description: "Canopy transpiration port A"
+    
+  - source: "MV_CanAir"
+    source_port: "port_b"
+    target: "air"
+    target_attr: "massPort.VP"
+    description: "Canopy transpiration port B"
+
+radiation_connections:
+  - source: "Q_rad_CanCov"
+    source_port: "port_a"
+    target: "canopy"
+    target_attr: "T"
+    description: "Canopy to Cover radiation port A"
+    
+  - source: "Q_rad_CanCov"
+    source_port: "port_b"
+    target: "cover"
+    target_attr: "T"
+    description: "Canopy to Cover radiation port B"
+    
+  - source: "Q_rad_CovSky"
+    source_port: "port_a"
+    target: "cover"
+    target_attr: "T"
+    description: "Cover to Sky radiation port A"
+    
+  - source: "Q_rad_CovSky"
+    source_port: "port_b"
+    target: "Tsky"
+    target_attr: ""
+    description: "Cover to Sky radiation port B"
+    
+  - source: "Q_rad_FlrCan"
+    source_port: "port_a"
+    target: "floor"
+    target_attr: "T"
+    description: "Floor to Canopy radiation port A"
+    
+  - source: "Q_rad_FlrCan"
+    source_port: "port_b"
+    target: "canopy"
+    target_attr: "T"
+    description: "Floor to Canopy radiation port B"
+
+co2_connections:
+  - source: "MC_AirOut"
+    source_port: "port_a"
+    target: "CO2_air"
+    target_attr: "CO2"
+    description: "Air CO2 to outside port A"
+    
+  - source: "MC_AirOut"
+    source_port: "port_b"
+    target: "CO2out"
+    target_attr: "CO2"
+    description: "Air CO2 to outside port B"
+    
+  - source: "MC_AirTop"
+    source_port: "port_a"
+    target: "CO2_air"
+    target_attr: "CO2"
+    description: "Air CO2 to top port A"
+    
+  - source: "MC_AirTop"
+    source_port: "port_b"
+    target: "CO2_top"
+    target_attr: "CO2"
+    description: "Air CO2 to top port B"
+
+ventilation_connections:
+  - source: "Q_ven_AirOut"
+    source_port: "HeatPort_a"
+    target: "air"
+    target_attr: "T"
+    description: "Air ventilation heat port A"
+    
+  - source: "Q_ven_AirOut"
+    source_port: "HeatPort_b"
+    target: "Tout"
+    target_attr: ""
+    description: "Air ventilation heat port B"
+    
+  - source: "Q_ven_AirOut"
+    source_port: "MassPort_a"
+    target: "air"
+    target_attr: "massPort.VP"
+    description: "Air ventilation mass port A"
+    
+  - source: "Q_ven_AirOut"
+    source_port: "MassPort_b"
+    target: "VPout"
+    target_attr: ""
+    description: "Air ventilation mass port B" 

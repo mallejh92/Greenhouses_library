@@ -1,118 +1,158 @@
 import numpy as np
 from Interfaces.Vapour.WaterMassPort_a import WaterMassPort_a
-from Interfaces.Heat.HeatPorts_a import HeatPorts_a
+from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
+from Modelica.Media.MoistAir.relativeHumidity_pTX import relativeHumidity_pTX
+
+import numpy as np
+import math
+from typing import Optional, Dict, Any
 
 class RHSensor:
     """
-    Relative Humidity sensor
-    
-    This class implements a relative humidity sensor that measures the relative humidity
-    of air based on temperature and water vapor pressure. The sensor itself has no thermal
-    interaction with whatever it is connected to.
+    상대습도 센서 클래스
+    - Modelica의 RHSensor를 Python으로 변환
+    - 연결된 포트의 상대습도를 계산하여 출력
     """
     
-    def __init__(self, P_atm=101325):
+    def __init__(self, name: str = "RH_Sensor"):
         """
-        Initialize the RHSensor model
+        센서 초기화
         
-        Parameters:
-        -----------
-        P_atm : float, optional
-            Atmospheric pressure [Pa], default is 101325
+        Args:
+            name: 센서 이름
         """
-        # Constants
-        self.P_atm = P_atm  # Atmospheric pressure [Pa]
-        self.R_a = 287.0  # Gas constant for dry air [J/(kg·K)]
-        self.R_s = 461.5  # Gas constant for water vapor [J/(kg·K)]
+        self.name = name
         
-        # Initialize ports
-        self.massPort = WaterMassPort_a()  # Water mass port
-        self.heatPort = HeatPorts_a(1)[0]  # Heat port
+        # 물리 상수
+        self.P_atm = 101325.0  # 대기압 (Pa)
+        self.R_a = 287.0  # 건조공기 기체상수 (J/(kg·K))
+        self.R_s = 461.5  # 수증기 기체상수 (J/(kg·K))
         
-        # State variables
-        self.w_air = 0.0  # Air humidity ratio [kg water/kg dry air]
-        self.RH = 0.0  # Relative humidity [%]
+        # 포트 연결
+        self.massPort = WaterMassPort_a()
+        self.heatPort = HeatPort_a()
         
-    def calculate(self):
+        # 출력 변수
+        self.RH = 0.0  # 상대습도 (0~1)
+        self.w_air = 0.0  # 공기 습도비 (kg water / kg dry air)
+        
+    def connect_mass_port(self, mass_port: WaterMassPort_a):
+        """수증기 질량 포트 연결"""
+        self.massPort = mass_port
+        
+    def connect_heat_port(self, heat_port: HeatPort_a):
+        """열 포트 연결"""
+        self.heatPort = heat_port
+        
+    def calculate_saturation_pressure(self, T: float) -> float:
         """
-        Calculate relative humidity based on temperature and water vapor pressure
+        포화 수증기압 계산 (Antoine 방정식 사용)
         
-        Returns:
-        --------
-        RH : float
-            Relative humidity [%]
-        """
-        # Set mass and heat flow to zero (sensor doesn't affect the system)
-        self.massPort.MV_flow = 0
-        self.heatPort.Q_flow = 0
-        
-        # Calculate air humidity ratio
-        self.w_air = self.massPort.VP * self.R_a / (self.P_atm - self.massPort.VP) / self.R_s
-        
-        # Calculate relative humidity using the moist air model
-        self.RH = self._relative_humidity_pTX(
-            self.P_atm,
-            self.heatPort.T,
-            self.w_air
-        )
-        
-        return self.RH
-        
-    def _relative_humidity_pTX(self, p, T, w):
-        """
-        Calculate relative humidity from pressure, temperature and humidity ratio
-        
-        Parameters:
-        -----------
-        p : float
-            Pressure [Pa]
-        T : float
-            Temperature [K]
-        w : float
-            Humidity ratio [kg water/kg dry air]
+        Args:
+            T: 온도 (K)
             
         Returns:
-        --------
-        RH : float
-            Relative humidity [%]
+            포화 수증기압 (Pa)
         """
-        # Calculate saturation vapor pressure at temperature T
-        saturation_vapor_pressure = self._saturation_pressure(T)
+        # Antoine 방정식 계수 (물)
+        A = 8.07131
+        B = 1730.63
+        C = 233.426
         
-        # Calculate vapor pressure
-        vapor_pressure = p * w / (self.R_a/self.R_s + w)
+        # 온도를 섭씨로 변환
+        T_celsius = T - 273.15
         
-        # Calculate relative humidity with safety check
-        if saturation_vapor_pressure > 1e-6:  # 포화수증기압이 너무 작지 않은 경우
-            RH = vapor_pressure / saturation_vapor_pressure * 100
+        # 포화 수증기압 계산 (mmHg)
+        log_p_sat = A - B / (C + T_celsius)
+        p_sat_mmHg = 10 ** log_p_sat
+        
+        # Pa로 변환
+        p_sat_Pa = p_sat_mmHg * 133.322
+        
+        return p_sat_Pa
+    
+    def calculate_relative_humidity_simple(self, P_atm: float, T: float, VP: float) -> float:
+        """
+        간단한 상대습도 계산
+        
+        Args:
+            P_atm: 대기압 (Pa)
+            T: 온도 (K)
+            VP: 수증기 압력 (Pa)
+            
+        Returns:
+            상대습도 (0~1)
+        """
+        # 포화 수증기압 계산
+        P_sat = self.calculate_saturation_pressure(T)
+        
+        # 상대습도 = 실제 수증기압 / 포화 수증기압
+        RH = VP / P_sat
+        
+        # 0과 1 사이로 제한
+        return max(0.0, min(1.0, RH))
+    
+    def calculate_relative_humidity_detailed(self, P_atm: float, T: float, w_air: float) -> float:
+        """
+        상세한 상대습도 계산 (Modelica.Media.Air.MoistAir 방식)
+        
+        Args:
+            P_atm: 대기압 (Pa)
+            T: 온도 (K)
+            w_air: 습도비 (kg water / kg dry air)
+            
+        Returns:
+            상대습도 (0~1)
+        """
+        # 포화 수증기압 계산
+        P_sat = self.calculate_saturation_pressure(T)
+        
+        # 현재 수증기 압력 계산
+        VP = w_air * P_atm / (self.R_s / self.R_a + w_air)
+        
+        # 상대습도 계산
+        RH = VP / P_sat
+        
+        # 0과 1 사이로 제한
+        return max(0.0, min(1.0, RH))
+    
+    def update(self):
+        """
+        센서 값 업데이트
+        - 포트 연결 상태를 확인하고 상대습도 계산
+        """
+        # 포트 질량 유량, 열 유량 0으로 설정
+        self.massPort.MV_flow = 0.0
+        self.heatPort.Q_flow = 0.0
+
+        # 습도비 계산 (Modelica와 동일)
+        if self.P_atm - self.massPort.VP > 0:
+            self.w_air = (self.massPort.VP * self.R_a) / ((self.P_atm - self.massPort.VP) * self.R_s)
         else:
-            # 포화수증기압이 너무 작으면 RH를 0으로 설정
-            RH = 0.0
-        
-        return RH
-        
-    def _saturation_pressure(self, T):
+            self.w_air = 0.0
+
+        # Modelica와 동일하게 조성 벡터 생성
+        X_water = self.w_air / (1 + self.w_air)
+        X = [X_water]
+
+        # Modelica의 relativeHumidity_pTX 함수 사용
+        self.RH = relativeHumidity_pTX(self.P_atm, self.heatPort.T, X)
+    
+    def get_output(self) -> Dict[str, float]:
         """
-        Calculate saturation vapor pressure at temperature T using Magnus-Tetens formula
+        센서 출력값 반환
         
-        Parameters:
-        -----------
-        T : float
-            Temperature [K]
-            
         Returns:
-        --------
-        float
-            Saturation vapor pressure [Pa]
+            센서 출력 딕셔너리
         """
-        # Constants for Magnus-Tetens formula
-        a1 = -6096.9385
-        a2 = 21.2409642
-        a3 = -2.711193e-2
-        a4 = 1.673952e-5
-        a5 = 2.433502
-        
-        # Calculate saturation pressure using the Magnus-Tetens formula
-        saturation_vapor_pressure = 610.78 * np.exp((a1/T + a2 + a3*T + a4*T**2 + a5*np.log(T)))
-        
-        return saturation_vapor_pressure
+        return {
+            'RH': self.RH * 100,  # 백분율로 변환
+            'RH_fraction': self.RH,  # 소수점 형태
+            'w_air': self.w_air,
+            'temperature': self.heatPort.T,
+            'vapor_pressure': self.massPort.VP
+        }
+    
+    def __str__(self) -> str:
+        """센서 상태 문자열 표현"""
+        return f"{self.name}: RH={self.RH*100:.1f}%, T={self.heatPort.T:.1f}K, VP={self.massPort.VP:.1f}Pa"

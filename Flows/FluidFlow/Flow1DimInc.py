@@ -107,8 +107,9 @@ class Cell1DimInc:
         dt : float
             Time step [s]
         """
-        # Update mass flow rate
-        self.heatTransfer.M_dot = self.InFlow.m_flow
+        # Update mass flow rate (중요: cell 자체의 M_dot도 업데이트)
+        self.M_dot = self.InFlow.m_flow / self.Nt  # cell 자체의 M_dot 업데이트
+        self.heatTransfer.M_dot = self.M_dot       # heatTransfer의 M_dot 업데이트
         
         # Calculate heat transfer coefficient
         self.heatTransfer.calculate()
