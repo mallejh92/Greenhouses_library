@@ -32,30 +32,12 @@ class Control_ThScreen:
         self.Tout = 273.15      # 변수명 통일: T_out → Tout
         self.RH_air = 0.0
         self.SC_usable = 0.0
+        
     def step(self, dt: float) -> float:
         """
         Modelica StateGraph 논리 1:1 반영 (상태/전이 이름 동일)
         """
         prev_state = self.state
-        
-        # # 디버깅 출력 (매 1000스텝마다)
-        # if hasattr(self, '_debug_counter'):
-        #     self._debug_counter += 1
-        # else:
-        #     self._debug_counter = 0
-            
-        # if self._debug_counter % 1000 == 0:
-        #     print(f"\n=== Control_ThScreen 디버깅 ===")
-        #     print(f"현재 상태: {self.state}")
-        #     print(f"R_Glob_can: {self.R_Glob_can:.1f} W/m² (min: {self.R_Glob_can_min})")
-        #     print(f"T_out: {self.Tout:.1f} K ({self.Tout-273.15:.1f}°C)")
-        #     print(f"T_air_sp: {self.T_air_sp:.1f} K ({self.T_air_sp-273.15:.1f}°C)")
-        #     print(f"T_out <= T_air_sp-7: {self.Tout <= (self.T_air_sp - 7)}")
-        #     print(f"T_out > T_air_sp-7: {self.Tout > (self.T_air_sp - 7)}")
-        #     print(f"RH_air: {self.RH_air:.3f}")
-        #     print(f"SC_usable: {self.SC_usable}")
-        #     print(f"타이머: {self.timer:.1f}s")
-        #     print("=" * 30)
         
         # 1. 타이머 업데이트 (상태별)
         if self.state in ("opening_ColdDay", "opening_WarmDay", "open"):
@@ -71,135 +53,102 @@ class Control_ThScreen:
             self.timer_crack += dt
         else:
             self.timer_crack = 0.0
+            
         # 2. 상태 전이 (Modelica Transition 이름 주석)
         # closed (InitialStep)
         if self.state == "closed":
             # T5: closed → crack (RH_air > 0.83)
             if self.RH_air > 0.83:
                 self.state = "crack"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: closed → crack (RH_air > 0.83)")
             # T2: closed → opening_ColdDay (R_Glob_can > min, T_out <= T_air_sp-7)
             elif self.R_Glob_can > self.R_Glob_can_min and self.Tout <= (self.T_air_sp - 7):
                 self.state = "opening_ColdDay"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: closed → opening_ColdDay")
             # T3: closed → opening_WarmDay (R_Glob_can > min, T_out > T_air_sp-7)
             elif self.R_Glob_can > self.R_Glob_can_min and self.Tout > (self.T_air_sp - 7):
                 self.state = "opening_WarmDay"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: closed → opening_WarmDay")
             # T4: closed → closing_ColdDay (SC_usable > 0, T_out < T_air_sp-7, enableTimer, waitTime=2h)
             elif self.SC_usable > 0 and self.Tout < (self.T_air_sp - 7):
                 if self.timer >= 2 * 3600:
                     self.state = "closing_ColdDay"
-                    if self._debug_counter % 1000 == 0:
-                        print("전이: closed → closing_ColdDay")
+                    
         # opening_ColdDay
         elif self.state == "opening_ColdDay":
             # T6: opening_ColdDay → open (timer >= 52min)
             if self.timer >= 52 * 60:
                 self.state = "open"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: opening_ColdDay → open")
             # T2b: opening_ColdDay → opening_ColdDay (R_Glob_can > min, T_out <= T_air_sp-7)
             # (유지)
             # T3b: opening_ColdDay → opening_WarmDay (R_Glob_can > min, T_out > T_air_sp-7)
             elif self.R_Glob_can > self.R_Glob_can_min and self.Tout > (self.T_air_sp - 7):
                 self.state = "opening_WarmDay"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: opening_ColdDay → opening_WarmDay")
             # T8: opening_ColdDay → closed (RH_air < 0.7)
             elif self.RH_air < 0.7:
                 self.state = "closed"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: opening_ColdDay → closed (RH_air < 0.7)")
+                
         # opening_WarmDay
         elif self.state == "opening_WarmDay":
             # T7: opening_WarmDay → open (timer >= 32min)
             if self.timer >= 32 * 60:
                 self.state = "open"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: opening_WarmDay → open")
             # T2c: opening_WarmDay → opening_ColdDay (R_Glob_can > min, T_out <= T_air_sp-7)
             elif self.R_Glob_can > self.R_Glob_can_min and self.Tout <= (self.T_air_sp - 7):
                 self.state = "opening_ColdDay"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: opening_WarmDay → opening_ColdDay")
             # T8: opening_WarmDay → closed (RH_air < 0.7)
             elif self.RH_air < 0.7:
                 self.state = "closed"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: opening_WarmDay → closed (RH_air < 0.7)")
+                
         # open
         elif self.state == "open":
             # T4: open → closing_ColdDay (SC_usable > 0, T_out < T_air_sp-7, enableTimer, waitTime=2h)
             if self.SC_usable > 0 and self.Tout < (self.T_air_sp - 7):
                 if self.timer >= 2 * 3600:
                     self.state = "closing_ColdDay"
-                    if self._debug_counter % 1000 == 0:
-                        print("전이: open → closing_ColdDay")
             # T2: open → opening_ColdDay (R_Glob_can > min, T_out <= T_air_sp-7)
             elif self.R_Glob_can > self.R_Glob_can_min and self.Tout <= (self.T_air_sp - 7):
                 self.state = "opening_ColdDay"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: open → opening_ColdDay")
             # T3: open → opening_WarmDay (R_Glob_can > min, T_out > T_air_sp-7)
             elif self.R_Glob_can > self.R_Glob_can_min and self.Tout > (self.T_air_sp - 7):
                 self.state = "opening_WarmDay"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: open → opening_WarmDay")
+                
         # closing_ColdDay
         elif self.state == "closing_ColdDay":
             # T1: closing_ColdDay → closed (timer >= 52min)
             if self.timer_closing_CD >= 52 * 60:
                 self.state = "closed"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: closing_ColdDay → closed")
+                
         # crack
         elif self.state == "crack":
             # T8: crack → closed (RH_air < 0.7)
             if self.RH_air < 0.7:
                 self.state = "closed"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: crack → closed (RH_air < 0.7)")
             # T9: crack → crack2 (RH_air > 0.85, timer_crack >= 15min)
             elif self.RH_air > 0.85 and self.timer_crack >= 15 * 60:
                 self.state = "crack2"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: crack → crack2")
             # T2b: crack → opening_ColdDay (R_Glob_can > min, T_out <= T_air_sp-7)
             elif self.R_Glob_can > self.R_Glob_can_min and self.Tout <= (self.T_air_sp - 7):
                 self.state = "opening_ColdDay"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: crack → opening_ColdDay")
             # T3b: crack → opening_WarmDay (R_Glob_can > min, T_out > T_air_sp-7)
             elif self.R_Glob_can > self.R_Glob_can_min and self.Tout > (self.T_air_sp - 7):
                 self.state = "opening_WarmDay"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: crack → opening_WarmDay")
+                
         # crack2
         elif self.state == "crack2":
             # T8b: crack2 → closed (RH_air < 0.7)
             if self.RH_air < 0.7:
                 self.state = "closed"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: crack2 → closed (RH_air < 0.7)")
             # T2c: crack2 → opening_ColdDay (R_Glob_can > min, T_out <= T_air_sp-7)
             elif self.R_Glob_can > self.R_Glob_can_min and self.Tout <= (self.T_air_sp - 7):
                 self.state = "opening_ColdDay"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: crack2 → opening_ColdDay")
             # T3c: crack2 → opening_WarmDay (R_Glob_can > min, T_out > T_air_sp-7)
             elif self.R_Glob_can > self.R_Glob_can_min and self.Tout > (self.T_air_sp - 7):
                 self.state = "opening_WarmDay"
-                if self._debug_counter % 1000 == 0:
-                    print("전이: crack2 → opening_WarmDay")
+                
         # 상태가 바뀌면 타이머 리셋
         if self.state != prev_state:
             self.timer = 0.0
             self.timer_crack = 0.0
             self.timer_closing_CD = 0.0
+            
         # 3. 출력 신호 계산 (Modelica와 동일)
         self.opening_CD = self.SC_OCD_value if self.state == "opening_ColdDay" else 0.0
         self.opening_WD = self.SC_OWD_value if self.state == "opening_WarmDay" else 0.0
@@ -209,8 +158,10 @@ class Control_ThScreen:
         self.crack = self.SC_crack_value if self.state == "crack" else 0.0
         self.crack2 = self.SC_crack2_value if self.state == "crack2" else 0.0
         self.SC = (self.opening_CD + self.opening_WD + self.closing_CD + self.op + self.cl + self.crack + self.crack2)
+        
         if self.SC_usable == 0:
             self.state = "open"
             self.SC = 0.0
             return self.SC
+            
         return self.SC

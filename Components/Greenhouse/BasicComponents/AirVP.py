@@ -1,4 +1,4 @@
-from Interfaces.Vapour.WaterMassPort import WaterMassPort
+from Interfaces.Vapour.WaterMassPort_a import WaterMassPort_a
 from Flows.Sources.Vapour.PrescribedPressure import PrescribedPressure
 
 class AirVP:
@@ -32,26 +32,27 @@ class AirVP:
         self.M_H = 18e-3                # Molar mass of water vapor [kg/mol]
         self.MV_flow = 0.0              # Water vapor mass flow rate [kg/s]
 
+        # Variables
+        self._VP = VP_start             # Vapor pressure [Pa]
+        self._dVP_dt = 0.0              # Derivative of VP [Pa/s]
+
         # Components
-        self.port = WaterMassPort()  # VP는 나중에 설정
+        self.port = WaterMassPort_a(VP=VP_start)  # Water mass port
         self.prescribed_pressure = PrescribedPressure()
         
         # Connect components
         self.prescribed_pressure.connect_port(self.port)
-        
-        # Set initial VP after components are initialized
-        self._VP = None  # VP는 setter를 통해 설정
-        if VP_start is not None:
-            self.VP = VP_start
+        self.prescribed_pressure.connect_VP(self._VP)
+        self.prescribed_pressure.calculate()
 
     @property
     def VP(self):
-        """Get vapor pressure"""
+        """Get vapor pressure [Pa]"""
         return self._VP
 
     @VP.setter
     def VP(self, value):
-        """Set vapor pressure and update components"""
+        """Set vapor pressure [Pa]"""
         self._VP = value
         if hasattr(self, 'port'):
             self.port.VP = value
@@ -64,11 +65,13 @@ class AirVP:
         Args:
             dt: Time step [s]
         """
-        if not self.steadystate and hasattr(self, 'port'):
-            # Euler integration of the differential equation
-            # der(VP) = 1/(M_H*1e3*V_air/(R*T))*(MV_flow)
-            dVP = (1.0 / (self.M_H * 1e3 * self.V_air / (self.R * self.T))) * self.MV_flow
-            self.VP += dVP * dt
+        if not self.steadystate:
+            # Modelica 방정식: der(VP) = 1/(M_H*1e3*V_air/(R*T))*(MV_flow)
+            # 포트의 MV_flow를 사용 (Modelica: port.MV_flow = MV_flow)
+            self._dVP_dt = (1.0 / (self.M_H * 1e3 * self.V_air / (self.R * self.T))) * self.port.MV_flow
+            
+            # Euler integration
+            self.VP += self._dVP_dt * dt
 
     def get_vapor_pressure(self):
         """Get current vapor pressure [Pa]"""
@@ -81,6 +84,7 @@ class AirVP:
     def set_mv_flow(self, mv_flow):
         """Set water vapor mass flow rate [kg/s]"""
         self.MV_flow = mv_flow
+        # Modelica 방정식: port.MV_flow = MV_flow
         if hasattr(self, 'port'):
             self.port.MV_flow = mv_flow
 
@@ -99,3 +103,7 @@ class AirVP:
             if self._VP is not None:
                 self.prescribed_pressure.connect_VP(self._VP)
                 self.prescribed_pressure.calculate()
+
+    def get_derivative(self):
+        """Get current derivative of VP [Pa/s]"""
+        return self._dVP_dt

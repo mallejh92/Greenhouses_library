@@ -3,6 +3,8 @@ from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
 from Interfaces.Vapour.WaterMassPort_a import WaterMassPort_a
 from Components.Greenhouse.BasicComponents.AirVP import AirVP
 from Modelica.Thermal.HeatTransfer.Sources.PrescribedTemperature import PrescribedTemperature
+from Modelica.Media.MoistAir.relativeHumidity_pTX import relativeHumidity_pTX
+from Modelica.Media.Air.ReferanceAir.Air_pT.density_pT import density_pT
 
 class Air_Top:
     """
@@ -51,7 +53,7 @@ class Air_Top:
         self.R_a = 287.0                   # 건조 공기 기체 상수 [J/(kg·K)]
         self.R_s = 461.5                   # 수증기 기체 상수 [J/(kg·K)]
         self.rho = 0.0                     # 공기 밀도 [kg/m³] (step() 시 계산)
-        self.RH = 0.0                      # 상대습도 (0~1)
+        self.RH = 0.9                      # 상대습도 (0~1) - 90%로 설정
         self.w_air = 0.0                   # 공기 중 수증기 비율 [kg_water/kg_dry_air]
 
         # 3) 포트(Connectors) 생성
@@ -69,12 +71,11 @@ class Air_Top:
     def compute_derivatives(self) -> float:
         """
         온도(T)의 미분(dT/dt)을 계산
-        - Modelica: rho = density_pT(1e5, heatPort.T)
+        - Modelica: rho = Modelica.Media.Air.ReferenceAir.Air_pT.density_pT(1e5, heatPort.T)
                     der(T) = Q_flow / (rho * c_p * V)
         """
-        # 1) 밀도를 현재 열 포트의 온도(heatPort.T)에 맞추어 이상기체 식으로 계산
-        T_port = self.heatPort.T
-        self.rho = self.P_atm / (self.R_a * T_port)
+        # 1) Modelica와 동일하게 Air_pT.density_pT 사용
+        self.rho = density_pT(1e5, self.heatPort.T)
 
         # 2) 미분 계산
         if self.steadystate:
@@ -86,23 +87,19 @@ class Air_Top:
         """
         수증기(Humidity) 관련 상태 변수 업데이트
         - Modelica:
-            w_air = massPort.VP * R_a / ((P_atm - massPort.VP) * R_s)
-            RH = relativeHumidity_pTX(P_atm, heatPort.T, {w_air})
+            w_air = massPort.VP * R_a / (P_atm - massPort.VP) / R_s
+            RH = Modelica.Media.Air.MoistAir.relativeHumidity_pTX(P_atm, heatPort.T, {w_air})
         """
-        # 1) 수증기 비율(w_air) 계산
+        # 1) 수증기 비율(w_air) 계산 (Modelica와 동일)
         VP = self.massPort.VP
         if VP < self.P_atm:
             self.w_air = VP * self.R_a / ((self.P_atm - VP) * self.R_s)
         else:
             self.w_air = 0.0
 
-        # 2) 상대습도(RH) 계산 (Modelica의 relativeHumidity_pTX 함수와 동일한 방식)
-        T_C = self.heatPort.T - 273.15
-        if T_C + 237.3 != 0:
-            VP_sat = 610.78 * np.exp((17.27 * T_C) / (T_C + 237.3))
-            self.RH = np.clip(VP / VP_sat, 0.0, 1.0)
-        else:
-            self.RH = 0.0
+        # 2) Modelica와 동일하게 relativeHumidity_pTX 함수 사용
+        X = [self.w_air]  # w_air를 직접 전달
+        self.RH = relativeHumidity_pTX(self.P_atm, self.heatPort.T, X)
 
     def step(self, dt: float):
         """

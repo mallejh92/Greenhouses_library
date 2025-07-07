@@ -21,29 +21,6 @@ LATENT_HEAT_VAPORIZATION = 2.5e6  # Latent heat of vaporization [J/kg]
 # Greenhouse dimensions
 surface = 1.4e4  # Greenhouse floor area [m²]
 
-# Control parameters
-CONTROL_PARAMS = {
-    'temperature': {
-        'min': 18 + 273.15,  # 18°C
-        'max': 22 + 273.15,  # 22°C
-        'Kp': 0.7,
-        'Ti': 600
-    },
-    'co2': {
-        'min': 708.1,  # mg/m³
-        'max': 1649.0,  # mg/m³
-        'Kp': 0.4,
-        'Ti': 0.5
-    }
-}
-
-# Validation thresholds
-VALIDATION_THRESHOLDS = {
-    'heat_balance': 1000.0,  # Maximum allowed heat imbalance [W]
-    'vapor_balance': 0.1,    # Maximum allowed vapor flow imbalance [kg/s]
-    'temperature_range': (273.15, 323.15)  # Valid temperature range [K]
-}
-
 # File paths
 WEATHER_DATA_PATH = "./10Dec-22Nov.txt"
 SETPOINT_DATA_PATH = "./SP_10Dec-22Nov.txt"
@@ -177,8 +154,8 @@ class Greenhouse_2:
             
             # 외부 RH 계산 (txt 파일의 2번째 열)
             # external_rh = row['RH_out'] / 100.0  # 95% → 0.95
-            self.air.RH = 0.5
-            self.air_Top.RH = 0.5
+            self.air.RH = 0.9
+            self.air_Top.RH = 0.9  # 상부 공기 초기 상대습도를 90%로 설정
             
             # CO₂ 농도 초기화
             self.CO2_air.CO2 = 1940.0  # 하부공기
@@ -917,7 +894,7 @@ class Greenhouse_2:
     def _update_ventilation_control(self, row) -> None:
         # 환기 제어 입력값 업데이트 (Modelica 원본과 일치)
         self.U_vents.T_air = self.air.T  # 현재 온실 내부 온도
-        self.U_vents.T_air_sp = row['T_sp'] + 273.15  # 설정 온도 (K)
+        self.U_vents.T_air_sp = row['T_air_sp'] + 273.15  # 설정 온도 (K)
         self.U_vents.RH_air = self.air.RH  # 현재 상대습도
         self.U_vents.Mdot = self.PID_Mdot.CS  # PID 제어기로부터 계산된 질량 유량
         

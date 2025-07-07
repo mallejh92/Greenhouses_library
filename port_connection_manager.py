@@ -49,7 +49,7 @@ class PortConnectionManager:
             PortConnection("Q_cnv_CanAir", "port_a", "canopy", "T", PortType.HEAT, description="Canopy to Air free convection port A"),
             PortConnection("Q_cnv_CanAir", "port_b", "air", "T", PortType.HEAT, description="Canopy to Air free convection port B"),
             PortConnection("Q_cnv_CovOut", "port_a", "cover", "T", PortType.HEAT, description="Cover to Outside convection port A"),
-            PortConnection("Q_cnv_CovOut", "port_b", "Tout", "", PortType.HEAT, description="Cover to Outside convection port B"),
+            PortConnection("Q_cnv_CovOut", "port_b", "Tout", "T", PortType.HEAT, description="Cover to Outside convection port B"),
             
             # 토양 전도 포트 연결
             PortConnection("Q_cd_Soil", "port_a", "floor", "T", PortType.HEAT, description="Floor to Soil conduction port A"),
@@ -60,9 +60,9 @@ class PortConnectionManager:
             
             # 환기 열 포트 연결
             PortConnection("Q_ven_AirOut", "HeatPort_a", "air", "T", PortType.HEAT, description="Air ventilation heat port A"),
-            PortConnection("Q_ven_AirOut", "HeatPort_b", "Tout", "", PortType.HEAT, description="Air ventilation heat port B"),
+            PortConnection("Q_ven_AirOut", "HeatPort_b", "Tout", "T", PortType.HEAT, description="Air ventilation heat port B"),
             PortConnection("Q_ven_TopOut", "HeatPort_a", "air_Top", "T", PortType.HEAT, description="Top Air ventilation heat port A"),
-            PortConnection("Q_ven_TopOut", "HeatPort_b", "Tout", "", PortType.HEAT, description="Top Air ventilation heat port B"),
+            PortConnection("Q_ven_TopOut", "HeatPort_b", "Tout", "T", PortType.HEAT, description="Top Air ventilation heat port B"),
             PortConnection("Q_ven_AirTop", "HeatPort_a", "air", "T", PortType.HEAT, description="Air to Top Air heat port A"),
             PortConnection("Q_ven_AirTop", "HeatPort_b", "air_Top", "T", PortType.HEAT, description="Air to Top Air heat port B"),
             
@@ -92,7 +92,7 @@ class PortConnectionManager:
             PortConnection("Q_rad_CanScr", "port_a", "canopy", "T", PortType.RADIATION, description="Canopy to Screen radiation port A"),
             PortConnection("Q_rad_CanScr", "port_b", "thScreen", "T", PortType.RADIATION, description="Canopy to Screen radiation port B"),
             PortConnection("Q_rad_CovSky", "port_a", "cover", "T", PortType.RADIATION, description="Cover to Sky radiation port A"),
-            PortConnection("Q_rad_CovSky", "port_b", "Tsky", "", PortType.RADIATION, description="Cover to Sky radiation port B"),
+            PortConnection("Q_rad_CovSky", "port_b", "Tsky", "T", PortType.RADIATION, description="Cover to Sky radiation port B"),
             PortConnection("Q_rad_FlrCan", "port_a", "floor", "T", PortType.RADIATION, description="Floor to Canopy radiation port A"),
             PortConnection("Q_rad_FlrCan", "port_b", "canopy", "T", PortType.RADIATION, description="Floor to Canopy radiation port B"),
             PortConnection("Q_rad_FlrCov", "port_a", "floor", "T", PortType.RADIATION, description="Floor to Cover radiation port A"),

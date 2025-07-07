@@ -59,14 +59,14 @@ class Air:
         
         # State variables
         self.T = T_start  # Temperature [K]
-        self._VP = None  # VP는 setter를 통해 설정
-        self.RH = 0.5    # Relative humidity [-]
-        self.w_air = 0.0 # Humidity ratio [kg/kg]
+        self._VP = None   # VP는 setter를 통해 설정
+        self.RH = 0.9     # Relative humidity [-]
+        self.w_air = 0.0  # Humidity ratio [kg/kg]
         
         # Calculate initial vapor pressure based on T_start and RH_out
         T_C = T_start - 273.15
         Psat = 610.78 * np.exp(17.269 * T_C / (T_C + 237.3))
-        self.VP = 0.5 * Psat  # 초기 RH를 50%로 설정
+        self.VP = 0.9 * Psat  # 초기 RH를 90%로 설정
         
         # Input variables
         self.Q_flow = 0.0  # Heat flow rate [W]
@@ -133,12 +133,13 @@ class Air:
         if self._VP is None:
             return
 
-        # Calculate humidity ratio (Modelica equation)
+        # Modelica와 동일한 습도비 계산
         self.w_air = self._VP * self.R_a / ((self.P_atm - self._VP) * self.R_s)
 
-        # Modelica와 동일하게 조성 벡터 생성 (물의 질량분율만 사용)
-        X_water = self.w_air / (1 + self.w_air)
-        X = [X_water]
+        # Modelica와 동일하게 조성 벡터 생성
+        # Modelica: RH = Modelica.Media.Air.MoistAir.relativeHumidity_pTX(P_atm, heatPort.T, {w_air})
+        # w_air는 이미 kg water / kg dry air 단위이므로 그대로 사용
+        X = [self.w_air]
 
         # Modelica의 relativeHumidity_pTX 함수 사용
         self.RH = relativeHumidity_pTX(self.P_atm, self.T, X)

@@ -409,7 +409,7 @@ def main():
         # === 여기서 직접 환경설정! ===
         config = SimulationConfig(
             dt=1.0,                # 시간 간격 [s] (1분)
-            sim_time=3600.0 * 24 * 3,    # 24시간(1일)
+            sim_time=3600.0 * 24 * 1,    # 24시간(1일)
             time_unit_scaling=1.0, # 시간 단위 스케일링
             debug_interval=3600/1      # 디버그 출력 간격 (1시간마다)
         )
@@ -430,9 +430,9 @@ def main():
         print(f"시뮬레이션 소요 시간: {elapsed:.2f}초 ({elapsed/60:.2f}분)")
 
         # 결과 저장
-        results_path = Path('simulation_results.npz')
-        results.save(str(results_path))
-        logging.info(f"시뮬레이션 결과를 {results_path}에 저장했습니다.")
+        # results_path = Path('simulation_results.npz')
+        # results.save(str(results_path))
+        # logging.info(f"시뮬레이션 결과를 {results_path}에 저장했습니다.")
 
         # 결과 시각화
         plot_path = Path('simulation_results.png')

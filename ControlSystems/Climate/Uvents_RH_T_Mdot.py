@@ -98,5 +98,19 @@ class Uvents_RH_T_Mdot:
             sigmoid1 * max(self.PID.CS, self.PIDT.CS) +
             sigmoid2 * max(self.PID.CS, self.PIDT_noH.CS)
         )
-        
+
+        # # 10분(600초) 단위로만 출력
+        # if hasattr(self, '_debug_counter'):
+        #     self._debug_counter += 1
+        # else:
+        #     self._debug_counter = 1
+        # # dt가 60초라면 10분=10스텝마다 출력
+        # if self._debug_counter % 10 == 0:
+        #     print(
+        #         f"[{self._debug_counter*dt/60:.0f}min] "
+        #         f"T_air={self.T_air:.2f}K({self.T_air-273.15:.2f}°C), "
+        #         f"T_air_sp={self.T_air_sp:.2f}K({self.T_air_sp-273.15:.2f}°C), "
+        #         f"Mdot={self.Mdot:.3f}, sigmoid1={sigmoid1:.2f}, sigmoid2={sigmoid2:.2f},\n"
+        #         f"  PID.CS={self.PID.CS:.3f}, PIDT.CS={self.PIDT.CS:.3f}, PIDT_noH.CS={self.PIDT_noH.CS:.3f}, y={self.y:.3f}"
+        #     )
         return self.y

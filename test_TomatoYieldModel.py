@@ -54,7 +54,7 @@ def plot_simulation_results(simulation_data, measured_data, duration_days):
     plt.savefig('tomato_growth_simulation_with_measured.png', dpi=300, bbox_inches='tight')
     plt.close()
 
-def run_simulation_with_measured_data(data_file, duration_days=300):
+def run_simulation_with_measured_data(data_file, duration_days=365):
     """Run simulation with measured environmental data"""
     try:
         # Read measured data with correct column names
@@ -69,8 +69,8 @@ def run_simulation_with_measured_data(data_file, duration_days=300):
         solar_model = Solar_model(A=1.4e4, I_glob=0.0, LAI=model.LAI)
         illumination = Illumination(A=1.4e4, LAI=model.LAI)
         
-        # Simulation time step (1 hour)
-        dt = 3600  # seconds
+        # Simulation time step (1 second)
+        dt = 1  # seconds
         
         # Store results
         results = []
@@ -137,13 +137,13 @@ def run_simulation_with_measured_data(data_file, duration_days=300):
         print(f"Simulation failed: {e}")
         return None
 
-def run_simulation_with_sine_env(duration_days=300):
+def run_simulation_with_sine_env(duration_days=365):
     """사인함수 기반 임의 환경으로 시뮬레이션"""
     model = TomatoYieldModel(C_Leaf_0=40e3, C_Stem_0=30e3)
     A=1.4e4
     solar_model = Solar_model(A=A, I_glob=0.0, LAI=model.LAI)
     illumination = Illumination(A=A, LAI=model.LAI)
-    dt = 3600  # 1시간
+    dt = 60  # 600초
     results = []
     times = np.arange(0, duration_days * 86400, dt)
     measured_data = {'time': [], 'T_air_sp': [], 'CO2_air_sp': [], 'I_glob': []}
@@ -205,7 +205,7 @@ if __name__ == '__main__':
     print('1: 실측 데이터 기반')
     print('2: 임의 환경(사인함수 기반)')
     mode = input('번호를 입력하세요 (1/2): ').strip()
-    duration_days = 300
+    duration_days = 365  # 1년
     if mode == '1':
         data_file = '10Dec-22Nov.txt'
         try:

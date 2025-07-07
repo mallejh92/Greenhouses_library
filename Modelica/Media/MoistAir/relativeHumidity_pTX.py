@@ -22,16 +22,24 @@ def relativeHumidity_pTX(p, T, X):
     Args:
         p: 전체 압력 [Pa]
         T: 온도 [K]
-        X: 조성 리스트 (예: [X_water, X_air, ...])
+        X: 조성 리스트 (Modelica에서는 w_air를 직접 전달)
     Returns:
         phi: 상대습도 (0~1)
     """
+    # Modelica에서는 w_air (습도비)를 직접 전달
+    w_air = X[0]  # kg water / kg dry air
+    
     # 포화수증기압 계산
-    p_steam_sat = min(saturation_pressure(T), 0.999 * p)
-    X_water = X[0]  # 물의 질량분율 (Modelica convention)
-    X_air = 1 - X_water
+    p_steam_sat = saturation_pressure(T)
+    
+    # 현재 수증기 압력 계산 (w_air로부터)
+    # w_air = 0.62198 * p_steam / (p - p_steam)
+    # 따라서: p_steam = w_air * p / (0.62198 + w_air)
+    p_steam = w_air * p / (k_mair + w_air)
+    
     # 상대습도 계산
-    phi = p / p_steam_sat * X_water / (X_water + k_mair * X_air)
+    phi = p_steam / p_steam_sat
+    
     # 0~1로 제한
     phi = max(0.0, min(1.0, phi))
     return phi
