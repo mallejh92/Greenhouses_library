@@ -58,6 +58,10 @@ class PID:
         self.CSstart = CSstart
         self.steadyStateInit = steadyStateInit
         
+        # 출력 변화율 제한 파라미터 추가 (진동 방지)
+        self.max_output_rate = 0.05  # 최대 출력 변화율 [1/s] (5%/초로 감소)
+        self.last_CS = CSstart  # 이전 제어 신호
+        
         # Initialize state variables
         self.I = CSstart / Kp  # Integral action / Kp
         self.Dx = c * PVstart - PVstart  # State of approximated derivator
@@ -99,6 +103,11 @@ class PID:
             track = (self.CSs - self.CSbs) / (self.Kp * self.Ni)
             dI = (SPs - PVs + track) / self.Ti
             self.I += dI * dt
+            
+            # Overflow 방지: 적분값 즉시 제한
+            max_I = 1e6
+            min_I = -1e6
+            self.I = np.clip(self.I, min_I, max_I)
         else:
             self.I = 0
             
@@ -118,7 +127,24 @@ class PID:
         self.CSs = np.clip(self.CSbs, 0, 1)  # Saturated control signal
         
         # Convert to actual control signal
-        self.CS = self.CSmin + self.CSs * (self.CSmax - self.CSmin)
+        raw_CS = self.CSmin + self.CSs * (self.CSmax - self.CSmin)
+        
+        # 출력 변화율 제한 적용 (급격한 변화 방지)
+        max_change = self.max_output_rate * dt * (self.CSmax - self.CSmin)
+        CS_change = raw_CS - self.last_CS
+        
+        if abs(CS_change) > max_change:
+            # 변화량이 제한을 초과하면 제한된 변화량 적용
+            if CS_change > 0:
+                self.CS = self.last_CS + max_change
+            else:
+                self.CS = self.last_CS - max_change
+        else:
+            # 변화량이 제한 내에 있으면 그대로 적용
+            self.CS = raw_CS
+        
+        # 이전 제어 신호 업데이트
+        self.last_CS = self.CS
         
         max_I = 1e6
         min_I = -1e6

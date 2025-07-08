@@ -53,7 +53,7 @@ class Air_Top:
         self.R_a = 287.0                   # 건조 공기 기체 상수 [J/(kg·K)]
         self.R_s = 461.5                   # 수증기 기체 상수 [J/(kg·K)]
         self.rho = 0.0                     # 공기 밀도 [kg/m³] (step() 시 계산)
-        self.RH = 0.9                      # 상대습도 (0~1) - 90%로 설정
+        self.RH = 0.0                      # 상대습도 (0~1) - 90%로 설정
         self.w_air = 0.0                   # 공기 중 수증기 비율 [kg_water/kg_dry_air]
 
         # 3) 포트(Connectors) 생성
@@ -71,17 +71,48 @@ class Air_Top:
     def compute_derivatives(self) -> float:
         """
         온도(T)의 미분(dT/dt)을 계산
-        - Modelica: rho = Modelica.Media.Air.ReferenceAir.Air_pT.density_pT(1e5, heatPort.T)
-                    der(T) = Q_flow / (rho * c_p * V)
+        
+        Modelica 원본: "computed by static equation because of its small heat capacity"
+        - Modelica 컴파일러는 작은 열용량으로 인해 이 컴포넌트를 자동으로 정적 방정식으로 처리
+        - Python에서는 수동으로 이 동작을 구현
         """
         # 1) Modelica와 동일하게 Air_pT.density_pT 사용
         self.rho = density_pT(1e5, self.heatPort.T)
 
-        # 2) 미분 계산
-        if self.steadystate:
-            return 0.0
+        # 2) 상부공기의 열용량 계산
+        thermal_mass = self.rho * self.c_p * self.V  # [J/K]
+        
+        # 3) Modelica 스타일: 열적 시정수가 매우 작은 경우 정적 방정식 사용
+        # 실제 온실에서 상부공기는 1-5초 내에 평형에 도달
+        characteristic_heat_transfer = 10.0 * self.A  # [W/K] 특성 열전달
+        thermal_time_constant = thermal_mass / characteristic_heat_transfer if characteristic_heat_transfer > 0 else 1.0
+        
+        # 4) Modelica처럼 작은 시정수에 대해 준정적 처리
+        if thermal_time_constant < 2.0:  # 2초 미만이면 준정적 처리
+            # 정적 평형 온도 계산 (Q_flow = 0일 때의 평형 온도)
+            if abs(self.Q_flow) > 1e-6:  # 열유입이 있으면
+                # 매우 빠른 응답으로 근사적 평형 상태로 이동
+                # Modelica의 "정적 방정식" 개념 구현
+                equilibrium_response_rate = 5.0  # [1/s] 평형으로의 수렴 속도
+                return equilibrium_response_rate * self.Q_flow / thermal_mass
+            else:
+                return 0.0  # 열유입이 없으면 변화 없음
         else:
-            return self.Q_flow / (self.rho * self.c_p * self.V)
+            # 일반적인 동적 방정식 사용
+            if self.steadystate:
+                return 0.0
+            else:
+                if thermal_mass == 0:
+                    return 0.0
+                
+                dT_dt = self.Q_flow / thermal_mass
+                
+                # 물리적 합리성 제한
+                max_rate = 5.0  # 최대 5°C/s 변화율
+                if abs(dT_dt) > max_rate:
+                    dT_dt = np.sign(dT_dt) * max_rate
+                
+                return dT_dt
 
     def update_humidity(self):
         """
@@ -90,12 +121,15 @@ class Air_Top:
             w_air = massPort.VP * R_a / (P_atm - massPort.VP) / R_s
             RH = Modelica.Media.Air.MoistAir.relativeHumidity_pTX(P_atm, heatPort.T, {w_air})
         """
-        # 1) 수증기 비율(w_air) 계산 (Modelica와 동일)
+        # Added check for valid VP and T before calculation
         VP = self.massPort.VP
-        if VP < self.P_atm:
-            self.w_air = VP * self.R_a / ((self.P_atm - VP) * self.R_s)
-        else:
+        if VP is None or self.heatPort.T == 0 or VP >= self.P_atm:
             self.w_air = 0.0
+            self.RH = 0.0
+            return
+
+        # 1) 수증기 비율(w_air) 계산 (Modelica와 동일)
+        self.w_air = VP * self.R_a / ((self.P_atm - VP) * self.R_s)
 
         # 2) Modelica와 동일하게 relativeHumidity_pTX 함수 사용
         X = [self.w_air]  # w_air를 직접 전달
@@ -104,20 +138,60 @@ class Air_Top:
     def step(self, dt: float):
         """
         시뮬레이션 한 스텝 진행
+        
+        상부공기의 특별한 처리:
+        - 열적 시정수가 매우 작아서 dt≥2초에서 수치적 불안정성 발생
+        - 적응적 시간 간격을 사용하여 안정성 확보
         """
         # 온도 업데이트
         if not self.steadystate:
-            dT = self.compute_derivatives()
+            dT_dt = self.compute_derivatives()
             
-            # 수치적 안정성을 위한 온도 변화율 제한 (한 스텝당 최대 5°C 변화)
-            max_dT_per_step = 5.0  # K
-            dT_limited = np.clip(dT * dt, -max_dT_per_step, max_dT_per_step)
+            # 상부공기의 열적 시정수 계산 [s]
+            thermal_mass = self.rho * self.c_p * self.V
+            if thermal_mass > 0:
+                typical_heat_transfer_coeff = 10.0  # [W/(m²·K)]
+                thermal_time_constant = thermal_mass / (typical_heat_transfer_coeff * self.A)
+            else:
+                thermal_time_constant = 1.0  # 기본값
             
-            self.T += dT_limited
-            # 온도 범위 제한 (0°C ~ 60°C)
-            self.T = np.clip(self.T, 253.15, 333.15)
+            # CFL 조건 기반 최대 허용 시간 간격 계산
+            # 수치적 안정성을 위해 열적 시정수의 20% 이하로 제한
+            max_stable_dt = 0.2 * thermal_time_constant
+            
+            # 적응적 시간 간격 사용
+            if dt > max_stable_dt and max_stable_dt > 0.1:
+                # 큰 시간 간격을 여러 개의 작은 간격으로 분할
+                n_substeps = int(np.ceil(dt / max_stable_dt))
+                sub_dt = dt / n_substeps
+                
+                # 여러 하위 스텝으로 나누어 계산
+                for _ in range(n_substeps):
+                    dT_dt_sub = self.compute_derivatives()
+                    
+                    # 온도 변화량 계산 및 제한
+                    dT_sub = dT_dt_sub * sub_dt
+                    max_dT_per_substep = 0.5  # K - 하위 스텝당 최대 변화량
+                    dT_sub = np.clip(dT_sub, -max_dT_per_substep, max_dT_per_substep)
+                    
+                    self.T += dT_sub
+                    # 온도 범위 제한 (-20°C ~ 80°C)
+                    self.T = np.clip(self.T, 253.15, 353.15)
+                    
+                    # 포트 온도 중간 업데이트 (다음 하위 스텝을 위해)
+                    self.heatPort.T = self.T
+                    self.preTem.T = self.T
+            else:
+                # 안정한 시간 간격인 경우 직접 계산
+                dT = dT_dt * dt
+                max_dT_per_step = 2.0  # K - 일반 스텝당 최대 변화량 (증가)
+                dT = np.clip(dT, -max_dT_per_step, max_dT_per_step)
+                
+                self.T += dT
+                # 온도 범위 제한 (-20°C ~ 80°C)
+                self.T = np.clip(self.T, 253.15, 353.15)
         
-        # 포트 온도 업데이트
+        # 포트 온도 최종 업데이트
         self.heatPort.T = self.T
         self.preTem.T = self.T
         

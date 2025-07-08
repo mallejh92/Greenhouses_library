@@ -59,28 +59,54 @@ class AirThroughScreen(Element1D):
     def step(self):
         """
         Update the model state
+        
+        안정성 개선: 스크린을 통한 공기 교환율 계산에서 급격한 변화 방지
         """
         # Update SC value from thScreen
         if hasattr(self, 'thScreen'):
             self.SC = self.thScreen.SC
             
-        # Calculate temperature difference
+        # Calculate temperature difference with smoothing
         dT = self.heatPort_b.T - self.heatPort_a.T
         dP = self.massPort_b.P - self.massPort_a.P
+        
+        # 온도차 변화율 제한 (급격한 변화 방지)
+        max_dT = 20.0  # 최대 온도차 [K]
+        dT = np.clip(dT, -max_dT, max_dT)
         
         # Calculate air densities
         rho_air = self._calculate_air_density(self.heatPort_a.T)
         rho_top = self._calculate_air_density(self.heatPort_b.T)
         rho_mean = (rho_air + rho_top) / 2
         
-        # Calculate air exchange rate
-        self.f_AirTop = (self.SC * self.K * max(1e-9, abs(dT))**0.66 + 
-                   (1 - self.SC) * (max(1e-9, 0.5 * rho_mean * self.W * 
-                   (1 - self.SC) * self.g_n * max(1e-9, abs(rho_air - rho_top))))**0.5 / rho_mean)
+        # 밀도차 변화율 제한 (부력 효과 안정화)
+        rho_diff = rho_air - rho_top
+        max_rho_diff = 0.5  # 최대 밀도차 [kg/m³]
+        rho_diff = np.clip(rho_diff, -max_rho_diff, max_rho_diff)
+        
+        # Calculate air exchange rate with improved stability
+        # 항 1: 스크린 폐쇄 시 온도차에 의한 교환
+        term1 = self.SC * self.K * max(1e-9, abs(dT))**0.66
+        
+        # 항 2: 스크린 개방 시 부력에 의한 교환 (안정화됨)
+        buoyancy_factor = max(1e-9, 0.5 * rho_mean * self.W * 
+                             (1 - self.SC) * self.g_n * max(1e-9, abs(rho_diff)))
+        term2 = (1 - self.SC) * (buoyancy_factor)**0.5 / rho_mean
+        
+        # 공기 교환율 계산
+        self.f_AirTop = term1 + term2
+        
+        # 공기 교환율 상한 제한 (물리적으로 합리적인 범위)
+        max_f_AirTop = 1.0  # 최대 1 m³/(m²·s)
+        self.f_AirTop = min(self.f_AirTop, max_f_AirTop)
         
         # Calculate heat exchange coefficient and heat flow
         HEC_ab = rho_air * self.c_p_air * self.f_AirTop
         self.Q_flow = self.A * HEC_ab * dT
+        
+        # 열유속 변화율 제한 (급격한 변화 방지)
+        max_Q_flow = 50000.0  # 최대 열유속 [W] (50kW)
+        self.Q_flow = np.clip(self.Q_flow, -max_Q_flow, max_Q_flow)
         
         # Calculate mass exchange coefficient and mass flows
         self.VEC_AirTop = self.M_H * self.f_AirTop / (self.R * 287)

@@ -60,13 +60,14 @@ class Air:
         # State variables
         self.T = T_start  # Temperature [K]
         self._VP = None   # VP는 setter를 통해 설정
-        self.RH = 0.9     # Relative humidity [-]
+        self.RH = 0.0     # Relative humidity [-]
         self.w_air = 0.0  # Humidity ratio [kg/kg]
         
-        # Calculate initial vapor pressure based on T_start and RH_out
-        T_C = T_start - 273.15
-        Psat = 610.78 * np.exp(17.269 * T_C / (T_C + 237.3))
-        self.VP = 0.9 * Psat  # 초기 RH를 90%로 설정
+        """이부분이 결과를 결정하고 있음"""
+        # # Calculate initial vapor pressure based on T_start and RH_out
+        # T_C = T_start - 273.15
+        # Psat = 610.78 * np.exp(17.269 * T_C / (T_C + 237.3))
+        # self.VP = 0.9 * Psat  # 초기 RH를 90%로 설정
         
         # Input variables
         self.Q_flow = 0.0  # Heat flow rate [W]
@@ -77,7 +78,7 @@ class Air:
         self.R_Air_Glob.values = [HeatFlux(0.0) for _ in range(N_rad)]
         
         # 초기 습도 계산
-        self.update_humidity()
+        # self.update_humidity()
     
     @property
     def VP(self):
@@ -105,7 +106,6 @@ class Air:
             self._VP = value
             self.massPort.VP = value
             self.airVP.set_prescribed_pressure(value)
-            self.VP = value
             self.update_humidity()
 
     def compute_power_input(self):
@@ -157,7 +157,7 @@ class Air:
         dTdt = self.compute_derivatives()
         
         # Limit temperature change per step to prevent instability
-        max_dT = 1.0  # Maximum temperature change per step [K]
+        max_dT = 0.5  # Maximum temperature change per step [K] - 더욱 제한적으로 설정
         dT = dTdt * dt
         if abs(dT) > max_dT:
             dT = np.sign(dT) * max_dT

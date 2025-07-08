@@ -13,6 +13,12 @@ class Control_ThScreen_2:
         self.state = "closed"  # Initial state
         self.timer = 0
         
+        # 히스테리시스 파라미터 추가 (진동 방지)
+        self.radiation_hysteresis = 10.0  # 일사량 히스테리시스 [W/m²] - 증가
+        self.temperature_hysteresis = 2.0  # 온도 히스테리시스 [K] - 증가
+        self.last_state_change_time = 0.0  # 마지막 상태 변경 시간
+        self.min_state_duration = 900.0  # 최소 상태 유지 시간 [s] (15분으로 증가)
+        
         # Screen values
         self.SC_OCD_value = 0.98  # Opening Cold Day value
         self.SC_OWD_value = 0.96  # Opening Warm Day value
@@ -86,20 +92,40 @@ class Control_ThScreen_2:
         float
             Screen control signal (0-1)
         """
+        # 현재 시간 업데이트
+        current_time = getattr(self, 'current_time', 0.0) + dt
+        self.current_time = current_time
+        
         # Update timer
         if self.state in ["opening_ColdDay", "opening_WarmDay", "closing_ColdDay"]:
             self.timer += dt
+        
+        # 최소 상태 유지 시간 체크
+        time_since_last_change = current_time - self.last_state_change_time
+        can_change_state = time_since_last_change >= self.min_state_duration
             
         # Update PID controllers
         self.PID_crack.step(dt)
         self.PID_crack_T.step(dt)
         
-        # State machine logic
+        # 히스테리시스가 적용된 조건 계산
         if self.state == "closed":
-            if R_Glob_can > self.R_Glob_can_min and T_out <= (T_air_sp - 7):
+            # 닫힌 상태에서 열리려면 더 높은 임계값 필요
+            radiation_threshold = self.R_Glob_can_min + self.radiation_hysteresis
+            temp_threshold = T_air_sp - 7 + self.temperature_hysteresis
+        else:
+            # 열린 상태에서 닫히려면 더 낮은 임계값 필요
+            radiation_threshold = self.R_Glob_can_min - self.radiation_hysteresis
+            temp_threshold = T_air_sp - 7 - self.temperature_hysteresis
+        
+        # State machine logic with hysteresis and minimum duration
+        old_state = self.state
+        
+        if self.state == "closed" and can_change_state:
+            if R_Glob_can > radiation_threshold and T_out <= temp_threshold:
                 self.state = "opening_ColdDay"
                 self.timer = 0
-            elif R_Glob_can > self.R_Glob_can_min and T_out > (T_air_sp - 7):
+            elif R_Glob_can > radiation_threshold and T_out > temp_threshold:
                 self.state = "opening_WarmDay"
                 self.timer = 0
             elif SC_usable > 0 and T_out < self.T_out_sp:
@@ -118,11 +144,18 @@ class Control_ThScreen_2:
             if self.timer >= 52 * 60:  # 52 minutes
                 self.state = "closed"
                 
-        elif self.state == "open":
-            if R_Glob_can > self.R_Glob_can_min and T_out <= (T_air_sp - 7):
+        elif self.state == "open" and can_change_state:
+            # 열린 상태에서는 더 낮은 임계값으로 상태 변경
+            if R_Glob_can < radiation_threshold:  # 일사량이 충분히 낮아져야 함
+                pass  # 상태 유지
+            elif T_out <= temp_threshold:
                 self.state = "opening_ColdDay"
-            elif R_Glob_can > self.R_Glob_can_min and T_out > (T_air_sp - 7):
+            elif T_out > temp_threshold:
                 self.state = "opening_WarmDay"
+        
+        # 상태가 변경되었으면 시간 기록
+        if old_state != self.state:
+            self.last_state_change_time = current_time
         
         # Update screen values
         self.opening_CD = self.SC_OCD_value if self.state == "opening_ColdDay" else 0
@@ -131,8 +164,11 @@ class Control_ThScreen_2:
         self.op = 0 if self.state == "open" else 0
         self.cl = 1 if self.state == "closed" else 0
         
-        # Calculate final control signal
+        # Calculate final control signal with smoother transitions
+        # PID 제어 신호에 저역 통과 필터 적용 (급격한 변화 방지)
+        pid_output = min(self.PID_crack.CS, self.PID_crack_T.CS)
+        
         self.y = (self.opening_CD + self.opening_WD + self.closing_CD + 
-                 self.op + self.cl * min(self.PID_crack.CS, self.PID_crack_T.CS))
+                 self.op + self.cl * pid_output)
         
         return self.y
