@@ -1,5 +1,3 @@
-from typing import List
-import numpy as np
 from Interfaces.Heat.ThermalPort import ThermalPort
 from Interfaces.Heat.ThermalPortL import ThermalPortL
 
@@ -44,7 +42,7 @@ class ThermalPortConverter:
         for i in range(self.N):
             self.single[i].set_temperature(multi_temps[i])
             # Note the negative sign for heat flux
-            self.single[i].set_heat_flux(-multi_fluxes[i].value)
+            self.single[i].set_heat_flux(-multi_fluxes[i])
     
     def connect_multi(self, other: ThermalPort) -> None:
         """

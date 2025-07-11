@@ -1,131 +1,98 @@
 import numpy as np
 from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
-from Modelica.Thermal.HeatTransfer.Sources.PrescribedTemperature import PrescribedTemperature
 from Interfaces.Heat.HeatFluxVectorInput import HeatFluxVectorInput
-from Modelica.Blocks.Sources.RealExpression import RealExpression
 
 class Floor:
     """
-    Python version of the Greenhouses.Components.Greenhouse.Floor model.
-    Computes the floor temperature based on an energy balance:
-      - Sensible heat flows (all flows connected to the heat port)
-      - Short-wave radiation absorbed from the sun and/or supplementary lighting
+    온실 바닥 컴포넌트 (Modelica Floor.mo와 동일)
+    에너지 밸런스 기반 바닥 온도 계산:
+    - 현열 유동 (heatPort를 통한 모든 유동)
+    - 태양 및 보조 조명으로부터의 단파 복사
     """
 
     def __init__(self, A, rho=1.0, c_p=2e6, V=0.01, T_start=298.15, steadystate=False, N_rad=2):
         """
-        Initialize the Floor model.
-
-        Parameters:
-        -----------
-        A : float
-            Floor surface area [m²]
-        rho : float, optional
-            Density [kg/m³]
-        c_p : float, optional
-            Specific heat capacity [J/(kg·K)]
-        V : float, optional
-            Volume [m³]
-        T_start : float, optional
-            Initial temperature [K]
-        steadystate : bool, optional
-            If True, sets dT = 0 during initialization
-        N_rad : int, optional
-            Number of short-wave radiation inputs (1 for sun only, 2 for sun + illumination)
+        Floor 모델 초기화
+        
+        Args:
+            A (float): 바닥 표면적 [m²]
+            rho (float): 밀도 [kg/m³]
+            c_p (float): 비열 [J/(kg·K)]
+            V (float): 체적 [m³]
+            T_start (float): 초기 온도 [K]
+            steadystate (bool): 정상상태 초기화 여부
+            N_rad (int): 단파 복사 입력 수 (1: 태양만, 2: 태양+조명)
         """
-        # Parameters
+        # 파라미터 (Modelica parameter와 동일)
         self.A = A
         self.rho = rho
         self.c_p = c_p
         self.V = V
         self.steadystate = steadystate
         self.N_rad = N_rad
+        self._is_initialized = False  # 초기화 완료 여부
 
-        # State variables
-        self.T = T_start          # Current floor temperature [K]
-        self.Q_flow = 0.0         # Sensible heat flow rate [W]
-        self.P_Flr = 0.0          # Total short-wave power to the floor [W]
+        # 상태 변수 (Modelica variable와 동일)
+        self.T = T_start          # 온도 [K]
+        self.Q_flow = 0.0         # 현열 유량 [W]
+        self.P_Flr = 0.0          # 바닥으로의 총 단파 파워 [W]
 
-        # Heat port and temperature control
-        # RealExpression outputs the current floor temperature self.T
-        self.portT = RealExpression(lambda t: self.T)
-        # PrescribedTemperature block to force port temperature = self.T
-        self.preTem = PrescribedTemperature(T_start=T_start)
-        # HeatPort_a serves as the interface for sensible heat inputs
+        # 열 포트 (Modelica HeatPort_a와 동일)
         self.heatPort = HeatPort_a(T_start=T_start)
 
-        # Connect RealExpression → PrescribedTemperature → HeatPort_a
-        self.portT.connect(self.preTem)          # connect(portT.y, preTem.T)
-        self.preTem.port.connect(self.heatPort)  # connect(preTem.port, heatPort)
-
-        # Radiation inputs (initially empty vector: cardinality = 0)
-        self.R_Flr_Glob = HeatFluxVectorInput([])
+        # 복사 입력 (Modelica HeatFluxVectorInput와 동일)
+        self.R_Flr_Glob = HeatFluxVectorInput([0.0] * N_rad)
 
     def set_inputs(self, Q_flow=0.0, R_Flr_Glob=None):
         """
-        Set input values for the floor.
-
-        Parameters:
-        -----------
-        Q_flow : float, optional
-            Sensible heat flow rate [W] entering through heatPort.
-        R_Flr_Glob : list of float, optional
-            Short-wave radiation inputs [W/m²]. Length must be N_rad.
-            If None, implicitly treat as a zero-vector of length N_rad.
+        바닥 입력값 설정
+        
+        Args:
+            Q_flow (float): heatPort를 통한 현열 유량 [W]
+            R_Flr_Glob (list): 단파 복사 입력 [W/m²]
         """
-        # 1) Sensible heat input
+        # 현열 입력
         self.Q_flow = Q_flow
         self.heatPort.Q_flow = Q_flow
 
-        # 2) Short-wave radiation vector input
+        # 단파 복사 벡터 입력 (Modelica cardinality 체크와 동일)
         if R_Flr_Glob is not None:
             if len(R_Flr_Glob) != self.N_rad:
-                raise ValueError(f"R_Flr_Glob must have length {self.N_rad}")
-            # Replace with a new HeatFluxVectorInput of the given values
+                raise ValueError(f"R_Flr_Glob 길이는 {self.N_rad}이어야 함")
             self.R_Flr_Glob = HeatFluxVectorInput(R_Flr_Glob)
         else:
-            # Cardinality = 0 case: initialize to zero vector of length N_rad
-            zero_list = [0.0] * self.N_rad
-            self.R_Flr_Glob = HeatFluxVectorInput(zero_list)
+            # cardinality = 0인 경우: 0으로 설정 (Modelica와 동일)
+            self.R_Flr_Glob = HeatFluxVectorInput([0.0] * self.N_rad)
 
     def step(self, dt: float) -> None:
         """
-        Update floor state
+        바닥 상태 업데이트 (Modelica equation 섹션과 동일)
         
-        Parameters:
-        -----------
-        dt : float
-            Time step [s]
+        Args:
+            dt (float): 시간 스텝 [s]
         """
-        # HeatFlux 객체 또는 float 모두 지원 (중첩도 처리)
-        def get_float_value(obj):
-            if hasattr(obj, 'value'):
-                return get_float_value(obj.value)
-            return float(obj)
-
-        # Calculate total short-wave power
-        # HeatFluxVectorInput의 values가 비어있을 수 있으므로 안전하게 처리
-        if not hasattr(self.R_Flr_Glob, 'values') or not self.R_Flr_Glob.values:
-            self.P_Flr = 0.0
+        # P_Flr 계산 (Modelica: P_Flr = sum(R_Flr_Glob)*A)
+        if hasattr(self.R_Flr_Glob, 'values') and self.R_Flr_Glob.values:
+            self.P_Flr = sum(self.R_Flr_Glob.values) * self.A
         else:
-            self.P_Flr = sum(get_float_value(flux) for flux in self.R_Flr_Glob.values) * self.A
+            self.P_Flr = 0.0
         
-        # Update temperature (der(T) = 1/(rho*c_p*V)*(Q_flow + P_Flr))
-        if not self.steadystate:
+        # 온도 업데이트 (Modelica: der(T) = 1/(rho*c_p*V)*(Q_flow + P_Flr))
+        # initial equation: if steadystate then der(T)=0; end if;
+        if self.steadystate and not self._is_initialized:
+            # 초기화 시점에서만 der(T) = 0 적용
+            self._is_initialized = True
+            # 온도 변화 없음
+        else:
+            # 정상적인 온도 적분
             dT = (self.Q_flow + self.P_Flr) / (self.rho * self.c_p * self.V)
             self.T += dT * dt
         
-        # Update port temperature expression and prescribed temperature
-        self.portT.step(dt)  # 시간 업데이트 및 연결된 블록에 전파
-        
-        # heatPort의 온도를 T와 동기화
+        # heatPort 온도 동기화 (Modelica connect와 동일)
         self.heatPort.T = self.T
-        self.preTem.T = self.T
         
         return self.T
 
     def get_temperature(self):
-        """
-        Return the current floor temperature [K].
-        """
+        """현재 바닥 온도 반환 [K]"""
         return self.T

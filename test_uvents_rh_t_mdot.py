@@ -8,7 +8,7 @@ from ControlSystems.Climate.Uvents_RH_T_Mdot import Uvents_RH_T_Mdot
 # =====================
 
 sim_time = 6 * 3600  # 6시간 [초]
-dt = 60.0            # 1분 간격 [초]
+dt = 1.0            # 1분 간격 [초]
 n_steps = int(sim_time / dt)
 times = np.arange(n_steps) * dt / 3600  # time [h]
 

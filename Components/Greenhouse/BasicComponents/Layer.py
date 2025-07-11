@@ -36,7 +36,7 @@ class Layer:
         # Components (Modelica와 동일하게)
         self.heatPort = HeatPort_a(T_start=self.T)    # 열 포트 (포트 T, Q_flow 속성)
         self.preTem = PrescribedTemperature(T_start=self.T)  # 포트에 연결하여 T를 설정하게 함
-        self.preTem.connect_port(self.heatPort)
+        # preTem.port는 이미 초기화되어 있으므로 직접 연결하지 않음
 
     def set_heat_flow(self, Q_flow):
         """
@@ -70,7 +70,7 @@ class Layer:
             self.T = np.clip(new_T, 173.15, 373.15)
             
             # 포트 온도 업데이트
-            self.preTem.connect_T(self.T)
+            self.preTem.update_temperature(self.T)
 
     def get_temperature(self):
         """

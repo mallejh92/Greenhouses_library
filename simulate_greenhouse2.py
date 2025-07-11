@@ -109,7 +109,10 @@ class SimulationResults:
                 },
                 'ventilation': {
                     'U_vents': np.zeros(n_steps),
-                    'f_vent': np.zeros(n_steps)
+                    'f_vent_AirOut': np.zeros(n_steps),
+                    'f_vent_TopOut': np.zeros(n_steps),
+                    'f_vent_AirTop': np.zeros(n_steps),
+                    'f_vent_total': np.zeros(n_steps)
                 },
                 'heating': {
                     'Mdot': np.zeros(n_steps),
@@ -408,10 +411,10 @@ def main():
     try:
         # === 여기서 직접 환경설정! ===
         config = SimulationConfig(
-            dt=30.0,                # 시간 간격 [s] - 60초로 증가하여 열적 시정수와 매칭
+            dt=1.0,                # 시간 간격 [s] - 60초로 증가하여 열적 시정수와 매칭
             sim_time=3600.0 * 24 * 1,    # 24시간(1일)
             time_unit_scaling=1.0, # 시간 단위 스케일링
-            debug_interval=3600/2      # 디버그 출력 간격 (60초마다 → 1시간에 60회)
+            debug_interval=3600/1      # 디버그 출력 간격 (60초마다 → 1시간에 60회)
         )
         # =========================
 

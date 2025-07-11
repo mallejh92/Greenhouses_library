@@ -2,202 +2,165 @@ import numpy as np
 from Components.Greenhouse.BasicComponents.AirVP import AirVP
 from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort_a import HeatPort_a
 from Interfaces.Vapour.WaterMassPort_a import WaterMassPort_a
-from Interfaces.Heat.HeatFluxVectorInput import HeatFluxVectorInput
-from Interfaces.Heat.HeatFluxInput import HeatFlux
-from Modelica.Thermal.HeatTransfer.Sources.PrescribedTemperature import PrescribedTemperature
 from Modelica.Media.MoistAir.relativeHumidity_pTX import relativeHumidity_pTX
 
 class Air:
-    def __init__(self, A, h_Air=4.0, rho=1.2, c_p=1000.0, T_start=298.0, N_rad=2, steadystate=False, steadystateVP=True):
+    """
+    온실 공기 컴포넌트 (Modelica Air.mo와 동일)
+    공기에 대한 에너지 및 수분 질량 밸런스 적용
+    """
+    
+    def __init__(self, A, h_Air=4.0, rho=1.2, c_p=1000.0, T_start=298.0, 
+                 N_rad=2, steadystate=False, steadystateVP=True):
         """
-        Initialize Air component
+        Air 컴포넌트 초기화 (Modelica와 동일)
         
         Parameters:
         -----------
-        A : float
-            Floor area [m²]
-        h_Air : float
-            Air layer height [m]
-        rho : float
-            Air density [kg/m³]
-        c_p : float
-            Specific heat capacity [J/(kg·K)]
-        T_start : float
-            Initial temperature [K]
-        N_rad : int
-            Number of radiation inputs
-        steadystate : bool
-            Whether to use steady state initialization
-        steadystateVP : bool
-            Whether to use steady state initialization for vapor pressure
+        A : float - 온실 바닥 면적 [m²]
+        h_Air : float - 주 공기 구역 높이 [m] (기본값=4)
+        rho : float - 공기 밀도 [kg/m³] (기본값=1.2, 고정값)
+        c_p : float - 비열 [J/(kg·K)] (기본값=1000)
+        T_start : float - 초기 온도 [K] (기본값=298)
+        N_rad : int - 복사 입력 수 (기본값=2)
+        steadystate : bool - 초기화 시 dT/dt=0 설정 (기본값=false)
+        steadystateVP : bool - 초기화 시 dVP/dt=0 설정 (기본값=true)
         """
-        # Parameters
+        # 파라미터 (Modelica와 동일)
+        self.N_rad = N_rad
+        self.rho = rho  # 고정값 (온도 의존성 없음)
+        self.c_p = c_p
         self.A = A
         self.h_Air = h_Air
-        self.rho = rho
-        self.c_p = c_p
-        self.V = A * h_Air  # Volume [m³]
-        self.N_rad = N_rad
+        self.T_start = T_start
         self.steadystate = steadystate
         self.steadystateVP = steadystateVP
         
-        # Constants
-        self.R_a = 287.0  # Gas constant for dry air [J/(kg·K)]
-        self.R_s = 461.5  # Gas constant for water vapor [J/(kg·K)]
-        self.P_atm = 101325.0  # Atmospheric pressure [Pa]
+        # 상수 (Modelica와 동일)
+        self.P_atm = 101325.0  # 대기압 [Pa]
+        self.R_a = 287.0       # 건조공기 기체상수 [J/(kg·K)]
+        self.R_s = 461.5       # 수증기 기체상수 [J/(kg·K)]
         
-        # Components
+        # 변수 (Modelica와 동일)
+        self.Q_flow = 0.0      # 열유량 [W]
+        self.T = T_start       # 온도 [K]
+        self.P_Air = 0.0       # 복사 파워 [W]
+        self.RH = 0.0          # 상대습도 [0-1]
+        self.V = A * h_Air     # 체적 [m³]
+        self.w_air = 0.0       # 공기 습도비 (kg water / kg dry air)
+        
+        # 초기화 플래그
+        self._initialization_phase = True
+        
+        # 연결자 (Modelica와 동일)
         self.heatPort = HeatPort_a(T_start=T_start)
         self.massPort = WaterMassPort_a()
-        self.R_Air_Glob = HeatFluxVectorInput([HeatFlux(0.0)] * N_rad)
+        
+        # 복사 입력 (Modelica: HeatFluxVectorInput R_Air_Glob[N_rad])
+        self.R_Air_Glob = [0.0] * N_rad  # 단순한 float 리스트
+        
+        # 서브 컴포넌트 (Modelica와 동일)
         self.airVP = AirVP(V_air=self.V, steadystate=steadystateVP)
-        self.preTem = PrescribedTemperature(T_start=T_start)
         
-        # Connect components
+        # 연결 (Modelica와 동일)
         self.airVP.connect(self.massPort)
-        self.preTem.connect_port(self.heatPort)
-        
-        # State variables
-        self.T = T_start  # Temperature [K]
-        self._VP = None   # VP는 setter를 통해 설정
-        self.RH = 0.0     # Relative humidity [-]
-        self.w_air = 0.0  # Humidity ratio [kg/kg]
-        
-        """이부분이 결과를 결정하고 있음"""
-        # # Calculate initial vapor pressure based on T_start and RH_out
-        # T_C = T_start - 273.15
-        # Psat = 610.78 * np.exp(17.269 * T_C / (T_C + 237.3))
-        # self.VP = 0.9 * Psat  # 초기 RH를 90%로 설정
-        
-        # Input variables
-        self.Q_flow = 0.0  # Heat flow rate [W]
-        self.P_Air = 0.0   # Power from radiation [W]
-        
-        # Initialize radiation port
-        self.R_Air_Glob.flux = np.zeros(N_rad)
-        self.R_Air_Glob.values = [HeatFlux(0.0) for _ in range(N_rad)]
-        
-        # 초기 습도 계산
-        # self.update_humidity()
     
-    @property
-    def VP(self):
-        """Get vapor pressure"""
-        return self._VP
-
-    @VP.setter
-    def VP(self, value):
-        """Set vapor pressure and update components"""
-        self._VP = value
-        if hasattr(self, 'massPort'):
-            self.massPort.VP = value
-            self.airVP.set_prescribed_pressure(value)
-        self.update_humidity()
-
-    @property
-    def massPort_VP(self):
-        """Get massPort vapor pressure"""
-        return self.massPort.VP if hasattr(self, 'massPort') else None
-
-    @massPort_VP.setter
-    def massPort_VP(self, value):
-        """Set massPort vapor pressure"""
-        if hasattr(self, 'massPort'):
-            self._VP = value
-            self.massPort.VP = value
-            self.airVP.set_prescribed_pressure(value)
-            self.update_humidity()
-
-    def compute_power_input(self):
-        """Calculate power input from radiation"""
-        if len(self.R_Air_Glob.values) == 0:
-            return 0.0
-        # Sum numeric heat flux values
-        total_flux = sum(hf.value for hf in self.R_Air_Glob.values)
-        self.P_Air = total_flux * self.A
-        return self.P_Air
-    
-    def compute_derivatives(self):
-        """Compute temperature derivative"""
-        if self.steadystate:
-            return 0.0
+    def complete_initialization(self):
+        """초기화 단계 완료"""
+        self._initialization_phase = False
         
-        # Update density based on current temperature
-        self.rho = self.P_atm / (self.R_a * self.T)
-        
-        # Compute temperature derivative (Modelica equation)
-        return (self.Q_flow + self.P_Air) / (self.rho * self.c_p * self.V)
-    
-    def update_humidity(self):
-        """Update humidity calculations"""
-        if self._VP is None:
-            return
-
-        # Modelica와 동일한 습도비 계산
-        self.w_air = self._VP * self.R_a / ((self.P_atm - self._VP) * self.R_s)
-
-        # Modelica와 동일하게 조성 벡터 생성
-        # Modelica: RH = Modelica.Media.Air.MoistAir.relativeHumidity_pTX(P_atm, heatPort.T, {w_air})
-        # w_air는 이미 kg water / kg dry air 단위이므로 그대로 사용
-        X = [self.w_air]
-
-        # Modelica의 relativeHumidity_pTX 함수 사용
-        self.RH = relativeHumidity_pTX(self.P_atm, self.T, X)
-            
     def step(self, dt):
         """
-        Advance simulation by one time step
+        시뮬레이션 스텝 실행 (Modelica 방정식 구현)
         
-        Parameters:
-        -----------
-        dt : float
-            Time step [s]
+        Modelica 방정식:
+        - V = A * h_Air
+        - heatPort.Q_flow = Q_flow  
+        - der(T) = 1/(rho*c_p*V)*(Q_flow + P_Air)
+        - w_air = massPort.VP * R_a / (P_atm - massPort.VP) / R_s
+        - RH = relativeHumidity_pTX(P_atm, heatPort.T, {w_air})
         """
-        # Update temperature with stability check
-        dTdt = self.compute_derivatives()
+        # 체적 업데이트 (Modelica: V = A * h_Air)
+        self.V = self.A * self.h_Air
+        self.airVP.V_air = self.V
         
-        # Limit temperature change per step to prevent instability
-        max_dT = 0.5  # Maximum temperature change per step [K] - 더욱 제한적으로 설정
-        dT = dTdt * dt
-        if abs(dT) > max_dT:
-            dT = np.sign(dT) * max_dT
-            
-        self.T += dT
+        # 열 포트 연결 (Modelica: heatPort.Q_flow = Q_flow)
+        self.heatPort.Q_flow = self.Q_flow
+        self.heatPort.T = self.T
         
-        # Update prescribed temperature
-        self.preTem.connect_T(self.T)
-        self.preTem.calculate()
+        # 복사 파워 계산 (Modelica: P_Air = sum(R_Air_Glob)*A)
+        # 원본 Modelica: if cardinality(R_Air_Glob)==0 then R_Air_Glob[i]=0; end if;
+        if len(self.R_Air_Glob) == 0:
+            self.P_Air = 0.0
+        else:
+            self.P_Air = sum(self.R_Air_Glob) * self.A
         
-        # Integrate vapour pressure
+        # 온도 미분 (Modelica: der(T) = 1/(rho*c_p*V)*(Q_flow + P_Air))
+        if not (self._initialization_phase and self.steadystate):
+            if self.rho > 0 and self.c_p > 0 and self.V > 0:
+                dT_dt = (self.Q_flow + self.P_Air) / (self.rho * self.c_p * self.V)
+                self.T += dT_dt * dt
+        
+        # AirVP 컴포넌트 업데이트
+        self.airVP.T = self.T
         self.airVP.step(dt)
-
-        # Synchronize local VP variable and update humidity
-        self._VP = self.airVP.VP
-        self.massPort.VP = self._VP
-        self.update_humidity()
         
-        return self.T, self.RH
+        # 습도 계산 업데이트
+        self._update_humidity()
     
-    def set_inputs(self, Q_flow, R_Air_Glob=None, massPort_VP=None):
+    def _update_humidity(self):
         """
-        Set input values
+        습도 계산 업데이트 (Modelica 방정식과 동일)
+        - w_air = massPort.VP * R_a / (P_atm - massPort.VP) / R_s
+        - RH = relativeHumidity_pTX(P_atm, heatPort.T, {w_air})
+        """
+        VP = self.massPort.VP
         
-        Parameters:
-        -----------
-        Q_flow : float
-            Heat flow rate [W]
-        R_Air_Glob : list, optional
-            List of radiation inputs [W/m²]
-        massPort_VP : float, optional
-            Vapor pressure [Pa]
-        """
+        if VP is None or VP <= 0:
+            self.w_air = 0.0
+            self.RH = 0.0
+            return
+            
+        # VP가 대기압보다 작도록 보장
+        if VP >= self.P_atm:
+            VP = 0.99 * self.P_atm
+            self.massPort.VP = VP
+        
+        # 습도비 계산 (Modelica 방정식)
+        if (self.P_atm - VP) > 0:
+            self.w_air = VP * self.R_a / ((self.P_atm - VP) * self.R_s)
+        else:
+            self.w_air = 0.0
+        
+        # 상대습도 계산 (Modelica 방정식)
+        try:
+            X = [self.w_air]
+            self.RH = relativeHumidity_pTX(self.P_atm, self.T, X)
+            self.RH = max(0.0, min(1.0, self.RH))
+        except:
+            self.RH = 0.0
+    
+    def set_inputs(self, Q_flow, R_Air_Glob=None):
+        """입력값 설정 (Modelica와 동일)"""
         self.Q_flow = Q_flow
-        self.heatPort.Q_flow = Q_flow
         
         if R_Air_Glob is not None:
-            # HeatFluxOutput 객체인 경우 value 속성을 사용
-            self.R_Air_Glob.values = [HeatFlux(v.value if hasattr(v, 'value') else v) for v in R_Air_Glob]
-            self.compute_power_input()
-            
-        if massPort_VP is not None and hasattr(self, 'massPort'):
-            self.massPort_VP = massPort_VP
+            if isinstance(R_Air_Glob, (list, tuple)):
+                self.R_Air_Glob = [float(v) for v in R_Air_Glob]
+            else:
+                self.R_Air_Glob = [float(R_Air_Glob)]
+        else:
+            # cardinality=0인 경우 모든 값을 0으로 설정 (Modelica와 동일)
+            self.R_Air_Glob = [0.0] * self.N_rad
+    
+    def get_state(self):
+        """현재 상태 반환"""
+        return {
+            'T': self.T,
+            'RH': self.RH,
+            'VP': self.massPort.VP,
+            'w_air': self.w_air,
+            'Q_flow': self.Q_flow,
+            'P_Air': self.P_Air,
+            'V': self.V
+        }

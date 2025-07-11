@@ -40,7 +40,7 @@ class PrescribedPressure:
         """
         self.VP = pressure
         
-    def calculate(self) -> None:
+    def update(self) -> None:
         """
         Calculate and apply the vapour pressure to the port.
         The input vapour pressure is directly applied to the connected port.

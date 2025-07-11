@@ -1721,7 +1721,7 @@ class Greenhouse_1:
                 'SC_usable': self.SC.SC_usable    # 스크린 사용 가능 여부 [0-1]
             },
             'ventilation': {
-                'U_vents': self.U_vents.U_vents,  # 환기 개도율 [0-1]
+                'U_vents': self.U_vents.y,  # 환기 개도율 [0-1]
                 'f_vent': self.Q_ven_AirOut.f_vent_total  # 환기량 [m³/s]
             },
             'heating': {

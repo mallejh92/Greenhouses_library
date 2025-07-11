@@ -2,7 +2,6 @@ import os
 import numpy as np
 from scipy.integrate import odeint
 
-
 class TomatoYieldModel:
     def __init__(
         self,

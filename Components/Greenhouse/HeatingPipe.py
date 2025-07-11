@@ -16,7 +16,7 @@ class HeatingPipe:
     convection to the air.
     """
     
-    def __init__(self, A, d, l, N=2, N_p=1, freePipe=True, Mdotnom=0.528):
+    def __init__(self, A, d, l, N=2, N_p=1, freePipe=True, Mdotnom=0.528, steadystate=True):
         """
         Initialize HeatingPipe model
         
@@ -36,6 +36,8 @@ class HeatingPipe:
             True if pipe in free air, false if hindered pipe (default: True)
         Mdotnom : float, optional
             Nominal mass flow rate of the pipes [kg/s] (default: 0.528)
+        steadystate : bool, optional
+            If true, sets the derivative of h to zero during initialization (default: True)
         """
         # Parameters
         self.A = A
@@ -45,6 +47,7 @@ class HeatingPipe:
         self.N_p = N_p
         self.freePipe = freePipe
         self.Mdotnom = Mdotnom
+        self.steadystate = steadystate
         
         # Constants
         self.c = 0.5 if freePipe else 0.49
@@ -53,7 +56,7 @@ class HeatingPipe:
         self.A_PipeFloor = N_p * np.pi * d * l / A  # [m² pipe/m² floor]
         self.FF = self.A_PipeFloor * self.c
         
-        # Initialize flow model
+        # Initialize flow model with steadystate parameter
         self.flow1DimInc = Flow1DimInc(
             N=N,
             A=l * np.pi * d,
@@ -63,7 +66,8 @@ class HeatingPipe:
             V=np.pi * ((d - 0.004)/2)**2 * l,
             pstart=200000,
             Tstart_inlet=353.15,
-            Tstart_outlet=323.15
+            Tstart_outlet=323.15,
+            steadystate=steadystate  # steadystate 파라미터 전달
         )
         
         # Initialize heat ports as NumPy array of HeatPort_a objects

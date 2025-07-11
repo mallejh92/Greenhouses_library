@@ -1,5 +1,4 @@
 from typing import List
-from Modelica.Thermal.HeatTransfer.Interfaces.HeatPort import HeatPort
 from Interfaces.Heat.HeatPorts_a import HeatPorts_a
 from Interfaces.Heat.ThermalPort import ThermalPort
 import numpy as np
@@ -49,7 +48,8 @@ class HeatPortConverter_ThermoCycle_Modelica:
         # Update heat ports
         for i in range(self.N):
             self.heatPorts[i].T = temps[i]
-            self.heatPorts[i].Q_flow = -fluxes[i].value * self.A / self.N * self.Nt
+            # ThermalPort 단순화: fluxes는 이제 numpy.ndarray이므로 직접 사용
+            self.heatPorts[i].Q_flow = -fluxes[i] * self.A / self.N * self.Nt
     
     def connect_heat_ports(self, other_ports: List[HeatPorts_a]) -> None:
         """

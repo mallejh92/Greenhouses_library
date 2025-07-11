@@ -25,7 +25,7 @@ class FreeConvection(Element1D):
         self.Air_Cov = Air_Cov
         self.topAir = topAir
         self.SC = 0
-        self.s = 11  # 전환 함수의 기울기를 11에서 5로 감소
+        self.s = 11
         self.HEC_ab = 0.0
         self.HEC_up_flr = 0.0
         self.HEC_down_flr = 0.0

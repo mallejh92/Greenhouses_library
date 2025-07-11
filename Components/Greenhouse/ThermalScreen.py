@@ -56,8 +56,10 @@ class ThermalScreen:
         self.preTem = PrescribedTemperature(T_start=T_start)
         self.portT = RealExpression(y=T_start)
         
-        # Connect surfaceVP to massPort
-        self.surfaceVP.port = self.massPort
+        # 컴포넌트 연결 (Modelica connect와 동일)
+        self.portT.connect(self.preTem, 'T')  # portT.y -> preTem.T
+        # preTem.port는 이미 초기화되어 있으므로 직접 연결하지 않음
+        self.surfaceVP.port = self.massPort  # surfaceVP.port -> massPort
 
         # 초기 steady state 처리
         if self.steadystate:
@@ -76,7 +78,7 @@ class ThermalScreen:
         
         # PrescribedTemperature 연결
         self.portT.connect(self.preTem, 'T')  # portT.y -> preTem.T
-        self.preTem.connect_port(self.heatPort)  # preTem.port -> heatPort
+        # preTem.port는 이미 초기화되어 있으므로 직접 연결하지 않음
     
     def step(self, dt):
         """Update with proper connections"""

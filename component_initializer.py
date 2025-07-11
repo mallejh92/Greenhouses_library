@@ -106,7 +106,7 @@ class ComponentInitializer:
             rho=2600,  # 밀도 [kg/m³]
             c_p=840,   # 비열 [J/(kg·K)]
             A=self.surface,
-            steadystate=False,
+            steadystate=True,
             h_cov=1e-3,  # 두께 [m]
             phi=0.43633231299858  # 경사각 [rad]
         )
@@ -115,15 +115,15 @@ class ComponentInitializer:
         initial_h_air = self.calculate_h_air(screen_closure=0.0)
         components['air'] = Air(
             A=self.surface,
-            steadystate=False,
-            steadystateVP=False,
+            steadystate=True,
+            steadystateVP=True,
             h_Air=initial_h_air
         )
 
         # 3. canopy - 기본 LAI로 초기화, 나중에 TYM.LAI로 업데이트
         components['canopy'] = Canopy(
             A=self.surface,
-            steadystate=False,
+            steadystate=True,
             LAI=INITIAL_CONDITIONS['canopy']['LAI']
         ) 
 
@@ -144,7 +144,7 @@ class ComponentInitializer:
             c_p=2e6,   # 비열 [J/(kg·K)]
             A=self.surface,
             V=0.01 * self.surface,  # 부피 [m³]
-            steadystate=False
+            steadystate=True
         )
 
         # 6. Q_rad_FlrCan
@@ -265,7 +265,7 @@ class ComponentInitializer:
 
         # 19. air_Top
         components['air_Top'] = Air_Top(
-            steadystate=False,
+            steadystate=True,
             steadystateVP=True,
             h_Top=0.4,  # 높이 [m]
             A=self.surface
@@ -286,7 +286,8 @@ class ComponentInitializer:
             A=self.surface,
             N=5,      # 파이프 수
             N_p=625,  # 파이프 길이당 단위 수
-            l=50      # 길이 [m]
+            l=50,     # 길이 [m]
+            steadystate=False  # Modelica: flow1DimInc(steadystate=false)
         )
 
         # 22. Q_rad_LowFlr
@@ -351,7 +352,8 @@ class ComponentInitializer:
             A=self.surface,
             N=5,      # 파이프 수
             N_p=292,  # 파이프 길이당 단위 수
-            l=44      # 길이 [m]
+            l=44,     # 길이 [m]
+            steadystate=False  # Modelica: flow1DimInc(steadystate=false)
         )
 
         # 28. Q_rad_UpFlr

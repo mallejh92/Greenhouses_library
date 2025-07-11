@@ -1,123 +1,67 @@
-from typing import Optional, Union, List, Set
-from Interfaces.Heat.HeatFluxInput import HeatFlux
+"""
+Modelica HeatFluxVectorInput connector implementation
+Original Modelica: connector HeatFluxVectorInput = input Modelica.SIunits.HeatFlux
+"""
+from typing import List, Union
 
 class HeatFluxVectorInput:
     """
-    Connector class for vector of Heat Flux inputs
+    Heat Flux Vector Input connector - 원본 Modelica와 동일하게 단순화
     
-    This class implements the Modelica HeatFluxVectorInput connector in Python.
-    It provides an interface for receiving multiple heat flux values as input,
-    typically used in vectorized connections.
-    
-    Attributes:
-        values (List[HeatFlux]): List of input heat flux values (W/m²)
-        name (str): Name of the connector (default: "u")
-        _connected_ports (Set['HeatFluxVectorInput']): Set of connected ports
+    Original Modelica: connector HeatFluxVectorInput = input Modelica.SIunits.HeatFlux
+    단순히 float 값들의 리스트를 래핑하는 최소한의 클래스
     """
     
-    def __init__(self, values: Optional[Union[List[Union[HeatFlux, float]], HeatFlux, float]] = None, 
-                 name: str = "u"):
+    def __init__(self, values: Union[List[float], float, None] = None):
         """
-        Initialize the HeatFluxVectorInput connector
+        HeatFluxVectorInput 초기화
         
         Args:
-            values: Can be one of:
-                - List of HeatFlux objects or floats
-                - Single HeatFlux object
-                - Single float value
-                - None (creates empty list)
-            name (str): Name of the connector
+            values: float 값 또는 float 리스트
         """
-        self.name = name
-        self._connected_ports: Set['HeatFluxVectorInput'] = set()
-        
         if values is None:
-            self.values: List[HeatFlux] = []
+            self.values = []
         elif isinstance(values, (list, tuple)):
-            self.values = [HeatFlux(float(v)) if isinstance(v, (int, float)) else v for v in values]
-        elif isinstance(values, (int, float)):
-            self.values = [HeatFlux(float(values))]
+            self.values = [float(v) for v in values]
         else:
-            self.values = [values]  # Single HeatFlux object
-    
-    def _propagate_values(self) -> None:
-        """Propagate values to all connected ports"""
-        for port in self._connected_ports:
-            port.values = [v.copy() for v in self.values]
-    
-    def connect(self, other: 'HeatFluxVectorInput') -> None:
-        """
-        Connect this vector input connector to another HeatFluxVectorInput
-        
-        Args:
-            other (HeatFluxVectorInput): Other vector connector to connect with
-            
-        Raises:
-            TypeError: If the other connector is not of type HeatFluxVectorInput
-            ValueError: If the vectors have different lengths
-        """
-        if not isinstance(other, HeatFluxVectorInput):
-            raise TypeError("Can only connect with HeatFluxVectorInput type connectors")
-        if len(self.values) != len(other.values):
-            raise ValueError("Cannot connect vectors of different lengths")
-            
-        # 양방향 연결 설정
-        self._connected_ports.add(other)
-        other._connected_ports.add(self)
-        
-        # 값 전파
-        self._propagate_values()
-    
-    def disconnect(self, other: 'HeatFluxVectorInput') -> None:
-        """
-        Disconnect from another HeatFluxVectorInput
-        
-        Args:
-            other (HeatFluxVectorInput): Port to disconnect from
-        """
-        if other in self._connected_ports:
-            self._connected_ports.remove(other)
-            other._connected_ports.remove(self)
-    
-    def __setitem__(self, index: int, value: Union[HeatFlux, float]) -> None:
-        """Set heat flux value at specified index and propagate to connected ports"""
-        if isinstance(value, (int, float)):
-            self.values[index] = HeatFlux(float(value))
-        else:
-            self.values[index] = value
-        self._propagate_values()
-    
-    def append(self, value: Union[HeatFlux, float]) -> None:
-        """
-        Append a new heat flux value to the vector and propagate to connected ports
-        
-        Args:
-            value (Union[HeatFlux, float]): Heat flux value to append
-        """
-        if isinstance(value, (int, float)):
-            self.values.append(HeatFlux(float(value)))
-        else:
-            self.values.append(value)
-        self._propagate_values()
-    
-    def __str__(self) -> str:
-        """String representation of the connector"""
-        values_str = ", ".join(str(v) for v in self.values)
-        return f"{self.name}: [{values_str}]"
+            self.values = [float(values)]
     
     def __len__(self) -> int:
-        """Return the number of heat flux values"""
+        """길이 반환"""
         return len(self.values)
     
-    def __getitem__(self, index: int) -> HeatFlux:
-        """Get heat flux value at specified index"""
+    def __getitem__(self, index: int) -> float:
+        """인덱스로 값 가져오기"""
         return self.values[index]
     
-    def get_float_values(self) -> List[float]:
-        """
-        Get all heat flux values as float list
+    def __setitem__(self, index: int, value: float) -> None:
+        """인덱스로 값 설정"""
+        self.values[index] = float(value)
+    
+    def __iter__(self):
+        """반복자"""
+        return iter(self.values)
+    
+    def __str__(self) -> str:
+        """문자열 표현"""
+        return str(self.values)
+    
+    def __repr__(self) -> str:
+        """객체 표현"""
+        return f"HeatFluxVectorInput({self.values})"
+    
+    def append(self, value: float) -> None:
+        """값 추가"""
+        self.values.append(float(value))
+
+def create_heat_flux_vector_input(values=None):
+    """
+    HeatFluxVectorInput 생성 함수
+    
+    Args:
+        values: float 값 또는 float 리스트
         
-        Returns:
-            List[float]: List of heat flux values as floats
-        """
-        return [v.value for v in self.values]
+    Returns:
+        HeatFluxVectorInput: 열유속 벡터 입력 객체
+    """
+    return HeatFluxVectorInput(values)

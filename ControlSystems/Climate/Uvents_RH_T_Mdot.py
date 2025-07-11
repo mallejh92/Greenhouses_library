@@ -93,24 +93,33 @@ class Uvents_RH_T_Mdot:
         sigmoid1 = 1.0 / (1.0 + np.exp(-x))
         sigmoid2 = 1.0 / (1.0 + np.exp(x))
         
-        # PID 출력 결합 (Modelica와 동일)
-        self.y = (
-            sigmoid1 * max(self.PID.CS, self.PIDT.CS) +
-            sigmoid2 * max(self.PID.CS, self.PIDT_noH.CS)
-        )
+        # PID 출력 결합 (Modelica 원본과 정확히 동일)
+        # y = 1/(1+exp(-200*(Mdot-0.05)))*max(PID.CS,PIDT.CS) + 1/(1+exp(200*(Mdot-0.05)))*max(PID.CS,PIDT_noH.CS)
+        term1 = max(self.PID.CS, self.PIDT.CS)
+        term2 = max(self.PID.CS, self.PIDT_noH.CS)
+        self.y = sigmoid1 * term1 + sigmoid2 * term2
 
-        # # 10분(600초) 단위로만 출력
+        # # 디버깅 출력 (10분마다)
         # if hasattr(self, '_debug_counter'):
         #     self._debug_counter += 1
         # else:
         #     self._debug_counter = 1
-        # # dt가 60초라면 10분=10스텝마다 출력
-        # if self._debug_counter % 10 == 0:
-        #     print(
-        #         f"[{self._debug_counter*dt/60:.0f}min] "
-        #         f"T_air={self.T_air:.2f}K({self.T_air-273.15:.2f}°C), "
-        #         f"T_air_sp={self.T_air_sp:.2f}K({self.T_air_sp-273.15:.2f}°C), "
-        #         f"Mdot={self.Mdot:.3f}, sigmoid1={sigmoid1:.2f}, sigmoid2={sigmoid2:.2f},\n"
-        #         f"  PID.CS={self.PID.CS:.3f}, PIDT.CS={self.PIDT.CS:.3f}, PIDT_noH.CS={self.PIDT_noH.CS:.3f}, y={self.y:.3f}"
-        #     )
+        
+        # # 10분(600초)마다 출력 (dt=1초 기준)
+        # if self._debug_counter % 600 == 0:
+        #     print(f"\n=== 환기 제어 디버깅 ({self._debug_counter*dt/3600:.2f}시간) ===")
+        #     print(f"T_air={self.T_air:.2f}K({self.T_air-273.15:.2f}°C)")
+        #     print(f"T_air_sp={self.T_air_sp:.2f}K({self.T_air_sp-273.15:.2f}°C)")
+        #     print(f"Tmax_tomato={self.Tmax_tomato:.2f}K({self.Tmax_tomato-273.15:.2f}°C)")
+        #     print(f"PIDT_noH.SP={self.PIDT_noH.SP:.2f}K({self.PIDT_noH.SP-273.15:.2f}°C)")
+        #     print(f"RH_air={rh_air:.3f}, RH_max={self.RH_max:.3f}")
+        #     print(f"Mdot={self.Mdot:.3f} kg/s")
+        #     print(f"sigmoid1={sigmoid1:.3f}, sigmoid2={sigmoid2:.3f}")
+        #     print(f"PID.CS={self.PID.CS:.3f} (습도제어)")
+        #     print(f"PIDT.CS={self.PIDT.CS:.3f} (온도제어-난방시)")
+        #     print(f"PIDT_noH.CS={self.PIDT_noH.CS:.3f} (온도제어-비난방시)")
+        #     print(f"term1={term1:.3f}, term2={term2:.3f}")
+        #     print(f"최종 y={self.y:.3f}")
+        #     print("=" * 50)
+        
         return self.y

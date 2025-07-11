@@ -1,57 +1,53 @@
+"""
+Modelica HeatFluxOutput connector implementation
+Original Modelica: connector HeatFluxOutput = output Modelica.SIunits.HeatFlux
+"""
 from typing import Optional, Union
-from Interfaces.Heat.HeatFluxInput import HeatFlux, HeatFluxInput  # Import both HeatFlux and HeatFluxInput
+from Interfaces.Heat.HeatFluxInput import HeatFlux, HeatFluxInput
 
 class HeatFluxOutput:
     """
-    Connector class for Heat Flux output
+    Heat Flux Output connector - 원본 Modelica와 동일하게 단순화
     
-    This class implements the Modelica HeatFluxOutput connector in Python.
-    It provides an interface for sending heat flux values as output.
-    The main difference from HeatFluxInput is that this is used for output signals.
-    
-    Attributes:
-        value (HeatFlux): Output heat flux value (W/m²)
-        name (str): Name of the connector (default: "I")
+    Original Modelica: connector HeatFluxOutput = output Modelica.SIunits.HeatFlux
+    단순히 float 값을 래핑하는 최소한의 클래스
     """
     
     def __init__(self, value: Optional[Union[HeatFlux, float]] = None, name: str = "I"):
         """
-        Initialize the HeatFluxOutput connector
+        HeatFluxOutput 초기화
         
         Args:
-            value (Optional[Union[HeatFlux, float]]): Initial heat flux value (can be HeatFlux object or float in W/m²)
-            name (str): Name of the connector
+            value: 초기 열유속 값 (float 또는 HeatFlux)
+            name (str): 연결자 이름
         """
         self.name = name
         if value is None:
-            self.value = HeatFlux(0.0)
+            self.value = 0.0
         elif isinstance(value, (int, float)):
-            self.value = HeatFlux(float(value))
+            self.value = float(value)
         else:
-            self.value = value
+            self.value = float(value)
     
     def __str__(self) -> str:
-        """String representation of the connector"""
+        """문자열 표현"""
         return f"{self.name}: {self.value}"
     
-    def __format__(self, format_spec: str) -> str:
-        """Format the heat flux value according to the format specification"""
-        return format(self.value, format_spec)
-    
     def __float__(self) -> float:
-        """Convert to float by returning the heat flux value"""
-        return float(self.value)
+        """float로 변환"""
+        return self.value
     
-    def connect(self, other: HeatFluxInput) -> None:  # Remove quotes around HeatFluxInput since it's now imported
+    def __repr__(self) -> str:
+        """객체 표현"""
+        return f"HeatFluxOutput({self.value}, name='{self.name}')"
+    
+    def connect(self, other: HeatFluxInput) -> None:
         """
-        Connect this output connector to a HeatFluxInput connector
+        HeatFluxInput에 연결
         
         Args:
-            other (HeatFluxInput): Input connector to connect with
-            
-        Raises:
-            TypeError: If the other connector is not of type HeatFluxInput
+            other (HeatFluxInput): 연결할 입력 연결자
         """
         if not isinstance(other, HeatFluxInput):
-            raise TypeError("Can only connect with HeatFluxInput type connectors")
-        other.value = self.value  # Note: direction is reversed compared to HeatFluxInput
+            raise TypeError("HeatFluxInput 타입의 연결자만 연결 가능")
+        other.value = self.value
